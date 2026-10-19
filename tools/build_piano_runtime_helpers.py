@@ -48,6 +48,7 @@ TOUCH_DIAGNOSTICS_PATCH=ROOT/'tools/patches/piano-touch-view-observability.patch
 TOUCH_CAPTURE_PATCH=ROOT/'tools/patches/piano-touch-view-raw-capture.patch'
 TOUCH_PEN_PATCH=ROOT/'tools/patches/piano-touch-view-pen-owner.patch'
 TOUCH_EPOCH_PATCH=ROOT/'tools/patches/piano-touch-view-epoch-reset.patch'
+TOUCH_LINE_NOISE_PATCH=ROOT/'tools/patches/piano-touch-view-line-noise.patch'
 CAMERAD_CCM_PATCH=ROOT/'tools/patches/piano-camerad-writable-ccm.patch'
 CAMERAD_AE_PATCH=ROOT/'tools/patches/piano-camerad-stable-ae.patch'
 CAMERAD_FRAME_PATCH=ROOT/'tools/patches/piano-camerad-frame-integrity.patch'
@@ -89,7 +90,7 @@ def derive_touch_source(public, output):
     folder=Path(output)/'piano-touch-source';target=folder/relative
     target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(original,target)
     patches=[]
-    for patch in (TOUCH_DIAGNOSTICS_PATCH,TOUCH_CAPTURE_PATCH,TOUCH_PEN_PATCH,TOUCH_EPOCH_PATCH):
+    for patch in (TOUCH_DIAGNOSTICS_PATCH,TOUCH_CAPTURE_PATCH,TOUCH_PEN_PATCH,TOUCH_EPOCH_PATCH,TOUCH_LINE_NOISE_PATCH):
         if patch==TOUCH_PEN_PATCH:
             subprocess.run(['patch','--batch','--forward','--fuzz=0',
                             '--no-backup-if-mismatch','-p1','-i',str(patch)],cwd=folder,check=True)
