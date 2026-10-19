@@ -660,9 +660,8 @@ def execute(record):
                  '--kernel-build', record['kernel_build'], '--output', bundle, '--sysroot', rootfs,
                  '--cc', helper_cc, '--macros', record['macros'], '--v4l2-source', record['v4l2_source']])
             runtime.stage(bundle, rootfs)
-        fw = Path(record['firmware_source']); run(['sha256sum', '--check', '--quiet', 'SHA256SUMS'], fw / 'firmware')
-        shutil.copytree(fw / 'firmware', rootfs / 'usr/lib/firmware', dirs_exist_ok=True)
-        shutil.copytree(fw / 'LICENSES', rootfs / 'usr/share/doc/piano-firmware/LICENSES', dirs_exist_ok=True)
+        from stage_piano_firmware import stage as stage_firmware
+        stage_firmware(Path(record['firmware_source']), rootfs)
         apply_policy(rootfs, out, cfg)
         boot_request = native_boot_request(rootfs, out)
         sanitize(rootfs, out)

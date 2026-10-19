@@ -47,10 +47,8 @@ def stage(args):
     modules.stage(root, args.kernel, old_modules)
     runtime.stage(args.runtime.resolve(), root)
     fw = ROOT / cfg['firmware']['source']
-    subprocess.run(['sha256sum', '--check', '--quiet', 'SHA256SUMS'],
-                   cwd=fw / 'firmware', check=True)
-    shutil.copytree(fw / 'firmware', root / 'usr/lib/firmware', dirs_exist_ok=True)
-    shutil.copytree(fw / 'LICENSES', root / 'usr/share/licenses/piano-firmware', dirs_exist_ok=True)
+    from stage_piano_firmware import stage as stage_firmware
+    stage_firmware(fw, root)
     # Use the reviewed, patched sensor importer source; Debian packaging itself
     # is not installed in Arch.
     sensor = args.sensor_source.resolve() / 'piano-sensors'

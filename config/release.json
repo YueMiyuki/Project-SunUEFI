@@ -63,7 +63,8 @@
   "firmware": {
     "source": "upstream/piano-firmware-current",
     "commit": "05fc37c09ca8146eecfc4920f8485479db140ae5",
-    "manifest": "firmware/SHA256SUMS"
+    "manifest": "firmware/SHA256SUMS",
+    "overlays": ["vendor/firmware/hyperos4-adsp/manifest.json"]
   },
   "mesa": {
     "source": "upstream/piano-mesa-current",
