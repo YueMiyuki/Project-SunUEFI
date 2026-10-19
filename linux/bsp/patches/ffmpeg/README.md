@@ -1,16 +1,22 @@
 # FFmpeg stateful decoder BSP adaptation
 
-`series.json` fixes FFmpeg 7.1.5 and the distro-neutral patch. Stage a fresh
-copy with `tools/prepare_ffmpeg_source.py --output build/<new-directory>`.
-Do not edit fixed upstream source or apply this patch to a different FFmpeg
-version with fuzz.
+The default rootfs builders install complete distribution packages with the
+stateful V4L2 decoder fixes:
 
-The ARM64 minimal CLI is a prototype for real device decoding, not the
-release ffmpeg package. See [the codec development notes](../../../../docs/devel/piano-video-codec.md)
-for the captured failure, state handling, build command, known reference
-lifetime limitation and Debian/Arch package integration route.
+| Target | Source and patch series | Package builder |
+| --- | --- | --- |
+| Debian GNOME / KDE | FFmpeg 7.1.5, `series.json` | `tools/build_ffmpeg_packages.py` |
+| SteamOS | FFmpeg 7.1.5, `series.json` | `tools/build_arch_ffmpeg.py` |
+| Nyarch | FFmpeg 9.0.2, `series-9.json` | `tools/build_arch_ffmpeg.py` |
 
-The sunuefi3 series was verified on the real g086 kernel with a synthetic
-12-frame 640x480 H.264 decode and a short encoder comparison. The encoder
-bitstream matched the system baseline byte for byte. DRC/reallocation,
-playback timing and the complete distro packages still need validation.
+Arch packages preserve the installed codec configuration, dependencies,
+epoch and library ABI. A different upstream ABI needs its own patch port.
+Source archives and patches are checksum-pinned and applied without fuzz.
+Stage a copy with `tools/prepare_ffmpeg_source.py --output build/<new-directory>`;
+add `--series linux/bsp/patches/ffmpeg/series-9.json` for FFmpeg 9.
+
+Real Iris hardware has decoded and encoded the 12-frame H.264 sample with
+both versions. The full FFmpeg 9 package was built and installed on Nyarch.
+Resolution-change playback still needs the capture-pool lifetime patches in
+`drafts/` and the companion Iris kernel fixes; these are not enabled by either
+series yet. See [the codec development notes](../../../../docs/devel/piano-video-codec.md).
