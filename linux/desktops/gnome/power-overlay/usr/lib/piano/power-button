@@ -1,35 +1,38 @@
 #!/usr/bin/python3
 # SPDX-License-Identifier: GPL-2.0-only
-"""Piano GNOME power key and real SW_LID, using the existing user service.
+"""GNOME power key/lid policy using standard input and asynchronous D-Bus.
 
-Adapted from debian-piano 25babfe3ff5d8ddee98b1e0ea88152d69a0c01b1.
-Short press/closed cover lock the session and power down the display. The
-compositor also receives the physical key, so opening the cover or pressing
-power wakes the display to the lock screen. Long press opens the standard
-GNOME power menu. Input is observed without grabbing it.
+The kernel reports KEY_POWER/SW_LID. GNOME owns session authentication and
+DRM display power. This helper only supplies the short/long-press policy
+missing from GNOME's power-button settings; it never grabs the input device.
 """
 import fcntl
 import glob
 import os
-import select
 import struct
-import subprocess
 import sys
 import time
 
+from gi.repository import Gio, GLib
+
 KEY_NAME = 'pmic_pwrkey'
 LID_NAME = 'soc:piano-hall-ml'
-KEY_POWER = 116
-SW_LID = 0
+KEY_POWER, SW_LID = 116, 0
 EV_KEY, EV_SW, EV_SYN, SYN_DROPPED = 1, 5, 0, 3
-LONG_PRESS = 0.8
-# _IOR('E', 0x1b, an eight-byte bitmap): read the current switch state.
+LONG_PRESS_MS = 800
 EVIOCGSW = (2 << 30) | (8 << 16) | (ord('E') << 8) | 0x1b
+EVIOCSCLOCKID = (1 << 30) | (4 << 16) | (ord('E') << 8) | 0xa0
 EVENT = struct.Struct('llHHi')
 
 
 def say(message):
     print('power-button: ' + message, file=sys.stderr, flush=True)
+
+
+def proxy(name, path, interface, bus=Gio.BusType.SESSION):
+    return Gio.DBusProxy.new_for_bus_sync(
+        bus, Gio.DBusProxyFlags.NONE, None,
+        name, path, interface, None)
 
 
 def find_device(name):
@@ -43,56 +46,6 @@ def find_device(name):
     return None
 
 
-def find_backlight():
-    names = sorted(os.listdir('/sys/class/backlight'))
-    return names[0] if names else None
-
-
-def brightness(backlight):
-    with open(f'/sys/class/backlight/{backlight}/brightness') as stream:
-        return int(stream.read())
-
-
-def call(args, operation):
-    try:
-        result = subprocess.run(args, stdout=subprocess.DEVNULL, check=False, timeout=4)
-        if result.returncode == 0:
-            return True
-        say(f'{operation} failed ({result.returncode})')
-    except (OSError, subprocess.TimeoutExpired) as error:
-        say(f'{operation} failed: {error}')
-    return False
-
-
-def set_brightness(backlight, value):
-    """Fallback when the compositor cannot drive DPMS."""
-    return call(['gdbus', 'call', '--system', '--dest', 'org.freedesktop.login1',
-                 '--object-path', '/org/freedesktop/login1/session/auto',
-                 '--method', 'org.freedesktop.login1.Session.SetBrightness',
-                 'backlight', backlight, str(value)], 'backlight request')
-
-
-def display_power(off):
-    return call(['gdbus', 'call', '--session',
-                 '--dest', 'org.gnome.Mutter.DisplayConfig',
-                 '--object-path', '/org/gnome/Mutter/DisplayConfig',
-                 '--method', 'org.freedesktop.DBus.Properties.Set',
-                 'org.gnome.Mutter.DisplayConfig', 'PowerSaveMode',
-                 '<int32 3>' if off else '<int32 0>'], 'display power request')
-
-
-def lock_session():
-    return call(['gdbus', 'call', '--session', '--dest', 'org.gnome.ScreenSaver',
-                 '--object-path', '/org/gnome/ScreenSaver',
-                 '--method', 'org.gnome.ScreenSaver.Lock'], 'session lock')
-
-
-def power_dialog():
-    call(['gdbus', 'call', '--session', '--dest', 'org.gnome.SessionManager',
-          '--object-path', '/org/gnome/SessionManager',
-          '--method', 'org.gnome.SessionManager.Shutdown'], 'power menu')
-
-
 def lid_closed(fd):
     bitmap = bytearray(8)
     fcntl.ioctl(fd, EVIOCGSW, bitmap, True)
@@ -101,39 +54,99 @@ def lid_closed(fd):
 
 class Screen:
     def __init__(self):
-        self.saved = None
-        self.dpms = False
+        self.display = proxy('org.gnome.Mutter.DisplayConfig',
+                             '/org/gnome/Mutter/DisplayConfig',
+                             'org.gnome.Mutter.DisplayConfig')
+        self.saver = proxy('org.gnome.ScreenSaver', '/org/gnome/ScreenSaver',
+                           'org.gnome.ScreenSaver')
+        self.session = proxy('org.gnome.SessionManager', '/org/gnome/SessionManager',
+                             'org.gnome.SessionManager')
+        user = proxy('org.freedesktop.login1',
+                     f'/org/freedesktop/login1/user/_{os.getuid()}',
+                     'org.freedesktop.login1.User', Gio.BusType.SYSTEM)
+        display_session = user.get_cached_property('Display')
+        self.login_session = None
+        if display_session and display_session.unpack()[1] != '/':
+            self.login_session = proxy('org.freedesktop.login1',
+                                       display_session.unpack()[1],
+                                       'org.freedesktop.login1.Session',
+                                       Gio.BusType.SYSTEM)
+        self.generation = 0
+        self.pending_blank = False
         self.cover_closed = None
+        self.mode = self.power_mode()
+        self.unblanked_at = float('-inf')
+        self.display.connect('g-properties-changed', self.power_changed)
+
+    def power_mode(self):
+        value = self.display.get_cached_property('PowerSaveMode')
+        return value.unpack() if value is not None else -1
+
+    def power_changed(self, _proxy, changed, _invalid):
+        values = changed.unpack()
+        if 'PowerSaveMode' not in values:
+            return
+        mode = values['PowerSaveMode']
+        if self.mode > 0 and mode == 0:
+            self.unblanked_at = time.monotonic()
+        self.mode = mode
+
+    def call(self, target, method, args=None, done=None):
+        def finished(source, result):
+            try:
+                reply = source.call_finish(result)
+            except GLib.Error as error:
+                say(f'{method} failed: {error.message}')
+                if done:
+                    done(None)
+            else:
+                if done:
+                    done(reply.unpack())
+        target.call(method, args, Gio.DBusCallFlags.NONE, 15000, None, finished)
+
+    def display_power(self, off):
+        self.call(self.display, 'org.freedesktop.DBus.Properties.Set',
+                  GLib.Variant('(ssv)', ('org.gnome.Mutter.DisplayConfig',
+                                        'PowerSaveMode', GLib.Variant('i', 3 if off else 0))))
 
     def blank(self):
-        # Lock first, then power the panel down through the compositor. Fall
-        # back to the backlight only if Mutter cannot drive DPMS.
-        if not self.dpms:
-            lock_session()
-            self.dpms = display_power(True)
-        if self.dpms:
-            return
-        backlight = find_backlight()
-        if backlight is None or self.saved is not None:
-            return
-        saved = brightness(backlight) or 1
-        if set_brightness(backlight, 0):
-            self.saved = (backlight, saved)
+        self.generation += 1
+        request = self.generation
+        self.pending_blank = True
+
+        def locked(reply):
+            # A wake/open-cover request invalidates every delayed blank callback.
+            if request != self.generation:
+                return
+            self.pending_blank = False
+            if reply is not None:
+                self.display_power(True)
+
+        def active(reply):
+            if request != self.generation:
+                return
+            if reply is None:
+                self.pending_blank = False
+            elif (reply[0] and self.login_session is not None and
+                  self.login_session.get_cached_property('LockedHint') is not None and
+                  self.login_session.get_cached_property('LockedHint').unpack()):
+                locked(())
+            else:
+                self.call(self.saver, 'Lock', done=locked)
+
+        self.call(self.saver, 'GetActive', done=active)
 
     def wake(self):
-        if self.dpms:
-            self.dpms = not display_power(False)
-            return
-        if self.saved is not None:
-            backlight, value = self.saved
-            if set_brightness(backlight, value):
-                self.saved = None
+        self.generation += 1
+        self.pending_blank = False
+        self.display_power(False)
 
-    def toggle(self):
-        if not self.dpms and self.saved is None:
-            self.blank()
-        else:
-            self.wake()
+    def press_wakes(self, event_time):
+        # Mutter may process the same physical press before this observer.
+        # Include an OFF->ON transition concurrent with this key event, rather
+        # than treating the wake press as another instruction to turn it off.
+        just_woke = abs(event_time - self.unblanked_at) < 0.25
+        return self.mode > 0 or self.pending_blank or just_woke
 
     def lid(self, closed):
         if closed == self.cover_closed:
@@ -144,75 +157,111 @@ class Screen:
         else:
             self.wake()
 
+    def power_dialog(self):
+        self.wake()
+        self.call(self.session, 'Shutdown')
+
+
+class Inputs:
+    def __init__(self, screen):
+        self.screen = screen
+        self.devices = {}
+        self.dropped = set()
+        self.long_press = 0
+        self.pressed = False
+        self.press_wake = False
+
+    def cancel_press(self):
+        if self.long_press:
+            GLib.source_remove(self.long_press)
+            self.long_press = 0
+        self.pressed = False
+
+    def held(self):
+        self.long_press = 0
+        self.pressed = False
+        self.screen.power_dialog()
+        return GLib.SOURCE_REMOVE
+
+    def close(self, fd):
+        if self.devices.pop(fd, None) == KEY_NAME:
+            self.cancel_press()
+        self.dropped.discard(fd)
+        os.close(fd)
+        return GLib.SOURCE_REMOVE
+
+    def read(self, fd, condition):
+        if condition & (GLib.IO_HUP | GLib.IO_ERR | GLib.IO_NVAL):
+            return self.close(fd)
+        try:
+            data = os.read(fd, EVENT.size * 64)
+        except BlockingIOError:
+            return GLib.SOURCE_CONTINUE
+        except OSError:
+            return self.close(fd)
+        if not data:
+            return self.close(fd)
+        for offset in range(0, len(data) - EVENT.size + 1, EVENT.size):
+            sec, usec, etype, code, value = EVENT.unpack_from(data, offset)
+            if fd in self.dropped:
+                if etype == EV_SYN and code == 0:
+                    self.dropped.discard(fd)
+                    if self.devices[fd] == LID_NAME:
+                        self.screen.lid(lid_closed(fd))
+                continue
+            if etype == EV_SYN and code == SYN_DROPPED:
+                self.dropped.add(fd)
+                if self.devices[fd] == KEY_NAME:
+                    self.cancel_press()
+                continue
+            if self.devices[fd] == LID_NAME:
+                if etype == EV_SW and code == SW_LID:
+                    self.screen.lid(bool(value))
+            elif etype == EV_KEY and code == KEY_POWER:
+                if value == 1:
+                    self.cancel_press()
+                    self.pressed = True
+                    self.press_wake = self.screen.press_wakes(sec + usec / 1e6)
+                    self.long_press = GLib.timeout_add(LONG_PRESS_MS, self.held)
+                elif value == 0 and self.pressed:
+                    self.cancel_press()
+                    if self.press_wake:
+                        self.screen.wake()
+                    else:
+                        self.screen.blank()
+        return GLib.SOURCE_CONTINUE
+
+    def discover(self):
+        for name in (KEY_NAME, LID_NAME):
+            if name in self.devices.values():
+                continue
+            path = find_device(name)
+            if not path:
+                continue
+            fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK)
+            try:
+                fcntl.ioctl(fd, EVIOCSCLOCKID, struct.pack('i', time.CLOCK_MONOTONIC))
+                if name == LID_NAME:
+                    self.screen.lid(lid_closed(fd))
+            except OSError:
+                os.close(fd)
+                raise
+            self.devices[fd] = name
+            GLib.io_add_watch(fd, GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR | GLib.IO_NVAL,
+                              self.read)
+        return GLib.SOURCE_CONTINUE
+
 
 def main():
-    # Only these two exact devices are opened. Touch/keyboards are not read.
-    devices = {}
-    dropped = set()
-    screen = Screen()
-    pressed_at = None
+    inputs = Inputs(Screen())
+    inputs.discover()
+    GLib.timeout_add_seconds(2, inputs.discover)
     try:
-        while True:
-            names = set(devices.values())
-            for name in (KEY_NAME, LID_NAME):
-                if name in names:
-                    continue
-                path = find_device(name)
-                if path is None:
-                    continue
-                fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC)
-                try:
-                    if name == LID_NAME:
-                        # SW_LID reports state, not just transitions. A cover
-                        # already closed at service startup must also blank.
-                        screen.lid(lid_closed(fd))
-                except OSError:
-                    os.close(fd)
-                    raise
-                devices[fd] = name
-            timeout = 2.0
-            if pressed_at is not None:
-                timeout = min(timeout, max(0.0, pressed_at + LONG_PRESS - time.monotonic()))
-            ready, _, _ = select.select(list(devices), [], [], timeout)
-            if not ready and pressed_at is not None and time.monotonic() >= pressed_at + LONG_PRESS:
-                pressed_at = None
-                screen.wake()
-                power_dialog()
-            for fd in ready:
-                data = os.read(fd, EVENT.size * 64)
-                if not data:
-                    if devices[fd] == KEY_NAME:
-                        pressed_at = None
-                    os.close(fd)
-                    dropped.discard(fd)
-                    del devices[fd]
-                    continue
-                for off in range(0, len(data) - EVENT.size + 1, EVENT.size):
-                    _, _, etype, code, value = EVENT.unpack_from(data, off)
-                    if fd in dropped:
-                        if etype == EV_SYN and code == 0:  # SYN_REPORT
-                            dropped.discard(fd)
-                            if devices[fd] == LID_NAME:
-                                screen.lid(lid_closed(fd))
-                        continue
-                    if etype == EV_SYN and code == SYN_DROPPED:
-                        dropped.add(fd)
-                        if devices[fd] == KEY_NAME:
-                            pressed_at = None
-                        continue
-                    if devices[fd] == LID_NAME:
-                        if etype == EV_SW and code == SW_LID:
-                            screen.lid(bool(value))
-                        continue
-                    if etype == EV_KEY and code == KEY_POWER:
-                        if value == 1:
-                            pressed_at = time.monotonic()
-                        elif value == 0 and pressed_at is not None:
-                            pressed_at = None
-                            screen.toggle()
+        GLib.MainLoop().run()
     finally:
-        for fd in devices:
-            os.close(fd)
+        inputs.cancel_press()
+        for fd in list(inputs.devices):
+            inputs.close(fd)
 
 
 if __name__ == '__main__':

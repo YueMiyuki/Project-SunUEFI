@@ -1,60 +1,41 @@
-# 电源键与保护套合盖
+# 电源键、合盖与睡眠
 
-## 当前实现
+## 分工
 
-`linux/desktops/gnome/power-overlay/` 中的同一个电源键助手现在观察真实按键，不独占输入设备。短按电源或合盖先请求 GNOME 锁屏，再通过 Mutter 的显示电源接口关闭面板；再次短按或开盖恢复显示，不解除认证锁。长按仍打开 GNOME 关机菜单。背光调节仅作为显示电源接口调用失败时的回退。
+内核负责电源键和保护套开关上报、面板断电与恢复、系统挂起及唤醒。桌面策略使用 GNOME、logind 和 DRM 的标准接口；锁屏认证和长按关机菜单不放进内核。
 
-显示 PLL 保存恢复和 DPU 关屏顺序已进入默认内核。GNOME 默认 2 分钟空闲后熄屏并立即锁屏，电池供电 5 分钟、外接电源 10 分钟自动挂起；使用标准 dconf 设置，用户可以在桌面设置中修改。键盘背光默认 80%，后续恢复用户保存的亮度。构建时解除 `sleep.target` 和 `suspend.target` 的旧禁用，安装标准 systemd sleep 配置，使用 `mem/deep`；休眠、混合睡眠及先睡眠后休眠保持禁用。
+GNOME 的[电源键助手](../../linux/desktops/gnome/power-overlay/usr/lib/piano/power-button)只补充桌面尚未提供的按键策略：
 
-## 睡眠定位
+- 短按电源或合盖：锁屏并关闭显示。
+- 再次短按或开盖：显示锁屏页面，仍需正常解锁。
+- 长按电源：打开 GNOME 关机菜单。
 
-`tools/build_piano_full_kernel.py --pm-debug` 可在同一源码和驱动配置上增加内核的 `CONFIG_PM_DEBUG`、`CONFIG_PM_SLEEP_DEBUG`，正常构建不启用此选项。它提供 `/sys/power/pm_test`，按内核[官方调试说明](https://docs.kernel.org/power/basic-pm-debugging.html)分阶段测试，避免把 USB 暂时断开直接当作整机重启。应同时记录启动 ID、恢复错误及触控/网络的实际状态；写入 `/sys/power/state` 返回成功也可能伴随驱动恢复失败。
+助手观察 `pmic_pwrkey` 的 `KEY_POWER` 和 `soc:piano-hall-ml` 的 `SW_LID`，不独占设备，不读取触摸或键盘内容。显示通过 `org.gnome.Mutter.DisplayConfig.PowerSaveMode` 控制，不以单独关闭背光代替面板断电。
 
-已经完成进程暂停和普通设备暂停、恢复测试。深层测试曾触发重启，也曾返回但 Wi-Fi 恢复失败；`BHI offset: 0xffffffff` 与恢复后的 PCI 配置全 `FF` 表明设备不可访问，后续固件等待超时是连带结果，尚未确定供电/复位恢复的最终修正。
+## 唤醒后再次灭屏的修正
 
-后续完整日志确定 PCIe 和 QMP PHY 驱动都设置了 `device_set_awake_path`，但 GCC 的两个电源域未设置 `GENPD_FLAG_ACTIVE_WAKEUP`，genpd 仍关闭供电，驱动又按链路保留路径恢复。默认内核增加 [`0029-sm8750-pcie-active-wakeup.patch`](../../patches/linux/7.2.9/0029-sm8750-pcie-active-wakeup.patch)，只在实际 awake path 上保留域，不强制常开。深层设备测试、实际 `freeze` 和 `mem/deep` 均通过，RTC 约二十秒后唤醒，同一启动 ID，恢复错误计数为零；触控恢复收帧、Wi-Fi 保持 D0、蓝牙保持开启。尚未测得待机耗电。
+旧助手同步等待 `org.gnome.ScreenSaver.Lock`，超时后仍继续灭屏；同时只记住自己上次发出的显示命令，无法识别 GNOME 自动熄屏或先处理了唤醒按键。这两种情况都可能把一次唤醒误处理成灭屏。
 
-带 RTC 定时唤醒的 `systemctl suspend` 已恢复，电源键也已实际唤醒并点亮屏幕。随后完整日志发现 ADSP 的 `qsh_process` 在恢复后报出 FastRPC listener 断言，ADSP 重启过程中又触发 `q6apm_is_adsp_ready` 的内核 Oops，第二次睡眠因工作队列无法冻结而失败。因此自动睡眠仍保持关闭。
+现在使用异步 D-Bus：先查询锁屏状态，已锁屏时不重复请求 `Lock`；锁屏期间仍能处理按键和开盖。每次唤醒会取消尚未完成的灭屏请求。显示状态来自 Mutter 的属性通知，并用输入事件的单调时钟区分刚唤醒屏幕的那次按键。
 
-原厂 `qcom,smp2p-sleepstate` 节点在 Linux 中此前未绑定，已增加原厂协议对应的睡眠通知候选：在睡眠准备时清除 AP-awake 第 12 位，恢复后置回。缺少通知与 FastRPC 断言的关系尚待实机确认；不能根据节点绑定或编译成功宣称解决。重启停在 `Rebooting` 的照片也确认旧内核未完成复位，强制重启后才开始运行新内核。
+已在设备上确认显示能够关闭、恢复，恢复后没有再次执行本助手的延迟灭屏。真实按键、触摸及 GNOME 自身空闲计时的组合仍需观察；本修正不禁用桌面自动熄屏。
 
-包含通知驱动的新内核完成了正常重启，驱动已绑定，ADSP 起初正常运行。随后二十秒 RTC 唤醒的桌面睡眠仍出现同一 FastRPC listener 断言及 `q6apm_is_adsp_ready` 的 Oops；systemd 日志明确显示用户会话已成功解冻。睡眠通知不能作为此故障的修复结论。当前需要分别定位 FastRPC 的睡眠恢复，以及 ADSP 重启时 `q6apm` 对象的生命周期问题，自动睡眠继续关闭。
+## 默认设置
 
-针对这两条路径增加两个内核补丁。`0032-asoc-q6apm-clear-global-on-remove.patch` 在设备移除前清除全局 APM 指针，并同步整个 readiness 查询，避免 DSP 重启时使用已释放对象。`0033-fastrpc-freeze-inflight-invoke.patch` 将用户 RPC 的等待改为 `TASK_INTERRUPTIBLE | TASK_FREEZABLE`：睡眠冻结时保留正在等待的请求，不因冻结打断 ioctl 后另发一个请求；普通信号仍能中断等待。后者是 FastRPC listener 断言的修复候选，需要带实际传感器进程验证，不能仅凭编译或节点绑定宣布解决。
+[标准 dconf 配置](../../linux/desktops/gnome/power-overlay/etc/dconf/db/local.d/00-power)设置 2 分钟空闲熄屏、使用电池时 5 分钟自动挂起、外接电源时 10 分钟自动挂起。键盘背光默认 80%，后续沿用用户保存的亮度。用户可在系统设置里修改这些偏好。
 
-包含两处修正的 `g06dc05db1306` 内核已部署。两轮桌面睡眠均通过二十秒 RTC 唤醒，ADSP 保持 running，音频、传感器和蓝牙服务保持 active，未再记录 FastRPC 断言或内核 Oops；每轮睡眠后普通重启均完成，启动 ID 改变，不需要强制关机。这支持原来的关机卡死与 DSP 崩溃后的恢复工作队列有关，但不能据此排除其他重启问题。默认策略已同步到 GNOME overlay 和 Arch/Nyarch 组装入口，Debian GNOME 由同一个 stager 安装。尚未测得待机耗电。
+构建启用 `sleep.target` 和 `suspend.target`，使用 `mem/deep`。休眠、混合睡眠及先睡眠后休眠保持禁用。
 
-诊断用 [`piano-pm-log.dtso`](../../linux/dts/drafts/piano-pm-log.dtso)保持现有 4 MiB 预留区不变，将 Linux console 放到后一半，避免下一轮 UEFI 的 2 MiB 日志覆盖它。该布局不进入正常发布配置。若故障发生在控制台暂停期间，还需要临时将 `/sys/module/printk/parameters/console_suspend` 设为 `N`，定位后恢复为 `Y`。
+## 内核适配
 
-## 早期方案与故障记录
+- 显示 PLL 保存恢复、双 DSI 关闭顺序、DPU 停止顺序和 PHY 运行时时钟由 `patches/linux/7.2.9/` 的显示补丁处理。
+- `0029-sm8750-pcie-active-wakeup.patch` 在真实唤醒链路上保留 PCIe 电源域，避免恢复后 Wi-Fi 的 PCI 配置不可读。
+- `0030-soc-qcom-smp2p-sleepstate.patch` 向原厂固件通知 AP 睡眠状态；它不能单独解决全部 ADSP 恢复问题。
+- `0032-asoc-q6apm-clear-global-on-remove.patch` 修正 ADSP 重启时的全局对象生命周期。
+- `0033-fastrpc-freeze-inflight-invoke.patch` 处理睡眠时等待中的 FastRPC 调用。
 
-以下记录描述已替换的背光方案，以及当时暂缓锁屏的原因。
+设备已完成 RTC 和电源键唤醒；待机耗电仍需优化。调试睡眠时以同一启动 ID、恢复错误和触控／网络实际状态判断结果，不能仅凭 USB 断开就认定挂起或重启成功。
 
-本地 GNOME 适配位于 `linux/desktops/gnome/power-overlay/`，复用 `piano-power-button.service` 和同名helper，基于固定 debian-piano `25babfe3ff5d8ddee98b1e0ea88152d69a0c01b1`；不修改upstream，不增加另一个daemon。
+## 构建接入
 
-当前源码行为：短按切换背光，长按0.8秒打开GNOME关机/重启菜单；真实SW_LID闭盖关背光，开盖恢复此前保存的实际亮度。它只打开准确命名的`pmic_pwrkey`和`soc:piano-hall-ml`，仅grab电源键，hall不独占。hall打开时先用`EVIOCGSW`查询当前状态，所以服务启动前已闭盖也能处理；丢事件后跳过队列至SYN_REPORT，再查询当前开关状态。udev仅给这两个event设备添加当前会话的uaccess权限，不读取触摸或键盘事件。
-
-通过标准logind Session.SetBrightness控制背光，不做DPMS/DRM modeset。保留HandlePowerKey/LongPress/LidSwitch=ignore和idle-delay=0，避免和桌面/系统重复处理。源码已接入完整 GNOME stager 和多发行版 GNOME 组装入口，并部署到当前 Linux。原有服务已重新加载且全局启用，实际 FD 仅指向电源 event3 和 hall event1；未操作触屏/键盘 FIFO。物理合盖、短按和长按仍待现场配合，未执行睡眠，也没有新增模拟测试。
-
-**这还不是完整锁屏或睡眠。** 目标仍是“短按锁屏关屏、长按关机菜单、合盖锁屏关屏后睡眠”。目前短按/合盖不调用Lock或Suspend；锁屏不能用背光0冒充，睡眠暂缺的是底层恢复验证，与是否设置密码无关。
-
-显示侧已准备独立 [关屏时序草案](../../patches/linux/7.2.9/drafts/piano-nt36532-stock-off-delays.patch)：原厂最终DT的BOE/CSOT各模式均要求DCS `0x28` 后20ms、`0x10` 后100ms，当前驱动使用10ms/65ms。草案只把Piano参数恢复为原厂值，未接入当前内核或实机验证。已有PLL/clock警告发生于初始probe；系统关机红屏记录也不是DPMS恢复测试，不能据此把此草案称作黑屏/睡眠修复。还需要同一模式下受控的OFF→ON日志，再处理具体时钟/复位故障。
-
-2026-10-08的a8同模式OFF→ON已有实际故障记录：12:07:49关屏后，DSI1的 `pclk1`、`byte1_intf`、`byte1` 在 `dsi_link_clk_disable_6g` 返回偏移 `+0x34/+0x48/+0x5c` 报stuck-on；实际目标对象反汇编确认它们来自正常 `post_disable` 的第二个 `power_off(host1)`，host0此前已关。12:07:51恢复ON后反复 `status=4` 只证明FIFO错误；日志没有原始FIFO_STATUS子位，不能把它称为PLL失锁。固定[原厂clock manager](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/dsi/dsi_clk_manager.c#L742)要求先停slave link/core clocks、再停clock master，最后才关PLL。[对应小补丁](../../patches/linux/7.2.9/0008-dsi-bonded-stop-slave-first.patch)仅把正常bonded路径改为host1先、host0后，与已有错误回退路径一致；HALT检查、PLL/PHY保存恢复及面板时序不变。补丁尚未实机验证，不据此启用锁屏或宣称休眠恢复正常。
-
-## 为什么暂不追加 GNOME Lock
-
-对应现场版本的一手源码给出明确链路：
-
-- [GNOME Shell 48.7 `js/ui/screenShield.js`, 603–628行](https://github.com/GNOME/gnome-shell/blob/48.7/js/ui/screenShield.js#L603)：手动Lock不检查`lock-enabled`；调用activate后，PasswordMode不是NONE便设置locked。它没有按AccountsService.Locked拒绝不可解锁账号。551–582行的activate会触发ActiveChanged，源码也说明该signal使gsd blank。
-- [gnome-settings-daemon 48.1 `plugins/power/gsd-power-manager.c`, 2251–2267行](https://github.com/GNOME/gnome-settings-daemon/blob/48.1/plugins/power/gsd-power-manager.c#L2251)：收到ActiveChanged(true)立即进入BLANK；1803行调用backlight_disable，1306–1309行释放ALS并设置Mutter PowerSaveMode OFF。1937–1950行另加screensaver blank timer。`idle-delay=0`、`lock-enabled=false`及普通idle inhibitor均不会挡住这条锁屏后的DPMS路径。
-
-现场已只读确认：piano账号Locked=true、PasswordMode=0，GNOME lock-enabled=false、GetActive=false、session1 LockedHint=false。**此时直接发Lock仍可能同时进入认证锁屏和DPMS off**；不能把“lock-enabled=false”理解成安全无动作。owner之后设置密码，显示侧也走同一DPMS路径，仍需先解决原生DSI重新启用问题。本轮未发Lock、未改密码或屏幕锁设置，不修改GSD来掩盖显示驱动问题，也不伪写LockedHint。
-
-logind LockedHint是桌面提供的提示，并不是设置它就完成锁屏：[systemd v257 login1接口](https://github.com/systemd/systemd/blob/v257/man/org.freedesktop.login1.xml#L1317)。设备状态只是列出freeze/mem/disk与deep/s2idle时，不能据此宣称恢复可用。
-
-## 持久接入
-
-Root builder只在GNOME组装时覆盖同名helper/unit、udev、logind和dconf文件；helper0755，其他0644，root所有。使用已有graphical-session.target启用同一服务；dconf更新和udev权限刷新后由正常会话生效。当前BSP通用manifest排除了GNOME power/logind组件，因此不能把本目录悄悄加入通用配置包或其他桌面。完整 userspace stager 复制公开 overlay 后应用这组本地适配；发布 builder 和通用 GNOME 组装使用同一安装函数。实际显示恢复修复并验证后，再接标准Lock/Suspend，不另建功能profile。
-
-后续标准策略已有待验证草案：停用独占evdev的旧helper，恢复GNOME的 `XF86PowerOff` 绑定，由media-keys请求logind Suspend，再由Shell的 `PrepareForSleep` 和delay inhibitor完成锁屏。覆盖原有dconf/logind路径，不能只删源码而让旧文件残留；新增全局用户unit mask后，已运行helper仍要等正常会话退出才释放EVIOCGRAB。当前设备hostname1已报告 `tablet`，不改machine-info或独立的 `vm-other` 检测事实。草案尚未应用，因为当前用户无可用解锁凭据，显示DPMS及完整睡眠恢复尚未验证；默认产品仍保持现有可用行为。
+GNOME 组装流程覆盖同名 helper、user unit、udev、logind 和 dconf 文件，仍使用原有 `piano-power-button.service`。更换程序后重启该用户服务即可生效；更换内核或设备树后正常重启。其他桌面使用各自的标准电源管理，本目录不作为通用 BSP 的额外守护进程安装。
