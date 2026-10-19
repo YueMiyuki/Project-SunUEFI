@@ -174,8 +174,6 @@ def scan_root(root, release):
                     parts.pop()
                 else:
                     parts.append(part)
-            require(parts and parts[0] in ('bin', 'sbin', 'lib', 'lib64', 'usr', 'etc', 'var', 'run', 'proc', 'sys', 'dev', 'root', 'home', 'opt', 'tmp', 'boot'),
-                    'Host symlink in rootfs: ' + name)
             # Resolve chains in the guest namespace to catch escapes/loops.
             # Optional software can supply a link target after installation
             # (SteamOS libopenvr_api.so -> /opt/steamvr/...). tar and mke2fs

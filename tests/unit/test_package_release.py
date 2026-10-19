@@ -103,6 +103,8 @@ class ReleasePackageTests(unittest.TestCase):
         (self.root / 'usr/lib').mkdir(parents=True)
         optional = self.root / 'usr/lib/libopenvr_api.so'
         optional.symlink_to('/opt/steamvr/bin/linuxarm64/libopenvr_api.so')
+        (self.root / 'boot').mkdir()
+        (self.root / 'boot/efi').symlink_to('../efi')
         pr.scan_root(self.root, '6.6-fixture')
         self.assertEqual(os.readlink(optional), '/opt/steamvr/bin/linuxarm64/libopenvr_api.so')
 
