@@ -5,21 +5,14 @@ Subject: [PATCH] drm/msm: stage Piano VFP-only mode changes at frame
  boundaries
 
 Use the stock DSI timing DB and flush sequence, paired with DPU interface shadow timing updates. Keep panel power, DSC and touch firmware alive for modes with unchanged link clocks, horizontal timing and sync widths. Restrict initial use to the reviewed Piano video pipeline without programmable prefetch; other mode changes retain full modesets. Source reference: MiCode/vendor_opensource_display-drivers aa06fd1757c28dce96fbe4e04d4530ec21b52aac dsi_ctrl_async_timing_update and dsi_bridge_post_kickoff.
----
- drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c    | 60 +++++++++++++++++++++
- drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.h    |  1 +
- drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c | 53 ++++++++++++++++++
- drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.h |  5 ++
- drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c | 12 +++++
- drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.h |  1 +
- drivers/gpu/drm/msm/dsi/dsi.h               |  2 +
- drivers/gpu/drm/msm/dsi/dsi_host.c          | 24 +++++++++
- drivers/gpu/drm/msm/dsi/dsi_manager.c       | 15 ++++++
- drivers/gpu/drm/msm/msm_drv.h               |  7 +++
- 10 files changed, 180 insertions(+)
 
+Allow ordinary atomic gamma updates alongside VFP changes. GNOME submits
+color_mgmt_changed with a refresh-rate update even when routing is unchanged.
+CTM enable/disable still requires a full modeset.
+
+---
 diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
-index 59330efc662..d2c4d1a4c29 100644
+index 59330efc662..c6b245207f9 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
 @@ -754,6 +754,20 @@ void dpu_crtc_frame_event_cb(struct drm_crtc *crtc, u32 event)
@@ -66,7 +59,7 @@ index 59330efc662..d2c4d1a4c29 100644
  
  	return &cstate->base;
  }
-@@ -1560,6 +1583,38 @@ int dpu_crtc_check_mode_changed(struct drm_crtc_state *old_crtc_state,
+@@ -1560,6 +1583,39 @@ int dpu_crtc_check_mode_changed(struct drm_crtc_state *old_crtc_state,
  	return 0;
  }
  
@@ -79,7 +72,8 @@ index 59330efc662..d2c4d1a4c29 100644
 +
 +	if (!old->active || !new->active || !new->mode_changed ||
 +	    new->active_changed || new->connectors_changed ||
-+	    new->color_mgmt_changed || old->encoder_mask != new->encoder_mask ||
++	    !!old->ctm != !!new->ctm ||
++	    old->encoder_mask != new->encoder_mask ||
 +	    hweight32(new->encoder_mask) != 1 || old->self_refresh_active ||
 +	    new->self_refresh_active)
 +		return false;
@@ -105,7 +99,7 @@ index 59330efc662..d2c4d1a4c29 100644
  static int dpu_crtc_atomic_check(struct drm_crtc *crtc,
  		struct drm_atomic_commit *state)
  {
-@@ -1643,6 +1698,11 @@ static int dpu_crtc_atomic_check(struct drm_crtc *crtc,
+@@ -1643,6 +1699,11 @@ static int dpu_crtc_atomic_check(struct drm_crtc *crtc,
  		return rc;
  	}
  
@@ -357,6 +351,3 @@ index 3d5679be488..6b45a13aabd 100644
  static inline struct drm_dsc_config *msm_dsi_get_dsc_config(struct msm_dsi *msm_dsi)
  {
  	return NULL;
--- 
-2.56.0
-
