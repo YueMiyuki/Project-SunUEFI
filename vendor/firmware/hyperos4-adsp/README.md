@@ -18,7 +18,7 @@ ADSP，不改其他设备固件，也不写入 Android 固件分区。
 
 内核 MiPPS 认证候选位于
 [`0040-power-piano-native-mipps.patch`](../../../patches/linux/7.2.9/drafts/0040-power-piano-native-mipps.patch)。
-它在现有充电工作队列内完成 HMAC-SHA256 挑战应答，使用标准
+该候选应用在默认的 `0041`、`0042` 补丁之后。它在现有充电工作队列内完成 HMAC-SHA256 挑战应答，使用标准
 `power_supply` 的 `authentic` 属性报告结果，不另装认证服务，也不改动
 充电电流和温控上限。候选已在设备上加载并完成普通 PD 启动；小米充电器
 认证尚未实测，未加入默认发布补丁序列。当前要求 ADSP 提供有效的小米
