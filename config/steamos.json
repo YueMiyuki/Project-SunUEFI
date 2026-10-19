@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "architecture": "aarch64",
+  "reference": {
+    "repository": "https://github.com/hashtagbasit/SteamOS-ARM-Port",
+    "commit": "e54dac93afccf76e5fefe998399b6c1b1a23f3a1",
+    "extractor": "scripts/extract_rootfs.py",
+    "extractor_sha256": "f6e5840a6d14b08b026e20442ab4597af1d780bb779fea91cdd8c11fe2ffb378",
+    "license": "GPL-2.0"
+  },
+  "base": {
+    "build": "20261002.6232440",
+    "version": "0.5.3",
+    "bundle_url": "https://steamdeck-images.steamos.cloud/vr/20261002.6232440/deckard-20261002.6232440-0.5.3.raucb",
+    "bundle_sha256": "1f7994a8ba2dde7a3832f67acfa029ded35856f52f697be9720a3ec769dd60db",
+    "rootfs_sha256": "63950ce7f4654be7ad8b3060bbef63579a2758308ed14ed5d130d154ea98a8de",
+    "rootfs_bytes": 10737418240,
+    "stores": [
+      "https://steamdeck-images.steamos.cloud/vr/20261002.6232440/deckard-20261002.6232440-0.5.3.castr",
+      "https://steamdeck-images.steamos.cloud/vr/chunks.castr"
+    ]
+  },
+  "boot": {
+    "loader": "SunUEFI",
+    "root_selector": "LABEL=PIANOROOT",
+    "root_partlabel": "sunuefi_root",
+    "esp_partlabel": "sunuefi_esp"
+  },
+  "ffmpeg": {
+    "required": true,
+    "patch_series": "linux/bsp/patches/ffmpeg/series.json",
+    "package_format": "pacman",
+    "policy": "Rebuild the rootfs-compatible package; never install Debian libraries into SteamOS"
+  }
+}

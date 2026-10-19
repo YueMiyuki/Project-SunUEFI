@@ -1,2 +1,4 @@
 fonttools==4.66.1
 freetype-py==2.5.1
+requests==2.32.5
+zstandard==0.25.0

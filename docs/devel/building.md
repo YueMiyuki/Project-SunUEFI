@@ -69,6 +69,8 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 
 ### 软件包的本地构建
 
+SteamOS 的独立目标、原生 FFmpeg 软件包与相同 ESP/root 打包流程见 [SteamOS ARM64](steamos.md)。
+
 * **CPU 型号**：`linux/dts/piano-cpu-model.dtso` 给八个 CPU 节点加标准 `model` 属性，内核小补丁把它输出为 `/proc/cpuinfo` 的 `model name`，让 GNOME 显示 Snapdragon 8 Elite。MIDR、核心拓扑、时钟和板型号保持原值。
 * **gnome-settings-daemon**（`./build.sh gsd`）：在副本里编译带 Piano 自动亮度策略的标准包，使用原厂 lux 阈值和延迟，不修改传感器读数，再经 APT 安装。
 * **Mutter**（`./build.sh mutter`）：修正空 Gamma 曲线的恢复，以及无 EDID 的内置屏幕颜色配置。保留标准颜色服务和用户配置，不伪造 EDID；通用 sRGB 是未校准的默认值，不等于原厂色彩校准。来源与补丁见[Mutter 适配说明](../../linux/desktops/gnome/patches/mutter/README.md)。

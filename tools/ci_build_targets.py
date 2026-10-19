@@ -34,9 +34,13 @@ DRAFT_PREFIXES = ('patches/linux/7.2.9/drafts/', 'linux/dts/drafts/')
 
 def select(files, manual=None):
     if manual:
-        if manual not in ('uefi', 'linux', 'debian-gnome', 'debian-kde'):
+        if manual not in ('uefi', 'linux', 'debian-gnome', 'debian-kde', 'steamos'):
             raise ValueError('Unknown manual product target')
         return [manual]
+    files = list(files)
+    full = ['debian-gnome']
+    if any('steamos' in name or 'steam_client' in name or 'steam-client' in name for name in files):
+        full.append('steamos')
     uefi = False
     for name in files:
         # Candidates in these directories are not product inputs. Promoting
@@ -44,15 +48,15 @@ def select(files, manual=None):
         if name.startswith(DRAFT_PREFIXES):
             continue
         if name in FULL_FILES:
-            return ['debian-gnome']
+            return full
         if name in UEFI_FILES or name.startswith(UEFI_PREFIXES):
             uefi = True
         elif name.startswith(FULL_PREFIXES):
             # Full already builds UEFI, kernel, Mesa, sensors, root and installer.
-            return ['debian-gnome']
+            return full
     # A normal product push always delivers the matching module, ESP and root.
     # Firmware/kernel-only builds remain explicit maintainer dispatch options.
-    return ['debian-gnome'] if uefi else []
+    return full if uefi else []
 
 
 def changed_files(root, before):

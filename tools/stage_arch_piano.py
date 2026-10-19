@@ -37,9 +37,14 @@ def stage(args):
         raise ValueError('Stage only a privileged project build rootfs')
     cfg = json.loads((ROOT / 'config/release.json').read_text())
     kernel, kernel_hash = modules.inspect(args.kernel)
-    userspace.stage(root, ROOT / cfg['debian']['source'])
+    steamos = getattr(args, 'desktop', 'nyarch') == 'steamos'
+    userspace.stage(root, ROOT / cfg['debian']['source'],
+                    desktop='kde' if steamos else 'gnome')
     hardware.build(output / 'piano-adapters', ROOT / cfg['debian']['source'], root)
-    modules.stage(root, args.kernel)
+    old_modules = ([p.name for p in (root / 'usr/lib/modules').iterdir()
+                    if p.is_dir() and p.name != kernel['kernel_release']]
+                   if steamos and (root / 'usr/lib/modules').is_dir() else [])
+    modules.stage(root, args.kernel, old_modules)
     runtime.stage(args.runtime.resolve(), root)
     fw = ROOT / cfg['firmware']['source']
     subprocess.run(['sha256sum', '--check', '--quiet', 'SHA256SUMS'],
@@ -76,12 +81,13 @@ def stage(args):
     (root / 'usr/lib/systemd/system/ssh.service.d/piano.conf').unlink(missing_ok=True)
     # Standard libinput hardware defaults; no desktop-specific name spoofing.
     release.apply_policy(root, output, cfg)
-    put(root, 'usr/share/gnome-settings-daemon/ambient-profiles/piano.ini',
-        (ROOT / 'linux/desktops/gnome/ambient-policy/piano.ini').read_text())
+    if not steamos:
+        put(root, 'usr/share/gnome-settings-daemon/ambient-profiles/piano.ini',
+            (ROOT / 'linux/desktops/gnome/ambient-policy/piano.ini').read_text())
     put(root, 'etc/piano/linux-debug.conf', 'usb=acm-ncm\nshell=1\nrecovery_seconds=0\n')
     put(root, 'etc/chromium-flags.conf',
         (ROOT / 'linux/bsp/arch/chromium-flags.conf').read_text())
-    with guest_environment(root) as guest:
+    with release.build_resolver(root), guest_environment(root) as guest:
         guest(['pacman', '-S', '--needed', '--noconfirm', 'erofs-utils', 'device-mapper', 'rsync'])
         # The upstream demo account occupies UID 1000 in bootstrap tarballs.
         if subprocess.run(['chroot', root, 'id', 'alarm'], capture_output=True).returncode == 0:
@@ -95,17 +101,21 @@ def stage(args):
         guest(['systemctl', 'mask', 'hibernate.target',
                'hybrid-sleep.target', 'suspend-then-hibernate.target',
                'adsprpcd.service', 'adsprpcd_audiopd.service'])
-        guest(['systemctl', 'enable', 'gdm', 'NetworkManager', 'sshd', 'bluetooth',
+        guest(['systemctl', 'enable', 'sddm' if steamos else 'gdm', 'NetworkManager', 'sshd', 'bluetooth',
                'piano-usb', 'piano-touch', 'piano-radio', 'piano-adsp', 'piano-audio',
                'piano-video', 'piano-camera', 'piano-camerad', 'piano-keyboard',
                'piano-cpufreq', 'piano-hostkeys', 'adsprpcd-sensorspd'])
         guest(['systemctl', 'set-default', 'graphical.target'])
         guest(['depmod', '-a', kernel['kernel_release']])
-    from prepare_nyarch_material import prepare, UUID
-    extension_bundle = output / 'nyarch-shell-extensions'
-    shutil.copytree(args.extensions, extension_bundle)
-    prepare(args.desktop_source.resolve(), root, extension_bundle / UUID)
-    desktop = nyarch.stage(root, args.desktop_source, extension_bundle)
+    if steamos:
+        from stage_steamos_desktop import configure
+        desktop = configure(root)
+    else:
+        from prepare_nyarch_material import prepare, UUID
+        extension_bundle = output / 'nyarch-shell-extensions'
+        shutil.copytree(args.extensions, extension_bundle)
+        prepare(args.desktop_source.resolve(), root, extension_bundle / UUID)
+        desktop = nyarch.stage(root, args.desktop_source, extension_bundle)
     clock = release.clock_epoch(root)
     release.native_boot_request(root, output)
     # Shared static bootstrap is built from a signed Debian busybox input,
@@ -134,12 +144,13 @@ def stage(args):
                 item.unlink()
     packages = subprocess.check_output(['chroot', root, 'pacman', '-Q'], text=True)
     (output / 'packages.tsv').write_text(packages)
-    record = {'status': 'HOST_BUILT_NYARCH_ROOT_NOT_BOOT_VERIFIED',
-              'distro': 'nyarch', 'base': 'Arch Linux ARM rolling',
-              'desktop': 'gnome', 'kernel_release': kernel['kernel_release'],
+    record = {'status': 'HOST_BUILT_ROOT_NOT_BOOT_VERIFIED',
+              'distro': 'steamos' if steamos else 'nyarch',
+              'base': 'Valve SteamOS ARM64' if steamos else 'Arch Linux ARM rolling',
+              'desktop': 'kde' if steamos else 'gnome', 'kernel_release': kernel['kernel_release'],
               'kernel_commit': kernel['source_commit'], 'kernel_manifest_sha256': kernel_hash,
               'root_policy': 'LABEL=PIANOROOT', 'login': cfg['login'],
-              'nyarch': desktop, 'initramfs': boot, 'clock_epoch': clock,
+              'desktop_configuration': desktop, 'initramfs': boot, 'clock_epoch': clock,
               'firmware_commit': cfg['firmware']['commit'],
               'packages_sha256': release.digest(output / 'packages.tsv'),
               'runtime_manifest_sha256': release.digest(args.runtime / 'manifest.json')}
@@ -148,11 +159,15 @@ def stage(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('rootfs', 'kernel', 'runtime', 'sensor-source', 'desktop-source', 'bootstrap-sysroot'):
+    for name in ('rootfs', 'kernel', 'runtime', 'sensor-source', 'bootstrap-sysroot'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--desktop', choices=('nyarch', 'steamos'), default='nyarch')
+    parser.add_argument('--desktop-source', type=Path)
     parser.add_argument('--extensions', type=Path, default=ROOT / 'build/nyarch-extensions')
     parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.desktop == 'nyarch' and args.desktop_source is None:
+        parser.error('--desktop-source is required for Nyarch')
     if not args.worker:
         raise SystemExit(subprocess.run(['unshare', '--mount', '--propagation', 'private',
                                         sys.executable, __file__, *sys.argv[1:], '--worker']).returncode)

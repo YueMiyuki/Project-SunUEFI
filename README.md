@@ -186,7 +186,9 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 
 模块输出在 `artifacts/android/`，与 `artifacts/product/` 中的 UEFI 使用同一份核心。GitHub Actions 的 `uefi` 和 `debian-gnome` 目标都会同时构建并上传模块。
 
-完整的 Debian / GNOME 系统包需要 ARM64 构建机，以及允许 chroot 的 `--privileged` 容器，依次运行 `./build.sh linux`、`mesa`、`sensors`、`release-rootfs`、`package`、`installer`。需要主机检查时手动运行 `./build.sh check`，不用连接平板。完整流程、输入材料和各步骤的输出位置见[构建手册](docs/devel/building.md)与[公开构建链](docs/devel/public-build.md)。
+完整的 Debian / GNOME 系统包需要 ARM64 构建机，以及允许 chroot 的 `--privileged` 容器，依次运行 `./build.sh linux`、`mesa`、`sensors`、`ffmpeg --install-dependencies`、`release-rootfs`、`package`、`installer`。需要主机检查时手动运行 `./build.sh check`，不用连接平板。完整流程、输入材料和各步骤的输出位置见[构建手册](docs/devel/building.md)与[公开构建链](docs/devel/public-build.md)。
+
+**SteamOS ARM64（实验版）**：新增 `steamos` 构建目标，使用 Valve 的 ARM64 根系统、Steam 客户端、KDE 与 Gamescope，保留 SunUEFI 的启动方式和硬件适配，默认安装带 V4L2 修正的 FFmpeg。安装仍通过助手选择 ESP 和 root 镜像。首版默认进入 KDE，游戏模式和游戏兼容性尚未完成实机验证，详见 [SteamOS 构建说明](docs/devel/steamos.md)。
 
 ## 项目站在哪些项目之上
 
@@ -202,6 +204,7 @@ SunUEFI 不是从零重写所有东西。上游源码保持固定版本放在 `u
 | [piano-firmware](https://github.com/blu-sharky/piano-firmware) | Wi-Fi、蓝牙、DSP、触控等设备固件和功放预设 | 按来源装入系统；设备参数从本机原厂数据读取。它不是整套 HyperOS，也不含原厂相机算法 |
 | [piano-mesa](https://github.com/blu-sharky/piano-mesa) | Adreno 图形用户空间 | 与内核和根系统配套的 Mesa 软件包 |
 | [piano-sensors](https://github.com/blu-sharky/piano-sensors) | 高通传感器（SSC）通信与桌面桥接 | 数据类型、读取接口、标准 SensorProxy 与自动亮度策略 |
+| [SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port) | Valve ARM64 根系统提取方法和移动设备移植参考 | 复用固定版本提取器，接入 SunUEFI 的 ESP/root、内核及 BSP；不采用其设备启动器和分区方案 |
 | [MiCode](https://github.com/MiCode) 与本机 HyperOS | 原厂设备树、驱动、配置的参照 | 对照真实命令、时序和参数，按标准接口移植 |
 
 内核之外的 Debian 软件仍通过标准 APT 安装。除 Debian / GNOME 之外，仓库里还有 Ubuntu、Arch、KDE 等目标的配置，但只有 Debian / GNOME 完整走通过，其他目标没有验证。

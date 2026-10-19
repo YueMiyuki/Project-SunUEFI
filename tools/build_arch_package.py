@@ -10,6 +10,7 @@ import subprocess
 import sys
 
 from build_nyarch_apps import ROOT, guest_environment, run
+from build_release_rootfs import build_resolver
 
 
 def build(root, recipe, output, resume=False):
@@ -27,7 +28,7 @@ def build(root, recipe, output, resume=False):
             raise ValueError('Resume requires the same package recipe')
     else:
         shutil.copytree(recipe, work, symlinks=True)
-    with guest_environment(root) as guest:
+    with build_resolver(root), guest_environment(root) as guest:
         dependencies = guest(
             ['bash', '-c', 'source "$1/PKGBUILD"; printf "%s\\n" "${makedepends[@]}" "${depends[@]}"',
              'dependencies', folder], capture_output=True, text=True).stdout.splitlines()

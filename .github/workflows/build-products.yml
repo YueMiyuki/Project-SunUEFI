@@ -26,7 +26,7 @@ on:
       target:
         description: Product to build
         type: choice
-        options: [uefi, linux, debian-gnome, debian-kde]
+        options: [uefi, linux, debian-gnome, debian-kde, steamos]
         default: debian-gnome
 
 permissions:
@@ -61,7 +61,7 @@ jobs:
     env:
       # TARGET is reserved by Cargo/bindgen for the compiler target triple.
       SUNUEFI_BUILD_TARGET: ${{ matrix.target }}
-    runs-on: ${{ startsWith(matrix.target, 'debian-') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    runs-on: ${{ (startsWith(matrix.target, 'debian-') || matrix.target == 'steamos') && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -99,6 +99,21 @@ jobs:
                   ;;
                 linux)
                   ./build.sh linux
+                  ;;
+                steamos)
+                  ./build.sh uefi
+                  ./build.sh module
+                  ./build.sh linux
+                  ./build.sh steamos-rootfs
+                  ./build.sh package \
+                    --rootfs build/distros/steamos-piano/rootfs \
+                    --rootfs-manifest build/distros/steamos-piano/manifest.json \
+                    --initramfs build/distros/steamos-piano/initramfs/initramfs.cpio.gz \
+                    --root-size-mib 16384
+                  python3 tools/package_sparse_images.py --bundle artifacts/release-7.2.9 --output artifacts/fastboot-sparse
+                  ./build.sh installer --bundle artifacts/release-7.2.9
+                  mkdir -p artifacts/rootfs/bundle
+                  mv artifacts/installer/bundle/root.ext4.img artifacts/rootfs/bundle/
                   ;;
                 debian-gnome|debian-kde)
                   python3 -c "import sys; sys.path.insert(0, \"tools\"); from build_release_rootfs import require_host; require_host()"
@@ -140,7 +155,7 @@ jobs:
         if: matrix.target != 'linux'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: SunUEFI-UEFI-Fastboot(MembootTest)-${{ github.sha }}
+          name: SunUEFI-UEFI-Fastboot(MembootTest)-${{ matrix.target }}-${{ github.sha }}
           path: |
             artifacts/product/PianoUEFI-product.img
             artifacts/product/manifest.json
@@ -152,7 +167,7 @@ jobs:
         if: matrix.target != 'linux'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: SunUEFI-${{ startsWith(matrix.target, 'debian-') && format('ESP-{0}', matrix.target) || 'UEFI' }}-${{ github.sha }}
+          name: SunUEFI-${{ matrix.target != 'uefi' && format('ESP-{0}', matrix.target) || 'UEFI' }}-${{ github.sha }}
           path: artifacts/installer/
           if-no-files-found: error
           retention-days: 7
@@ -161,13 +176,13 @@ jobs:
         if: matrix.target != 'linux'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: SunUEFI-Android-Module-${{ github.sha }}
+          name: SunUEFI-Android-Module-${{ matrix.target }}-${{ github.sha }}
           path: artifacts/android/
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
       - name: Root filesystem image
-        if: startsWith(matrix.target, 'debian-')
+        if: startsWith(matrix.target, 'debian-') || matrix.target == 'steamos'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: SunUEFI-Root-${{ matrix.target }}-${{ github.sha }}
@@ -176,7 +191,7 @@ jobs:
           retention-days: 7
           compression-level: 1
       - name: Sparse ESP and root for factory Fastboot
-        if: startsWith(matrix.target, 'debian-')
+        if: startsWith(matrix.target, 'debian-') || matrix.target == 'steamos'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: SunUEFI-Fastboot-Sparse-${{ matrix.target }}-${{ github.sha }}
@@ -202,6 +217,11 @@ jobs:
             build/logs/
             sources.lock.json
             config/release.json
+            config/steamos.json
+            build/steamos-base/SOURCE.json
+            build/distros/steamos-piano/manifest.json
+            build/distros/steamos-piano/packages.tsv
+            build/distros/steamos-piano/packages/ffmpeg/SOURCE.json
             linux/bsp/manifest.json
             linux/dts/piano-cpu-model.dtso
             linux/dts/piano-audio-dmic-clock.dtso

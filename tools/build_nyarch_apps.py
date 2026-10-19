@@ -87,12 +87,15 @@ def guest_environment(root):
         text = (root / 'etc/pacman.conf').read_text()
         (root / 'run/pacman-build.conf').write_text(
             re.sub(r'^\s*CheckSpace\s*$', '# CheckSpace (build chroot)', text, flags=re.M))
+        help_text = subprocess.check_output(
+            ['chroot', root, 'pacman', '-S', '--help'], text=True)
+        sandbox_args = ['--disable-sandbox'] if '--disable-sandbox' in help_text else []
         def guest(args, **kwargs):
             if args[0] == 'pacman':
                 # The build may run under QEMU or an older device kernel
                 # without Landlock. Do not change the installed policy.
                 args = [args[0], '--config', '/run/pacman-build.conf',
-                        '--disable-sandbox', *args[1:]]
+                        *sandbox_args, *args[1:]]
             return run(['chroot', root, '/usr/bin/env', 'SYSTEMD_OFFLINE=1',
                         'PATH=/usr/bin:/usr/sbin:/bin:/sbin', *args], **kwargs)
 
