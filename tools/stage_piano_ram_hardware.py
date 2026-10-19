@@ -45,6 +45,16 @@ def adapt(name, data):
     text = data.decode()
     if name in ('touch-start', 'radio-start'):
         text = replace_once(text, LEGACY_GATE, GUARD + ('touch' if name == 'touch-start' else 'qup --wait-seconds 20'))
+    if name == 'touch-start':
+        # The kernel panel follower now owns TDDI firmware/reset sequencing.
+        # Rebinding here destroys a working stream and fails if the panel is
+        # asleep. A userspace restart only needs the existing capture device.
+        start = text.index('D=/sys/bus/spi/drivers/NVT-ts-spi\n')
+        end = text.index('n=0\n', start)
+        text = text[:start] + text[end:]
+        text = replace_once(text,
+            "until grep -q '^irq_enabled: 1' /proc/nvt_thp_status 2>/dev/null; do",
+            'until [ -r /proc/nvt_thp_status ]; do')
     if name == 'radio-start':
         text = replace_once(text,
             '# Only this verified register is safe; do not probe adjacent TLMM windows.\n'
@@ -139,6 +149,7 @@ def build(output, source, rootfs=None):
                      'etc/modules-load.d/piano-rgb.conf',
                      'etc/modules-load.d/piano-bluetooth.conf',
                      'etc/modules-load.d/piano-pen-dock.conf',
+                     'etc/udev/rules.d/79-piano-pen-charger.rules',
                      'usr/lib/piano/bluetooth-address.py',
                      'usr/share/piano/pen/p81c-radio.json',
                      'usr/share/piano/pen/calibration/piano-boe.ini',

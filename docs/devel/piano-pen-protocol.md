@@ -82,38 +82,31 @@ v2方法 `+0x30=0x26dec` 是另一条路径：HAL `0x26804..0x26834` 以cmd2/arg
 
 完成这些字段与计算链的还原后，用一次短的 raw17/29与Android evdev同步记录检查比例、proximity和tip边界，再接入现有触控进程的独立 pen uinput，保留手指 MT与唯一 FIFO。使用 libinput/Wayland tablet-tool接口；悬浮时工具在范围内而笔尖未触地，不能照抄泛用原厂 reporter 将所有非UP动作都设为 `BTN_TOUCH=1`。未知倾角、按钮语义或姿态不填零宣称支持。
 
-## 笔的磁吸检测与无线充电
+## 笔的磁吸检测、供电与连接恢复
 
-SC96231 在 Android 的 `i2c9-0038` 已绑定，MCA 创建的属性组为 `/sys/class/xm_power/charger/wls_rev_charge/`。原厂模块 show 指令已确认 `wls_fw_state`、`reverse_chg_mode`、`reverse_chg_state`、`pen_ss_voltage` 直接返回缓存值；仅按这四项观察，不根据文件可读权限批量读取整组。`pen_soc` 在某些连接/hall状态会通过 SC96231 的 `regmap_raw_read` 读取芯片并更新缓存，本轮排除它，不能宣称已测笔电量或充电。[固定 MiCode 的 MCA 路径](https://github.com/MiCode/Xiaomi_Kernel_OpenSource/blob/45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71/drivers/power/supply/mca)只是指向 `vendor/xiaomi/proprietary/mca/driver/mca` 的链接，没有可直接移植的完整实现；上述性质来自本机固定模块静态核对。
+默认内核的 [`0041-power-sc96231-pen-charger.patch`](../../patches/linux/7.2.9/0041-power-sc96231-pen-charger.patch)驱动 SC96231 发射器；[设备树覆盖](../../linux/dts/piano-pen-charger.dtso)将 QUP2 SE5 转换为主线 I²C，总线地址为 `0x38`。不再保留两个同时占用 Hall GPIO 的驱动：充电驱动接管同一个 `Xiaomi Piano Pen Dock`，上报标准 `SW_PEN_INSERTED`。
 
-2026-10-09的原厂最终DTB（本地 `private/analysis/piano-camera-privacy-led-20261009/android-live.dtb`，SHA `67518975f4a464ecc8c330373b5d6ac2cb7724fceba3481051cfbba418f4df95`）将芯片放在 `/soc/qcom,qupv3_2_geni_se@8c0000/i2c@894000/sc96231@38`：硬件为SE13、I²C地址 `0x38`，Android的适配器编号9不能作为Linux的固定总线号。GPIO来自TLMM，具体连接如下。
+实现依据是同机 HyperOS 4 的最终 DTB、`sc96231_tx.ko`／`mca_wireless_revchg.ko` 的反汇编，以及一次原厂实际启停的函数参数采集。原厂的独立笔供电通过 ADSP HBOOST 完成：属性 `0x2010` 选择源 1，按 5.0、5.5、6.0、6.5 V 升压，间隔 20 ms；`0x200f` 的客户端 2 控制启停。该电源以标准 regulator 提供给 SC96231，不改 USB VBUS。实际 Piano 路径使 GPIO14 高电平启用，不能单凭旧节点的 `reverse-txon-low` 属性推断极性。
 
-| 原厂属性 | TLMM GPIO | 用途与已知配置 |
+| 信号 | TLMM GPIO | Linux 用途 |
 | --- | --- | --- |
-| `rx-int` | 78 | 芯片中断；上拉，模块请求下降沿和oneshot中断 |
-| `reverse-txon-gpio` | 14 | TXON控制；DT有 `reverse-txon-low`，默认输出低 |
-| `reverse-boost-gpio` | 120 | Boost控制，默认输出低 |
-| `hall3-int` / `hall4-int` | 200 / 196 | 两路Hall，上拉输入，模块请求双沿和oneshot中断 |
-| `hall3-s-int` / `hall4-s-int` | 201 / 197 | 两路补充Hall，上拉输入，双沿中断 |
-| `hall-ppe-int` / `hall-ppe-s-int` | 55 / 59 | PPE Hall，上拉输入，双沿中断；与普通Hall走不同事件 |
-| `lp-nen-gpio` | 99 | 低功耗控制，默认输出高 |
-| `keyboard-front-gpio` / `keyboard-back-gpio` | 80 / 11 | 原厂还读取键盘位置；移植时须避免与现有键盘驱动重复占用 |
+| I²C SDA／SCL | 20／21 | 主线 `qcom,geni-i2c` 与 GPI DMA |
+| TX enable | 14 | 升压完成后拉高，停止发射后拉低 |
+| LP enable | 99 | 保持原厂运行电平 |
+| IRQ | 78 | 下降沿，读取并清除真实中断 |
+| Hall3／Hall4 | 200／196 | 低有效 OR，双沿中断与唤醒 |
 
-该节点没有 `*-supply` 属性，原厂模块也没有regulator或标准 `power_supply_register` 调用，不能由此认定芯片无需供电，或已有标准充电接口。普通Hall工作函数 `0x18e4..0x18f4` 发MCA事件78，后者在 `0x2698..0x26ac` 将值非零通知触控模块；这是磁吸位置，不是充电电流或充满状态。PPE Hall发事件79，必须另行核对其组合判定，不能照搬事件78或用 `reverse_chg_mode=0` 表示笔未吸附。
+芯片命令 `0x0100` 的 `0x80000`／`0x40000` 控制发射启停；中断来自 `0x0108`，写入 `0x010c` 清除。电量来自 `0x01d0`，低七位为百分比、高位为充满；蓝牙地址来自 `0x01de..0x01e3`，字节序与原厂上报一致。出现 FOD、EPT、通信超时或移除时停止发射。按照原厂行为，明确充满或连续 180 秒报告 100% 后关闭升压。驱动不下载或更新芯片 MTP 固件。
 
-当前Linux实际DT仍保留这个子节点，但父节点的原厂 `qcom,i2c-geni` 与主线驱动要求的 `qcom,geni-i2c` 不匹配，`894000.i2c` 未绑定，尚未产生该总线的 `0x38` I²C设备；SC96231充电驱动仍未实现。磁吸 Hall 输入不依赖该 I²C 总线，已有独立标准输入候选；充电功能则仍需按主线 `i2c13` 定义转换总线及其时钟、DMA、引脚等供应者。无线充电、电量和标准power_supply属性还需要芯片协议、固件及供电流程，不能用虚拟设备代替。状态缺失时保留unknown，不默认填“未充电”。本节原厂充电属性核对没有修改充电状态。
+设备已自动绑定驱动，读到与 BlueZ 配对记录一致的笔地址、100% 电量，并在满电计时结束后关闭供电。标准节点是 `/sys/class/power_supply/sc96231-pen`，作用域为外设；没有有效报告时返回未知或 `ENODATA`。跨系统之后已经完成旧配对自动清除、重新配对、GATT 服务恢复和笔初始化。剩余实测包括低电量充电速度、首次点击延迟及睡眠期间取放。
 
-磁吸输入可以与充电总线分开实现。普通 Hall3/4 的总体存放状态为 `!raw_gpio200 || !raw_gpio196`，对应一个标准 `EV_SW/SW_PEN_INSERTED`；两路 `gpio-keys` 使用同一个 code 不会计算 OR，后来的值会覆盖前一路。PPE 是不同的算法，读取四路 Hall 和两个键盘位置，不能合并成六路 OR。目前尚未动态确认 Focus Pen Pro 使用哪条路径。
+原厂 `MiuiBleOobHelperService` 在磁吸链路给出笔地址后主动连接，未配对时调用 `createBond`。Linux 伴随程序使用相同的物理识别结果，通过 BlueZ 接口处理配对与控制服务。加密失败由 `org.bluez.Device1.Disconnected` 的 `org.bluez.Reason.Authentication` 判断，只移除该笔失效的配对并重新配对；不会清空其他设备。配对代理只服务本次磁吸识别的笔，不注册为系统默认代理。
 
-原厂 Hall3/4 pinctrl 明确使用 GPIO 输入、2 mA、上拉和 `qcom,apps`；主线的正常 GPIO 请求会取得 AP 引脚所有权。Linux 当前显示 EGPIO 仅描述尚未接管的状态，不能由此推导引脚禁止使用。模块中的 `power_on_pen_check` 是软件开机延迟门：初始为 0，probe 延迟 3250 jiffies 后直接设为 1，再延迟 250 jiffies 排 Hall 扫描；该 worker 不查询供电、I²C 或固件状态，因此不能把它当作硬件就绪接口。PPE 路径不使用这个门。
+## 刚连接后点击延迟
 
-[磁吸输入设备树候选](../../linux/dts/drafts/piano-pen-dock.dtso)描述普通两路检测，引用真正的 `piano_tlmm_ml`；旧的 `tlmm` 标签仍指向旧 provider，不能使用。候选已编译并合并检查，节点在默认产品中保持 disabled；下述动态覆盖已实机绑定。无线充电和电量仍是独立缺项。
+悬停位置来自屏幕矩阵，笔尖压力来自 BLE HID Report5；因此悬停可用不代表点击通道已经准备好。压力设备现在通过 inotify 创建事件立即接入，不再等待一秒扫描周期；BlueZ 控制服务就绪后也会立即唤起初始化，不再固定等待两秒重试。记录第一份压力报告和无线参数设置的单调时钟，用于区分设备连接、初始化及实际点按的延迟，不伪造压力或提前发送点击。
 
-[输入驱动候选](../../patches/linux/7.2.9/drafts/0018-piano-pen-dock.patch)只注册一个存放开关，按设备树极性计算两路 OR，在初始化、双沿中断和恢复时读取真实状态；读取失败不报告“已取出”。共享锁串行两路线程化中断，卸载时先同步释放中断再注销输入设备。驱动通过当前 590 内核的 ARM64 编译；不提供磁吸唤醒、PPE 路径或充电属性。它仍是候选，实机结果如下，尚不改变功能支持表。
-
-随后使用当前内核和 `Module.symvers` 生成可加载模块，并通过一次性 OF overlay 在实机绑定。GPIO200 实际为低、GPIO196 为高，标准 `EVIOCGSW` 查询返回 `SW_PEN_INSERTED=1`，与两路低有效 OR 一致。完成后覆盖和两个模块已卸载，输入设备与新增节点均移除；GPIO 保持普通 AP 输入模式，没有声称恢复为加载前的 EGPIO 复用状态。内核在动态覆盖时记录了现有 lid-switch 和 timer 的 device-link 警告，内核 taint 值没有改变，桌面、触屏和相机服务仍正常。
-
-首次绑定记录在 `private/analysis/piano-pen-dock-live-20261009/`，模块构建记录在 `private/analysis/piano-pen-dock-modules-590-20261009/`。之后取下笔再绑定候选，两路 GPIO 均为高，`EVIOCGSW` 读取 `SW_PEN_INSERTED=0`，与首次吸附状态的读数不同。尚未验证双沿中断连续上报；本轮采集脚本按这一真实开关值转发状态，公开工具 [`piano_pen_control.py`](../../tools/host/piano_pen_control.py) 也提供同一读取路径。取出命令 `51 01 01` 收到 `d1 00`，另一控制命令 `5b 01 01` 收到 `db 01 01`。这些结果证明候选位置检测与控制回应，不能据此报告无线充电或笔输入可用。候选仍未接入默认内核。
+`0042-input-nvt-defer-pen-mode-while-asleep.patch` 在面板休眠时保存请求的笔扫描模式，随固件恢复应用。触控服务启动不再强制解绑／重绑内核设备，面板复位和固件恢复统一由内核 panel follower 处理。
 
 ## 公开解析模块
 

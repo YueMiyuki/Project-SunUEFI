@@ -41,7 +41,7 @@ TARGETS[DEFAULT_TARGET] = {
     **TARGETS['kernel69'],
     'series_target': 'kernel69',
     'patch_tree': TARGETS['kernel69']['target_tree'],
-    'target_tree': 'ab98bba5595208292f6d5a2b59a99830134b5c30',
+    'target_tree': '4af6c3c90ec3f5182436aaf7baf602bf48d754ee',
     'stable_commit': '5fce161649b4d779d1b76d9fcd52dc77779774b8',
     'stable_tree': 'c278d1443495d2a1a07fff2bcfb286b5c35baaea',
     'stable_version': '7.2.9',
@@ -182,6 +182,14 @@ TARGETS[DEFAULT_TARGET] = {
     'mca_hyperos4_pd_patch': {
         'file': 'patches/linux/7.2.9/0039-power-piano-hyperos4-pd-protocol.patch',
         'sha256': '9b6d0b7283434b2b0b44b77c0e83d1eeeedaa979f39ae802f0c13e42d95b020f',
+    },
+    'sc96231_pen_charger_patch': {
+        'file': 'patches/linux/7.2.9/0041-power-sc96231-pen-charger.patch',
+        'sha256': 'd68b0b7e61fad4bb695c39add97e7c4ed19789ccda4cdf00661974d02ada0315',
+    },
+    'nvt_deferred_pen_mode_patch': {
+        'file': 'patches/linux/7.2.9/0042-input-nvt-defer-pen-mode-while-asleep.patch',
+        'sha256': '3f259d5b47ea78abc209925befebb29b057f41c2b33ed2a100e1882811dfe93c',
     },
     'dsi_stop_order_patch': {
         'file': 'patches/linux/7.2.9/0008-dsi-bonded-stop-slave-first.patch',
@@ -350,7 +358,7 @@ def write_manifest(path, record):
 
 def update_patches(root, policy):
     result = {}
-    for key in ('conflict_resolution', 'cpu_model_patch', 'fastrpc_dma_patch', 'panel_depth_patch', 'flash_cleanup_patch', 'va_clock_order_patch', 'gcv2_backend_patch', 'gcv2_catalog_patch', 'dsi_stop_order_patch', 'dsi_fixed_bpc_patch', 'flash_torch_rounding_patch', 'va_mono_patch', 'dsi_video_phases_patch', 'dsi_post_hs_sync_patch', 'piano_panel_reset_patch', 'dsi_post_resync_reset_patch', 'piano_privacy_led_patch', 'nvt_panel_follower_patch', 'p81c_pressure_hid_patch', 'piano_preferred_120hz_patch', 'piano_function_row_patch', 'dsi_pll_registration_patch', 'dsi_slave_restore_patch', 'dpu_video_stop_order_patch', 'piano_pen_dock_patch', 'nvt_system_resume_patch', 'pcie_active_wakeup_patch', 'smp2p_sleepstate_patch', 'nanosic_backlight_default_patch', 'q6apm_global_lifetime_patch', 'fastrpc_freezable_invoke_patch', 'dsi_phy_runtime_clock_patch', 'backlight_disable_ramp_patch', 'mca_hyperos4_pd_patch'):
+    for key in ('conflict_resolution', 'cpu_model_patch', 'fastrpc_dma_patch', 'panel_depth_patch', 'flash_cleanup_patch', 'va_clock_order_patch', 'gcv2_backend_patch', 'gcv2_catalog_patch', 'dsi_stop_order_patch', 'dsi_fixed_bpc_patch', 'flash_torch_rounding_patch', 'va_mono_patch', 'dsi_video_phases_patch', 'dsi_post_hs_sync_patch', 'piano_panel_reset_patch', 'dsi_post_resync_reset_patch', 'piano_privacy_led_patch', 'nvt_panel_follower_patch', 'p81c_pressure_hid_patch', 'piano_preferred_120hz_patch', 'piano_function_row_patch', 'dsi_pll_registration_patch', 'dsi_slave_restore_patch', 'dpu_video_stop_order_patch', 'piano_pen_dock_patch', 'nvt_system_resume_patch', 'pcie_active_wakeup_patch', 'smp2p_sleepstate_patch', 'nanosic_backlight_default_patch', 'q6apm_global_lifetime_patch', 'fastrpc_freezable_invoke_patch', 'dsi_phy_runtime_clock_patch', 'backlight_disable_ramp_patch', 'mca_hyperos4_pd_patch', 'sc96231_pen_charger_patch', 'nvt_deferred_pen_mode_patch'):
         if key not in policy:
             continue
         row = policy[key]
@@ -425,6 +433,8 @@ def merge_stable(work, policy, paths):
         ('dsi_phy_runtime_clock_patch', 'fix(drm): manage DSI PHY interface clocks during runtime PM', 'dsi_phy_runtime_clock_commit'),
         ('backlight_disable_ramp_patch', 'fix(backlight): wait for the KTZ8866 disable ramp', 'backlight_disable_ramp_commit'),
         ('mca_hyperos4_pd_patch', 'fix(power): use the selected ADSP PD protocol', 'mca_hyperos4_pd_commit'),
+        ('sc96231_pen_charger_patch', 'feat(power): supply the SC96231 pen charger through MCA', 'sc96231_pen_charger_commit'),
+        ('nvt_deferred_pen_mode_patch', 'fix(input): apply sleeping pen-mode requests on resume', 'nvt_deferred_pen_mode_commit'),
     ):
         if key not in paths:
             continue

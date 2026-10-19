@@ -1,0 +1,94 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/dts-v1/;
+/plugin/;
+
+/*
+ * Piano HyperOS 4 SC96231: QUP2 SE5, GPIO20/21, I2C 0x38.
+ * Cell values below use the mainline SM8750 GCC/interconnect/GPI bindings.
+ * The stock running driver enables GPIO14 high, despite the legacy
+ * reverse-txon-low property used by another product's code path.
+ */
+/ {
+	fragment@0 {
+		target-path = "/soc/pinctrl@f100000";
+		__overlay__ {
+			piano_pen_i2c: pen-i2c-state {
+				pins = "gpio20", "gpio21";
+				function = "qup2_se5";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+			piano_pen_irqs: pen-charger-irqs-state {
+				pins = "gpio78", "gpio196", "gpio200";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-pull-up;
+				input-enable;
+			};
+			piano_pen_controls: pen-charger-controls-state {
+				pins = "gpio14", "gpio99";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/soc/qcom,pmic_glink";
+		__overlay__ {
+			regulators {
+				piano_pen_boost: pen-boost {
+					regulator-name = "piano-pen-boost";
+					regulator-min-microvolt = <6500000>;
+					regulator-max-microvolt = <6500000>;
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/soc/qcom,qupv3_2_geni_se@8c0000/i2c@894000";
+		__overlay__ {
+			compatible = "qcom,geni-i2c";
+			clocks = <&gcc 119>; /* GCC_QUPV3_WRAP2_S5_CLK */
+			clock-names = "se";
+			interconnects = <&clk_virt 2 7 &clk_virt 5 7>,
+					<&gem_noc 2 7 &config_noc 20 7>,
+					<&aggre2_noc 1 7 &mc_virt 1 7>;
+			interconnect-names = "qup-core", "qup-config", "qup-memory";
+			dmas = <&gpi_dma2 0 5 3>, <&gpi_dma2 1 5 3>;
+			dma-names = "tx", "rx";
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&piano_pen_i2c>;
+			pinctrl-1 = <&piano_pen_i2c>;
+			clock-frequency = <400000>;
+			status = "okay";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			sc96231@38 {
+				compatible = "southchip,sc96231";
+				reg = <0x38>;
+				status = "okay";
+				vin-supply = <&piano_pen_boost>;
+				enable-gpios = <&piano_tlmm_ml 14 0>;
+				lp-enable-gpios = <&piano_tlmm_ml 99 0>;
+				hall-gpios = <&piano_tlmm_ml 200 1>,
+					     <&piano_tlmm_ml 196 1>;
+				interrupt-parent = <&piano_tlmm_ml>;
+				interrupts = <78 2>; /* falling edge */
+				pinctrl-names = "default";
+				pinctrl-0 = <&piano_pen_irqs>, <&piano_pen_controls>;
+				wakeup-source;
+			};
+		};
+	};
+
+	fragment@3 {
+		target-path = "/soc/pen-dock";
+		__overlay__ {
+			/* The charger now owns the same single SW_PEN_INSERTED. */
+			status = "disabled";
+		};
+	};
+};

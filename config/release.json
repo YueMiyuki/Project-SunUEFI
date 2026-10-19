@@ -7,7 +7,7 @@
     "stable_source": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
     "stable_commit": "5fce161649b4d779d1b76d9fcd52dc77779774b8",
     "stable_version": "7.2.9",
-    "target_tree": "ab98bba5595208292f6d5a2b59a99830134b5c30",
+    "target_tree": "4af6c3c90ec3f5182436aaf7baf602bf48d754ee",
     "cpu_model_overlay": "linux/dts/piano-cpu-model.dtso",
     "additional_dtb_overlays": [
       "linux/dts/piano-board-identity.dtso",
@@ -16,7 +16,8 @@
       "linux/dts/piano-camera-flash.dtso",
       "linux/dts/piano-camera-privacy-led.dtso",
       "linux/dts/piano-touch-panel.dtso",
-      "linux/dts/piano-pen-dock.dtso"
+      "linux/dts/piano-pen-dock.dtso",
+      "linux/dts/piano-pen-charger.dtso"
     ],
     "root_policy": "LABEL=PIANOROOT",
     "preferred_display_mode": {

@@ -18,6 +18,20 @@ import time
 FE11 = '0000fe11-aa6c-462a-964a-7f2ed5b3e512'
 FE12 = '0000fe12-aa6c-462a-964a-7f2ed5b3e512'
 
+AGENT_XML = """
+<node><interface name="org.bluez.Agent1">
+  <method name="Release"/>
+  <method name="Cancel"/>
+  <method name="RequestPinCode"><arg type="o" direction="in"/><arg type="s" direction="out"/></method>
+  <method name="RequestPasskey"><arg type="o" direction="in"/><arg type="u" direction="out"/></method>
+  <method name="DisplayPinCode"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+  <method name="DisplayPasskey"><arg type="o" direction="in"/><arg type="u" direction="in"/><arg type="q" direction="in"/></method>
+  <method name="RequestConfirmation"><arg type="o" direction="in"/><arg type="u" direction="in"/></method>
+  <method name="RequestAuthorization"><arg type="o" direction="in"/></method>
+  <method name="AuthorizeService"><arg type="o" direction="in"/><arg type="s" direction="in"/></method>
+</interface></node>
+"""
+
 
 def read_dock():
     events = []
@@ -37,6 +51,15 @@ def read_dock():
         return bool(int.from_bytes(bits, 'little') & (1 << 15))
     finally:
         os.close(fd)
+
+
+def dock_address():
+    """Identity learned by the charger over the magnetic charging link."""
+    try:
+        address = Path('/sys/class/power_supply/sc96231-pen/serial_number').read_text().strip()
+    except OSError:
+        return None
+    return address.upper() if re.fullmatch(r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', address) else None
 
 
 def profile(path):
@@ -75,11 +98,119 @@ class LeScan:
         self.until = 0
         self.retry_at = 0
         self.connect_at = {}
+        self.connecting = set()
         self.last_dock = None
         self.last_error = None
+        self.activity = False
+        self.address = None
+        self.repair = set()
+        self.repaired = set()
+        self.pairing = None
+        self.pair_retry = 0
+        self.agent = None
+        self.agent_path = '/org/sunuefi/PenPairing'
+        self.signals = [
+            self.bus.signal_subscribe(
+                'org.bluez', 'org.freedesktop.DBus.Properties', 'PropertiesChanged',
+                None, 'org.bluez.Device1', self.Gio.DBusSignalFlags.NONE,
+                self.device_changed, None),
+            self.bus.signal_subscribe(
+                'org.bluez', 'org.freedesktop.DBus.ObjectManager', 'InterfacesAdded',
+                '/', None, self.Gio.DBusSignalFlags.NONE, self.interfaces_added, None),
+            self.bus.signal_subscribe(
+                'org.bluez', 'org.bluez.Device1', 'Disconnected',
+                None, None, self.Gio.DBusSignalFlags.NONE, self.disconnected, None),
+        ]
+
+    def disconnected(self, _bus, _sender, path, _interface, _member, args, _data):
+        reason, _ = args.unpack()
+        if reason == 'org.bluez.Reason.Authentication':
+            self.repair.add(path)
+            self.activity = True
+
+    def agent_call(self, _bus, _sender, _path, _iface, method, args, invocation):
+        values = args.unpack()
+        if method in ('Release', 'Cancel'):
+            invocation.return_value(None)
+        elif (values and values[0] == self.pairing and
+              method in ('RequestAuthorization', 'RequestConfirmation',
+                         'AuthorizeService', 'DisplayPinCode', 'DisplayPasskey')):
+            invocation.return_value(None)
+        else:
+            invocation.return_dbus_error('org.bluez.Error.Rejected',
+                                         'This agent handles only the magnetically identified pen')
+
+    def prepare_agent(self):
+        if self.agent is None:
+            info = self.Gio.DBusNodeInfo.new_for_xml(AGENT_XML).interfaces[0]
+            self.agent = self.bus.register_object(self.agent_path, info, self.agent_call, None, None)
+        try:
+            self.bus.call_sync('org.bluez', '/org/bluez', 'org.bluez.AgentManager1',
+                               'RegisterAgent', self.GLib.Variant('(os)',
+                               (self.agent_path, 'NoInputNoOutput')), None,
+                               self.Gio.DBusCallFlags.NONE, 5000, None)
+        except self.GLib.Error as error:
+            if self.Gio.DBusError.get_remote_error(error) != 'org.bluez.Error.AlreadyExists':
+                raise
+
+    def pair_done(self, connection, result, path):
+        self.pairing = None
+        try:
+            connection.call_finish(result)
+            # Trust only after Pair has completed, and only this physical pen.
+            connection.call_sync('org.bluez', path, 'org.freedesktop.DBus.Properties',
+                'Set', self.GLib.Variant('(ssv)', ('org.bluez.Device1', 'Trusted',
+                                                 self.GLib.Variant('b', True))),
+                None, self.Gio.DBusCallFlags.NONE, 5000, None)
+            self.connect_at.pop(path, None)
+            print(json.dumps({'kind': 'pen_pairing_restored'}), flush=True)
+        except self.GLib.Error as error:
+            self.error(error)
+        self.activity = True
+
+    def device_changed(self, _bus, _sender, _path, _interface, _member, args, _data):
+        _, fields, _ = args.unpack()
+        if any(name in fields for name in ('Connected', 'ServicesResolved', 'Paired', 'Trusted')):
+            self.activity = True
+
+    def interfaces_added(self, _bus, _sender, _path, _interface, _member, args, _data):
+        _, interfaces = args.unpack()
+        if any(name in interfaces for name in ('org.bluez.Device1', 'org.bluez.GattCharacteristic1')):
+            self.activity = True
+
+    def wait(self, stopped):
+        """Wake for BlueZ readiness; two seconds is only the fallback retry."""
+        context = self.GLib.MainContext.default()
+        until = time.monotonic() + 2
+        while not stopped() and time.monotonic() < until:
+            while context.pending():
+                context.iteration(False)
+            if self.activity:
+                self.activity = False
+                return
+            time.sleep(.02)
+
+    def connect_done(self, connection, result, path):
+        self.connecting.discard(path)
+        try:
+            connection.call_finish(result)
+        except self.GLib.Error as error:
+            if self.Gio.DBusError.get_remote_error(error) in (
+                    'org.bluez.Error.AuthenticationFailed',
+                    'org.bluez.Error.AuthenticationRejected'):
+                self.repair.add(path)
+            # Another BlueZ client may already be establishing this link.
+            if not self.Gio.DBusError.is_remote_error(error) or \
+                    self.Gio.DBusError.get_remote_error(error) != 'org.bluez.Error.InProgress':
+                self.error(error)
+        self.activity = True
 
     def tick(self, address):
         now = time.monotonic()
+        # Only the charger supplies automatic-pairing authority. An explicit
+        # address alone must not silently pair an unrelated nearby device.
+        magnetic_address = dock_address()
+        self.address = address
         try:
             attached = read_dock()
         except (RuntimeError, OSError):
@@ -87,6 +218,7 @@ class LeScan:
         if attached is not None and attached != self.last_dock:
             self.last_dock = attached
             self.retry_at = 0
+            self.connect_at.clear()
         if self.adapter and now >= self.until:
             self.stop()
             self.retry_at = now + 90
@@ -98,6 +230,33 @@ class LeScan:
                    if interfaces.get('org.bluez.Adapter1', {}).get('Powered')}
         if self.adapter and self.adapter not in powered:
             self.stop()
+        for path, interfaces in objects.items():
+            device = interfaces.get('org.bluez.Device1', {})
+            if (not magnetic_address or
+                    device.get('Address', '').upper() != magnetic_address or
+                    (address and address.upper() != magnetic_address) or
+                    device.get('Adapter') not in powered):
+                continue
+            if path in self.repair and path not in self.repaired and device.get('Paired'):
+                self.bus.call_sync('org.bluez', device['Adapter'], 'org.bluez.Adapter1',
+                                   'RemoveDevice', self.GLib.Variant('(o)', (path,)),
+                                   None, self.Gio.DBusCallFlags.NONE, 5000, None)
+                self.repaired.add(path)
+                self.repair.discard(path)
+                self.connecting.discard(path)
+                self.connect_at.pop(path, None)
+                self.retry_at = 0
+                print(json.dumps({'kind': 'pen_expired_pairing_removed'}), flush=True)
+                return
+            if not device.get('Paired') and self.pairing is None and now >= self.pair_retry:
+                self.prepare_agent()
+                self.pairing = path
+                self.pair_retry = now + 30
+                self.bus.call('org.bluez', path, 'org.bluez.Device1', 'Pair',
+                              None, None, self.Gio.DBusCallFlags.NONE, 35000, None,
+                              self.pair_done, path)
+                print(json.dumps({'kind': 'pen_pairing_started'}), flush=True)
+                return
         if any(
                 device.get('Connected') and
                 (not address or device.get('Address', '').upper() == address.upper()) and
@@ -112,18 +271,18 @@ class LeScan:
             if (device.get('Adapter') not in powered or
                     not device.get('Paired') or not device.get('Trusted') or
                     device.get('Connected') or
+                    path in self.connecting or
                     (address and device.get('Address', '').upper() != address.upper()) or
-                    not re.fullmatch(r'bluetooth:v0022p5081d[0-9a-fA-F]{4}',
-                                     device.get('Modalias', ''), re.IGNORECASE) or
+                    (not address and
+                     not re.fullmatch(r'bluetooth:v0022p5081d[0-9a-fA-F]{4}',
+                                      device.get('Modalias', ''), re.IGNORECASE)) or
                     now < self.connect_at.get(path, 0)):
                 continue
             self.connect_at[path] = now + 30
-            try:
-                self.bus.call_sync('org.bluez', path, 'org.bluez.Device1',
-                                   'Connect', None, None,
-                                   self.Gio.DBusCallFlags.NONE, 1500, None)
-            except self.GLib.Error as error:
-                self.error(error)
+            self.connecting.add(path)
+            self.bus.call('org.bluez', path, 'org.bluez.Device1',
+                          'Connect', None, None, self.Gio.DBusCallFlags.NONE,
+                          30000, None, self.connect_done, path)
         if self.adapter or now < self.retry_at or not powered:
             return
         adapter = sorted(powered)[0]
@@ -190,6 +349,8 @@ class Pen:
             raise RuntimeError('invalid actual adapter address')
         chars = {o['org.bluez.GattCharacteristic1']['UUID'].lower(): p for p, o in objects.items()
                  if p.startswith(self.base + '/') and 'org.bluez.GattCharacteristic1' in o}
+        if FE11 not in chars or FE12 not in chars:
+            raise RuntimeError('connected pen has not exposed its control services')
         self.write, self.notify = chars[FE11], chars[FE12]
         self.events = []
         self.initialized = False
@@ -277,6 +438,8 @@ class Pen:
         self.notifying = True
 
     def initialize(self, p):
+        started = time.monotonic()
+        self.log('initialization_started')
         self.request(b'\x52\x00', b'\xd2\x01', 3)
         self.request(b'\x00\x00', b'\x80\x01', 3)
         self.request(b'\x01\x00', b'\x81\x02', 4)
@@ -301,6 +464,7 @@ class Pen:
         if attached is not None:
             self.request(b'\x51\x01' + bytes([0 if attached else 1]), b'\xd1\x00', 2)
         self.last_dock = attached
+        self.log('radio_configured', elapsed_ms=round((time.monotonic() - started) * 1000))
         self.request(b'\x5f\x01' + bytes([int(p['double_tap'])]), b'\xdf\x01\x01', 3)
         self.request(b'\x5a\x01' + bytes([p['squeeze_motor_level']]), b'\xda\x01\x01', 3)
         self.request(b'\x5c\x04' + struct.pack('>HH', p['squeeze_threshold_down'],
@@ -349,8 +513,9 @@ def main():
     scan = LeScan()
     try:
         while not stopped:
+            address = args.address or dock_address()
             try:
-                pen = Pen(args.address, args.stationary_device)
+                pen = Pen(address, args.stationary_device)
                 scan.stop()
                 pen.open()
                 pen.initialize(p)
@@ -379,7 +544,7 @@ def main():
                     print(json.dumps({'kind': 'waiting_for_pen', 'message': message}), flush=True)
                     last_error = message
                 try:
-                    scan.tick(args.address)
+                    scan.tick(address)
                 except scan.GLib.Error as scan_error:
                     scan.error(scan_error)
             finally:
@@ -388,12 +553,13 @@ def main():
                     pen = None
             if not args.follow or stopped:
                 break
-            for _ in range(20):
-                if stopped:
-                    break
-                time.sleep(.1)
+            scan.wait(lambda: stopped)
     finally:
         scan.stop()
+        for subscription in scan.signals:
+            scan.bus.signal_unsubscribe(subscription)
+        if scan.agent is not None:
+            scan.bus.unregister_object(scan.agent)
 
 
 if __name__ == '__main__':

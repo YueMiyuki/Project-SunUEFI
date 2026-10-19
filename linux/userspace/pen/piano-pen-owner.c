@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/inotify.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -24,7 +25,8 @@ struct piano_pen_owner {
     struct piano_pen_input_area area;
     char *hidraw;
     uint64_t retry_at, max_age, last_frame, last_pressure;
-    int hid_fd, input_fd, tool_present, contact_present, have_frame, release_pending;
+    int hid_fd, notify_fd, input_fd, tool_present, contact_present, have_frame, release_pending;
+    int pressure_started;
     int squeeze_down, squeeze_reported;
     int squeeze_clicks, squeeze_long;
     uint64_t squeeze_started;
@@ -81,6 +83,7 @@ static void reset_owner(struct piano_pen_owner *p)
     piano_pen_core_reset(p->core);
     p->have_frame = 0;
     p->last_pressure = 0;
+    p->pressure_started = 0;
     p->squeeze_down = 0;
     p->squeeze_started = 0;
     p->squeeze_long = 0;
@@ -108,7 +111,7 @@ struct piano_pen_owner *piano_pen_owner_create(const char *ini,
     char error[256] = { 0 };
     if (!p)
         return NULL;
-    p->hid_fd = p->input_fd = -1;
+    p->hid_fd = p->notify_fd = p->input_fd = -1;
     const char *squeeze = getenv("PIANO_PEN_SQUEEZE_ACTION");
     p->squeeze_clicks = !squeeze || strcmp(squeeze, "stylus");
     p->max_age = age;
@@ -125,6 +128,12 @@ struct piano_pen_owner *piano_pen_owner_create(const char *ini,
         p->hidraw = strdup(hidraw);
         if (!p->hidraw)
             goto failed;
+    }
+    p->notify_fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (p->notify_fd >= 0 &&
+        inotify_add_watch(p->notify_fd, "/dev", IN_CREATE | IN_MOVED_TO | IN_ATTRIB) < 0) {
+        close(p->notify_fd);
+        p->notify_fd = -1;
     }
     return p;
 failed:
@@ -143,6 +152,8 @@ void piano_pen_owner_destroy(struct piano_pen_owner *p)
     }
     if (p->hid_fd >= 0)
         close(p->hid_fd);
+    if (p->notify_fd >= 0)
+        close(p->notify_fd);
     piano_pen_core_destroy(p->core);
     free(p->hidraw);
     free(p);
@@ -156,13 +167,13 @@ int piano_pen_owner_poll_fd(struct piano_pen_owner *p)
         return p->hid_fd;
     uint64_t now = owner_boot_ns();
     if (!now || now < p->retry_at)
-        return -1;
+        return p->notify_fd;
     p->retry_at = now + UINT64_C(1000000000);
     if (p->hidraw) {
         int fd = matching_hid(p->hidraw);
         if (fd >= 0)
             p->hid_fd = fd;
-        return p->hid_fd;
+        return p->hid_fd >= 0 ? p->hid_fd : p->notify_fd;
     }
     glob_t paths = { 0 };
     int selected = -1, matches = 0;
@@ -185,7 +196,10 @@ int piano_pen_owner_poll_fd(struct piano_pen_owner *p)
         close(selected);
         fprintf(stderr, "multiple Focus Pen Pro devices; select --pen-hidraw\n");
     }
-    return p->hid_fd;
+    if (p->hid_fd >= 0)
+        fprintf(stderr, "pen: pressure transport opened at %llu ns\n",
+                (unsigned long long)now);
+    return p->hid_fd >= 0 ? p->hid_fd : p->notify_fd;
 }
 
 static void report_squeeze(struct piano_pen_owner *p, int down)
@@ -246,8 +260,33 @@ static void report_squeeze(struct piano_pen_owner *p, int down)
 
 void piano_pen_owner_read_hid(struct piano_pen_owner *p, short revents)
 {
-    if (!p || p->hid_fd < 0)
+    if (!p)
         return;
+    if (p->hid_fd < 0) {
+        /* A new HID device should be consumed immediately, not after the
+         * one-second fallback discovery interval. Keep this in the existing
+         * poll loop: no reconnect thread or faster periodic scanning.
+         */
+        if (p->notify_fd >= 0 && (revents & POLLIN)) {
+            union {
+                struct inotify_event aligned;
+                char bytes[4096];
+            } events;
+            ssize_t size;
+            while ((size = read(p->notify_fd, events.bytes, sizeof(events.bytes))) > 0) {
+                size_t offset = 0;
+                while (offset + sizeof(struct inotify_event) <= (size_t)size) {
+                    const struct inotify_event *event =
+                        (const struct inotify_event *)(events.bytes + offset);
+                    if ((event->mask & IN_Q_OVERFLOW) ||
+                        (event->len && !strncmp(event->name, "hidraw", 6)))
+                        p->retry_at = 0;
+                    offset += sizeof(*event) + event->len;
+                }
+            }
+        }
+        return;
+    }
     if (revents & (POLLHUP | POLLERR | POLLNVAL))
         goto disconnected;
     if (!(revents & POLLIN))
@@ -277,8 +316,14 @@ void piano_pen_owner_read_hid(struct piano_pen_owner *p, short revents)
         if (!receipt || piano_pen_core_report5(p->core, report,
                 (size_t)bytes, receipt, error, sizeof(error)))
             p->stats.rejected_reports++;
-        else
+        else {
+            if (!p->pressure_started) {
+                p->pressure_started = 1;
+                fprintf(stderr, "pen: first pressure report at %llu ns\n",
+                        (unsigned long long)receipt);
+            }
             p->stats.reports5++;
+        }
     }
     return;
 disconnected:

@@ -18,6 +18,8 @@ struct piano_pen_owner_stats {
 struct piano_pen_owner *piano_pen_owner_create(const char *ini,
     const char *hidraw, uint64_t pressure_max_age_ns);
 void piano_pen_owner_destroy(struct piano_pen_owner *owner);
+/* Returns the pressure fd, or its device-creation notification fd while
+ * disconnected. Pass either fd's poll events to piano_pen_owner_read_hid(). */
 int piano_pen_owner_poll_fd(struct piano_pen_owner *owner);
 void piano_pen_owner_read_hid(struct piano_pen_owner *owner, short revents);
 void piano_pen_owner_tick(struct piano_pen_owner *owner);
