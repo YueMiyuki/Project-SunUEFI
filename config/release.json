@@ -7,7 +7,7 @@
     "stable_source": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
     "stable_commit": "5fce161649b4d779d1b76d9fcd52dc77779774b8",
     "stable_version": "7.2.9",
-    "target_tree": "fb842b86ffb1bae70f6a59d28dc4886b7523d35e",
+    "target_tree": "0826878417d2e445d1840665c9023125dbadd6d1",
     "cpu_model_overlay": "linux/dts/piano-cpu-model.dtso",
     "additional_dtb_overlays": [
       "linux/dts/piano-board-identity.dtso",
