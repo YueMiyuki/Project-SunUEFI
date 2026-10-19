@@ -1,0 +1,26 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] wayland/touch: reject grabs from cancelled touch sequences
+
+meta_wayland_touch_cancel() clears focus_surface but retains the touch
+sequence until its end event. A client can still submit the old serial
+to request an interactive move or resize during that interval.
+
+Reject that request instead of dereferencing the cleared focus_surface.
+Two Piano crash dumps from Mutter 51.0 show a NULL first member of
+MetaWaylandTouchInfo at touch_can_grab_surface(). The same unchecked
+dereference is present in upstream 51.1.
+---
+diff --git a/src/wayland/meta-wayland-touch.c b/src/wayland/meta-wayland-touch.c
+--- a/src/wayland/meta-wayland-touch.c
++++ b/src/wayland/meta-wayland-touch.c
+@@ -659,6 +659,10 @@ touch_can_grab_surface (MetaWaylandTouchInfo *touch_info,
+ {
+   MetaWaylandSurface *subsurface;
+ 
++  /* Cancellation drops focus before the sequence's end event arrives. */
++  if (!touch_info->focus_surface)
++    return FALSE;
++
+   if (touch_info->focus_surface->surface == surface)
+     return TRUE;
+ 

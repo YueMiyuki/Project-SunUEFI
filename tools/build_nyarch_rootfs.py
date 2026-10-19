@@ -92,9 +92,14 @@ def build(args):
         mesa = recipes / 'mesa'
         shutil.copytree(ROOT / 'linux/bsp/arch/mesa', mesa)
         shutil.copy2(ROOT / 'upstream/piano-mesa-current/patches/0001-freedreno-Add-chip-id-support-for-A830v1.patch', mesa)
+    mutter = recipes / 'mutter'
+    shutil.copytree(ROOT / 'linux/desktops/gnome/arch/mutter', mutter,
+                    dirs_exist_ok=True)
+    shutil.copy2(ROOT / 'linux/desktops/gnome/patches/mutter/0003-wayland-touch-ignore-cancelled-grab.patch',
+                 mutter)
     # SteamOS's protobuf compatibility rebuild is intentionally not selected
     # for Arch: its rolling packages already share the current library ABI.
-    for name in ('mesa', 'fastrpc', 'libssc', 'iio-sensor-proxy'):
+    for name in ('mutter', 'mesa', 'fastrpc', 'libssc', 'iio-sensor-proxy'):
         packages = output / 'packages' / name
         if not (packages / 'manifest.json').exists():
             build_arch_package.build(root, recipes / name, packages)
