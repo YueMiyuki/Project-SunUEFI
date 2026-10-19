@@ -32,6 +32,12 @@ FRAME_UNITS = (
 
 
 def configure(root):
+    # Frame mounts its own ESP at /efi and links /boot/efi there. SunUEFI's
+    # shared fstab mounts SUNUEFI_ESP directly at /boot/efi.
+    esp = root / 'boot/efi'
+    if esp.is_symlink():
+        esp.unlink()
+    esp.mkdir(parents=True, exist_ok=True)
     for name in ('steamdeck.conf', 'steamos.conf'):
         (root / 'etc/sddm.conf.d' / name).unlink(missing_ok=True)
     # Frame's microphone processing and fixed two-channel spatial pipeline
