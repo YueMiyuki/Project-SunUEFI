@@ -122,7 +122,7 @@ EFI_STATUS PianoUsbControllerRunForRamBoot(CONST VOID *Fdt,CONST PIANO_FB_BOOT *
   (void)Boot;return Report->Result=EFI_UNSUPPORTED;
 #else
   *Report=(PIANO_USB_BOOT_RETIRE_REPORT){.Result=EFI_SUCCESS,.Attempted=TRUE,.Returned=TRUE,.Clean=TRUE,.UfsAbsent=TRUE,.UsbAbsent=TRUE,
-    .DeviceHalted=TRUE,.DmaFreed=TRUE,.DomainFreed=TRUE,.ClocksReleased=TRUE,.OtherStreamsStable=TRUE,.OwnedStreamIndex=117,.ClockReleaseMask=0xff};
+    .DeviceHalted=TRUE,.DmaFreed=TRUE,.DomainFreed=TRUE,.ClocksReleased=TRUE,.OtherStreamsStable=TRUE,.OwnedStreamIndex=117,.ClockReleaseMask=PIANO_USB_CLOCK_RELEASE_MASK};
   if(F.Case==19){Report->Retained=TRUE;*Reboot=TRUE;return EFI_SUCCESS;}
   if(F.Case==21){F.Event[0].Notify(&F.Event[0],F.Event[0].Context);F.Alive=FALSE;return EFI_SUCCESS;}
   assert(PianoFastbootInit(&F.Wire,&F,Send,NULL)==EFI_SUCCESS&&PianoFastbootSetBoot(&F.Wire,Boot)==EFI_SUCCESS);

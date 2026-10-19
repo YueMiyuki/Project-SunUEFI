@@ -134,7 +134,7 @@ CONST PIANO_BOOT_POLICY_REPORT *PianoBootPolicyReport(VOID){return &Policy;}
 EFI_STATUS PianoBootPolicyStop(VOID){assert(Tpl==TPL_APPLICATION);Step('P');Policy.ProtocolInstalled=FALSE;return EFI_SUCCESS;}
 EFI_STATUS PianoUsbControllerServiceGetStatus(PIANO_DWC3_SERVICE_STATUS *S){*S=Usb;return EFI_SUCCESS;}
 EFI_STATUS PianoUsbControllerValidateStartupFailureProof(CONST VOID *F,CONST PIANO_SMMU_RETIRED_USB_PROOF *P){(VOID)F;(VOID)P;assert(!"running-display fixture must not authorize USB absence");return EFI_ACCESS_DENIED;}
-EFI_STATUS PianoUsbControllerServiceStop(EFI_STATUS Why,PIANO_USB_SERVICE_RETIRE_REPORT *R){assert(Why==EFI_SUCCESS);Step('U');*R=(PIANO_USB_SERVICE_RETIRE_REPORT){.Revision=1,.Attempted=TRUE,.Clean=TRUE,.DeviceHalted=TRUE,.DmaFreed=TRUE,.DomainFreed=TRUE,.ClocksReleased=TRUE,.DmaBuffersFreed=9,.ClockReleaseMask=255};return EFI_SUCCESS;}
+EFI_STATUS PianoUsbControllerServiceStop(EFI_STATUS Why,PIANO_USB_SERVICE_RETIRE_REPORT *R){assert(Why==EFI_SUCCESS);Step('U');*R=(PIANO_USB_SERVICE_RETIRE_REPORT){.Revision=1,.Attempted=TRUE,.Clean=TRUE,.DeviceHalted=TRUE,.DmaFreed=TRUE,.DomainFreed=TRUE,.ClocksReleased=TRUE,.DmaBuffersFreed=9,.ClockReleaseMask=PIANO_USB_CLOCK_RELEASE_MASK};return EFI_SUCCESS;}
 EFI_STATUS PianoDwc3ConsumeBootAction(PIANO_FB_BOOT_ACTION *A){(VOID)A;assert(FALSE);return EFI_UNSUPPORTED;}
 EFI_STATUS PianoUsbControllerMakeRetiredUsbProof(CONST VOID *F,PIANO_SMMU_RETIRED_USB_PROOF *P){assert(F==(VOID *)1);Step('R');P->Valid=TRUE;return EFI_SUCCESS;}
 static EFI_STATUS Ready(VOID *C){(VOID)C;return EFI_SUCCESS;}

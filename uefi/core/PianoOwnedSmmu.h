@@ -3,6 +3,8 @@
 #include "PianoDma.h"
 #include "PianoSmmu.h"
 #include "PianoIoPageTable.h"
+#define PIANO_USB_CLOCK_COUNT 10U
+#define PIANO_USB_CLOCK_RELEASE_MASK ((1U << PIANO_USB_CLOCK_COUNT) - 1U)
 // Observation only. These records never authorize a changed peer/unused slot.
 typedef struct {
   BOOLEAN Valid,LiveRead;

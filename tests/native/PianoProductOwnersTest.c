@@ -69,7 +69,7 @@ static VOID fresh(VOID) {
   StartupValidateStatus=EFI_SUCCESS;StartupValidations=StartupFailAt=UsbStatusReads=0;
   Policy.Initialized=Policy.ProtocolInstalled=TRUE;
   UsbState=(PIANO_DWC3_SERVICE_STATUS){.Revision=1,.Started=TRUE,.Phase=PianoUsbServiceListening};
-  UsbReport=(PIANO_USB_SERVICE_RETIRE_REPORT){.Revision=1,.Attempted=TRUE,.Clean=TRUE,.DeviceHalted=TRUE,.DmaFreed=TRUE,.DomainFreed=TRUE,.ClocksReleased=TRUE,.DmaBuffersFreed=9,.ClockReleaseMask=255};
+  UsbReport=(PIANO_USB_SERVICE_RETIRE_REPORT){.Revision=1,.Attempted=TRUE,.Clean=TRUE,.DeviceHalted=TRUE,.DmaFreed=TRUE,.DomainFreed=TRUE,.ClocksReleased=TRUE,.DmaBuffersFreed=9,.ClockReleaseMask=PIANO_USB_CLOCK_RELEASE_MASK};
   UfsReport=(PIANO_UFS_RESET_REPORT){.Started=TRUE,.Prepared=TRUE,.Returned=TRUE,.Clean=TRUE,.TplHeld=TRUE,.DmaFreed=3,.Disconnected=6,.ProtocolsRemoved=7};
   InputReport=(PIANO_PRODUCT_INPUT_RETIRE_REPORT){.Revision=1,.Started=TRUE,.Returned=TRUE,.Clean=TRUE};
   BootAction=(PIANO_FB_BOOT_ACTION){.Context=(VOID *)0x1122,.Token=(VOID *)0x3344,.Taken=TRUE,.Proof={.AckCompleted=TRUE,.QueueEmpty=TRUE,.DeviceHalted=TRUE,.DmaFreed=TRUE,.DispatchFrozen=TRUE,.AckBytes=4,.DmaBuffersFreed=9}};
@@ -81,7 +81,7 @@ static VOID without_usb(VOID){
   Config.StartedOwnerMask&=~PIANO_OWNER_USB;Config.AbsentOwnerMask|=PIANO_OWNER_USB;
   StartupProof=(PIANO_SMMU_RETIRED_USB_PROOF){.Revision=PIANO_SMMU_USB_RETIRE_REVISION,.Valid=TRUE,.UsbContext=(VOID *)0x811,
     .Execution={.Revision=PIANO_SMMU_USB_RETIRE_REVISION,.DeviceHalted=TRUE,.DmaFreed=TRUE,.ClocksReleased=TRUE,.GdscReleased=TRUE,
-      .ClockReleaseMask=255,.Kind=PIANO_USB_RETIRE_STARTUP_FAILED_CLEAN,.StartupStatus=EFI_TIMEOUT}};
+      .ClockReleaseMask=PIANO_USB_CLOCK_RELEASE_MASK,.Kind=PIANO_USB_RETIRE_STARTUP_FAILED_CLEAN,.StartupStatus=EFI_TIMEOUT}};
   ProducerStartupProof=StartupProof;Config.StartupUsbProof=&StartupProof;
   UsbState=(PIANO_DWC3_SERVICE_STATUS){.Revision=1,.Phase=PianoUsbServiceOff};
 }

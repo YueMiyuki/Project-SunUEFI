@@ -79,7 +79,7 @@ STATIC EFI_STATUS CarrierRelease(VOID *C,VOID *O) {
 }
 STATIC EFI_STATUS ShutdownAll(VOID *Context) {
   SESSION *S=Context;return S==&mSession && S->ControllerClean && S->Retire.Clean && !S->Retire.Retained &&
-    S->Retire.Attempted && S->Retire.Returned && S->Retire.Result==EFI_SUCCESS && S->Retire.ClockReleaseMask==0xff &&
+    S->Retire.Attempted && S->Retire.Returned && S->Retire.Result==EFI_SUCCESS && S->Retire.ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK &&
     S->Retire.DomainFreed && S->Retire.ClocksReleased && S->Retire.UfsAbsent && S->Retire.UsbAbsent &&
     S->Retire.OtherStreamsStable &&
     S->Retire.DeviceHalted && S->Retire.DmaFreed?EFI_SUCCESS:EFI_NOT_READY;
@@ -147,7 +147,7 @@ EFI_STATUS PianoRunUsbRamBoot(CONST VOID *Fdt,EFI_HANDLE Parent) {
   if(Reboot) {
     if(mSession.Captured || Action.Taken || Action.Retained || mSession.Retire.Retained || !mSession.Retire.Attempted ||
        !mSession.Retire.Returned || mSession.Retire.Result!=EFI_SUCCESS || !mSession.Retire.DomainFreed ||
-       !mSession.Retire.ClocksReleased || mSession.Retire.ClockReleaseMask!=0xff || !mSession.Retire.UfsAbsent ||
+       !mSession.Retire.ClocksReleased || mSession.Retire.ClockReleaseMask!=PIANO_USB_CLOCK_RELEASE_MASK || !mSession.Retire.UfsAbsent ||
        !mSession.Retire.UsbAbsent || !mSession.Retire.OtherStreamsStable)FailStop(&mSession,EFI_COMPROMISED_DATA);
     CloseFence(EFI_SUCCESS);gRT->ResetSystem(EfiResetCold,EFI_SUCCESS,0,NULL);CpuDeadLoop();
   }

@@ -13,7 +13,7 @@ EFI_STATUS PianoOwnedSmmuMakeRetiredUsbProof(CONST PIANO_OWNED_SMMU *C,CONST PIA
 static EFI_CLOCK_PROTOCOL clock;
 static UINT32 smmu[0x100000/4];static PIANO_SMMU_SNAPSHOT hardware;
 static UINTN held,next_clock,closes,installs,removes,full_captures,backend_reads,backend_infos,stage;
-static BOOLEAN domain,install_fail,remove_fail,backend_fail,reentry;
+static BOOLEAN domain,phy_domain,install_fail,remove_fail,backend_fail,reentry;
 static UINTN scenario;
 static PIANO_USB_SHUTDOWN *visible_shutdown;
 static EFI_STATUS reentry_status,setter_status;
@@ -40,13 +40,13 @@ CONST VOID *EFIAPI FdtGetProp(CONST VOID *Fdt,INT32 Node,CONST CHAR8 *Name,INT32
 }
 VOID PianoProbeUsbPower(CONST VOID *Fdt){assert(Fdt==(VOID *)123);}
 static EFI_STATUS EFIAPI locate_clock(EFI_GUID *Guid,VOID *Registration,VOID **Interface){*Interface=&clock;return EFI_SUCCESS;}
-static EFI_STATUS EFIAPI clock_id(EFI_CLOCK_PROTOCOL *C,CONST CHAR8 *Name,UINTN *Id){assert(C==&clock);*Id=!strcmp(Name,"gcc_usb30_prim_gdsc")?100:next_clock++;return EFI_SUCCESS;}
-static EFI_STATUS EFIAPI clock_enable(EFI_CLOCK_PROTOCOL *C,UINTN Id){assert(C==&clock);if(Id==100)domain=TRUE;else {assert(Id<8 && domain);held|=1U<<Id;}return EFI_SUCCESS;}
-static EFI_STATUS EFIAPI clock_disable(EFI_CLOCK_PROTOCOL *C,UINTN Id){assert(C==&clock && !mUsbShutdownLive);if(Id==100){assert(!held);domain=FALSE;}else {assert(held&(1U<<Id));held&=~(1U<<Id);}return EFI_SUCCESS;}
+static EFI_STATUS EFIAPI clock_id(EFI_CLOCK_PROTOCOL *C,CONST CHAR8 *Name,UINTN *Id){assert(C==&clock);*Id=!strcmp(Name,"gcc_usb30_prim_gdsc")?100:!strcmp(Name,"gcc_usb3_phy_gdsc")?101:next_clock++;return EFI_SUCCESS;}
+static EFI_STATUS EFIAPI clock_enable(EFI_CLOCK_PROTOCOL *C,UINTN Id){assert(C==&clock);if(Id==100)domain=TRUE;else if(Id==101){assert(domain);phy_domain=TRUE;}else {assert(Id<PIANO_USB_CLOCK_COUNT && domain && phy_domain);held|=1U<<Id;}return EFI_SUCCESS;}
+static EFI_STATUS EFIAPI clock_disable(EFI_CLOCK_PROTOCOL *C,UINTN Id){assert(C==&clock && !mUsbShutdownLive);if(Id==100){assert(!held && !phy_domain);domain=FALSE;}else if(Id==101){assert(!held&&domain);phy_domain=FALSE;}else {assert(held&(1U<<Id));held&=~(1U<<Id);}return EFI_SUCCESS;}
 static EFI_STATUS EFIAPI install(EFI_HANDLE *Handle,...) {
   ++installs;if(install_fail)return EFI_DEVICE_ERROR;
   va_list A;va_start(A,Handle);EFI_GUID *G=va_arg(A,EFI_GUID *);visible_shutdown=va_arg(A,PIANO_USB_SHUTDOWN *);assert(va_arg(A,VOID *)==NULL);va_end(A);
-  EFI_GUID Expected=PIANO_USB_SHUTDOWN_GUID;assert(!memcmp(G,&Expected,sizeof(Expected)) && visible_shutdown==&mUsbShutdown && held==255);*Handle=(VOID *)987;return EFI_SUCCESS;
+  EFI_GUID Expected=PIANO_USB_SHUTDOWN_GUID;assert(!memcmp(G,&Expected,sizeof(Expected)) && visible_shutdown==&mUsbShutdown && held==PIANO_USB_CLOCK_RELEASE_MASK);*Handle=(VOID *)987;return EFI_SUCCESS;
 }
 static EFI_STATUS EFIAPI uninstall(EFI_HANDLE Handle,...) {
   assert(Handle==(VOID *)987 && (MmioRead32(DW+0xC70C)&BIT22));++removes;if(remove_fail)return EFI_DEVICE_ERROR;visible_shutdown=NULL;return EFI_SUCCESS;
@@ -65,7 +65,7 @@ static PIANO_SMMU_DEVICE bank(UINTN I,UINT16 Sid,UINT64 Root) {
     .Sctlr=0x1e5,.Cbar=0x10000,.Cba2r=1,.Tcr=0x00802519,.Tcr2=0x00038001,.Mair0=0xff,.Ttbr0=Root};
 }
 EFI_STATUS PianoOwnedSmmuOpenUsb(CONST VOID *Fdt,PIANO_OWNED_SMMU *C,PIANO_DMA_DEVICE *D) {
-  assert(mUsbShutdownLive && held==255 && domain);C->Before=hardware;C->Fdt=Fdt;
+  assert(mUsbShutdownLive && held==PIANO_USB_CLOCK_RELEASE_MASK && domain);C->Before=hardware;C->Fdt=Fdt;
   hardware.Device[1]=bank(1,0x40,0x82000000);hardware.RawSmr[1]=hardware.Device[1].Smr;hardware.RawS2cr[1]=1;load_hardware();
   C->After=hardware;C->Verified=C->Attached=TRUE;C->TableMemory.Signature=1;C->TableMemory.Physical=0x82000000;return EFI_SUCCESS;
 }
@@ -128,7 +128,7 @@ int main(void) {
     EFI_STATUS S=PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot);
     if(scenario==0){assert(S==EFI_SUCCESS && Reboot && stage==9 && backend_reads==1 && !mUsbShutdownLive && !held && !domain && !resets && mCoexistQuietChecks>=6 && full_captures==6);}
     else if(scenario<=3 || scenario>=7) {
-      assert(S!=EFI_SUCCESS && !Reboot && mCoexistFailed && mUsbCleanupBlocked && mUsbShutdownLive && held==255 && domain && mExperimentRunning);
+      assert(S!=EFI_SUCCESS && !Reboot && mCoexistFailed && mUsbCleanupBlocked && mUsbShutdownLive && held==PIANO_USB_CLOCK_RELEASE_MASK && domain && mExperimentRunning);
       assert(PianoDwc3SetStorageForExperiment(NULL)==EFI_NOT_READY && PianoDwc3Ep0Experiment(&mUsbContext,&mUsbDevice)==EFI_ALREADY_STARTED);
       for(UINTN I=0;I<ARRAY_SIZE(all);++I)assert(all[I]->Quarantined && all[I]->Signature && !all[I]->Active);
       UINTN Count=allocations;assert(visible_shutdown && visible_shutdown->Revision==1 && visible_shutdown->Halt()==EFI_SUCCESS && allocations==Count && closes==1);
@@ -137,10 +137,10 @@ int main(void) {
   }
   setup_model();scenario=0;backend_fail=TRUE;assert(PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot)==EFI_NOT_READY && !installs);
   setup_model();install_fail=TRUE;assert(PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot)==EFI_DEVICE_ERROR && !mUsbShutdownLive && !held);
-  setup_model();remove_fail=TRUE;assert(PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot)==EFI_DEVICE_ERROR && !Reboot && mUsbShutdownLive && held==255);
+  setup_model();remove_fail=TRUE;assert(PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot)==EFI_DEVICE_ERROR && !Reboot && mUsbShutdownLive && held==PIANO_USB_CLOCK_RELEASE_MASK);
   setup_model();failed_halt=TRUE;
   if(!setjmp(failed_reset_return)){PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot);assert(FALSE);}
-  assert(resets==1 && mExperimentRunning && mUsbShutdownLive && held==255 && !closes && mRing.Active);
+  assert(resets==1 && mExperimentRunning && mUsbShutdownLive && held==PIANO_USB_CLOCK_RELEASE_MASK && !closes && mRing.Active);
   assert(visible_shutdown->Halt()==EFI_TIMEOUT && mRing.Active);
   setup_model();scenario=0;assert(PianoUsbControllerRunWithStorage((VOID *)123,&backend,&Reboot)==EFI_SUCCESS && !mExperimentHasStorage);
   assert(UsbHaltOnly()==EFI_NOT_READY); // Stale protocol cannot read powered-off registers.

@@ -30,7 +30,7 @@ STATIC VOID ControllerZero(VOID *Buffer,UINTN Bytes) {
 #if PIANO_USB_SERVICE
 STATIC struct {
   BOOLEAN Opening,Started,Unknown,ServicesLost;
-  EFI_CLOCK_PROTOCOL *Clock;UINTN Ids[8],Held,Domain;BOOLEAN DomainHeld;
+  EFI_CLOCK_PROTOCOL *Clock;UINTN Ids[PIANO_USB_CLOCK_COUNT],Held,Domain,PhyDomain;BOOLEAN DomainHeld,PhyDomainHeld;
   EFI_EVENT Timer,ExitEvent;PIANO_DWC3_SERVICE_CONFIG Config;
   PIANO_DMA_BUFFER ProbeBuffer;
 } mPersistent;
@@ -242,10 +242,12 @@ STATIC EFI_STATUS RunController(CONST VOID *Fdt,BOOLEAN Deferred,BOOLEAN *Reboot
      Clock->DisableClockPowerDomain==NULL || Clock->Version!=0x1000b ||
      (VOID *)Clock->GetClockPowerDomainID!=(VOID *)Clock->GetClockID ||
      (VOID *)Clock->EnableClockPowerDomain!=(VOID *)Clock->EnableClock){mUsbControllerRunning=FALSE;return EFI_UNSUPPORTED;}
-  STATIC CONST CHAR8 *Names[]={"gcc_cfg_noc_usb3_prim_axi_clk","gcc_aggre_usb3_prim_axi_clk", "gcc_usb30_prim_master_clk",
+  STATIC CONST CHAR8 *Names[]={"tcsr_usb2_clkref_en","tcsr_usb3_clkref_en",
+    "gcc_cfg_noc_usb3_prim_axi_clk","gcc_aggre_usb3_prim_axi_clk","gcc_usb30_prim_master_clk",
     "gcc_usb30_prim_sleep_clk","gcc_usb30_prim_mock_utmi_clk","gcc_usb3_prim_phy_aux_clk","gcc_usb3_prim_phy_com_aux_clk","gcc_usb3_prim_phy_pipe_clk"};
-  UINTN Ids[ARRAY_SIZE(Names)],Held=0,Domain=0,ClockReleaseFailures=0;
-  BOOLEAN DomainHeld=FALSE,SafeToDisable=TRUE,RebootRequested=FALSE;
+  STATIC_ASSERT(ARRAY_SIZE(Names)==PIANO_USB_CLOCK_COUNT,"USB clock retirement inventory");
+  UINTN Ids[ARRAY_SIZE(Names)],Held=0,Domain=0,PhyDomain=0,ClockReleaseFailures=0;
+  BOOLEAN DomainHeld=FALSE,PhyDomainHeld=FALSE,SafeToDisable=TRUE,RebootRequested=FALSE;
 #if PIANO_USB_RAM_BOOT
   if(mRamBootMode){mRamClockReleaseMask=0;mRamDomainReleased=FALSE;mRamClockUnknown=FALSE;mRamOwnedStreamIndex=MAX_UINT16;}
 #endif
@@ -267,6 +269,27 @@ STATIC EFI_STATUS RunController(CONST VOID *Fdt,BOOLEAN Deferred,BOOLEAN *Reboot
   }
   DEBUG((DEBUG_WARN,"SUNUEFI_USB_DOMAIN %r\n",Status));if(EFI_ERROR(Status)){mUsbControllerRunning=FALSE;return Status;}
   DomainHeld=TRUE;
+  // SM8750 has a separate USB3 PHY power domain and two TCSR reference
+  // gates. GCC controller clocks alone do not keep the PHY reference alive.
+  Status=Clock->GetClockPowerDomainID(Clock,"gcc_usb3_phy_gdsc",&PhyDomain);
+#if PIANO_USB_SERVICE
+  Status=ServiceExact(Status,FALSE);
+#endif
+#if PIANO_USB_RAM_BOOT
+  Status=RamClockStatus(Status,FALSE);
+#endif
+  if(Status==EFI_SUCCESS) {
+    Status=Clock->EnableClockPowerDomain(Clock,PhyDomain);
+#if PIANO_USB_SERVICE
+    Status=ServiceExact(Status,TRUE);
+#endif
+#if PIANO_USB_RAM_BOOT
+    Status=RamClockStatus(Status,TRUE);
+#endif
+  }
+  DEBUG((DEBUG_WARN,"SUNUEFI_USB_PHY_DOMAIN %r\n",Status));
+  if(Status!=EFI_SUCCESS){if(!EFI_ERROR(Status))Status=EFI_DEVICE_ERROR;goto Exit;}
+  PhyDomainHeld=TRUE;
   for(UINTN I=0;I<ARRAY_SIZE(Names);++I) {
     Status=Clock->GetClockID(Clock,Names[I],&Ids[I]);
 #if PIANO_USB_SERVICE
@@ -397,6 +420,7 @@ STATIC EFI_STATUS RunController(CONST VOID *Fdt,BOOLEAN Deferred,BOOLEAN *Reboot
       Status=PianoDwc3ServiceStart(&mUsbContext,&mUsbDevice,&mPersistent.Config);
       if(Status==EFI_SUCCESS) {
         mPersistent.Clock=Clock;mPersistent.Held=Held;mPersistent.Domain=Domain;mPersistent.DomainHeld=DomainHeld;
+        mPersistent.PhyDomain=PhyDomain;mPersistent.PhyDomainHeld=PhyDomainHeld;
         for(UINTN I=0;I<Held;++I)mPersistent.Ids[I]=Ids[I];
         mPersistent.Started=TRUE;return EFI_SUCCESS;
       }
@@ -475,7 +499,13 @@ Exit:
 #endif
     }
   }
-  if(DomainHeld && !ClockReleaseFailures) {
+  if(PhyDomainHeld && !ClockReleaseFailures) {
+    EFI_STATUS Release=Clock->DisableClockPowerDomain(Clock,PhyDomain);
+    DEBUG((DEBUG_WARN,"SUNUEFI_USB_PHY_DOMAIN_RELEASE %r\n",Release));
+    if(Release!=EFI_SUCCESS){Status=EFI_ERROR(Release)?Release:EFI_DEVICE_ERROR;++ClockReleaseFailures;mUsbCleanupBlocked=TRUE;}
+    else PhyDomainHeld=FALSE;
+  }
+  if(DomainHeld && !PhyDomainHeld && !ClockReleaseFailures) {
     EFI_STATUS Release=Clock->DisableClockPowerDomain(Clock,Domain);
     DEBUG((DEBUG_WARN,"SUNUEFI_USB_DOMAIN_RELEASE %r\n",Release));
     if(Release!=EFI_SUCCESS){Status=EFI_ERROR(Release)?Release:EFI_DEVICE_ERROR;mUsbCleanupBlocked=TRUE;}else DomainHeld=FALSE;
@@ -489,7 +519,7 @@ Exit:
   if(!mUsbCleanupBlocked)mUsbControllerRunning=FALSE;
 #if PIANO_USB_UFS_FETCH || PIANO_USB_SERVICE
   PIANO_SMMU_USB_RETIRE_EVIDENCE DeviceRetire;
-  if(Status==EFI_SUCCESS && !mUsbCleanupBlocked && mControllerRetire.ClockReleaseMask==0xff && mControllerRetire.GdscReleased &&
+  if(Status==EFI_SUCCESS && !mUsbCleanupBlocked && mControllerRetire.ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK && mControllerRetire.GdscReleased &&
      PianoDwc3GetRetireEvidence(&DeviceRetire)==EFI_SUCCESS) {
     mControllerRetire.Revision=1;mControllerRetire.DeviceCleanupStatus=DeviceRetire.DeviceCleanupStatus;
     mControllerRetire.ControllerCleanupStatus=Status;mControllerRetire.DeviceHalted=DeviceRetire.DeviceHalted;
@@ -498,7 +528,7 @@ Exit:
   }
 #if PIANO_USB_SERVICE
   if(mPersistent.Opening && Status==EFI_TIMEOUT && !mUsbCleanupBlocked &&
-     mControllerRetire.ClockReleaseMask==0xff && mControllerRetire.GdscReleased) {
+     mControllerRetire.ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK && mControllerRetire.GdscReleased) {
     PIANO_USB_STARTUP_FAILURE_EVIDENCE Failure;ControllerZero(&Failure,sizeof(Failure));
     EFI_STATUS Evidence=PianoDwc3GetStartupFailureEvidence(&Failure);
     if(Evidence==EFI_SUCCESS && Failure.Revision==1 && Failure.Context==&mUsbContext &&
@@ -695,11 +725,16 @@ EFI_STATUS PianoUsbControllerServiceStop(EFI_STATUS Reason,PIANO_USB_SERVICE_RET
     if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;Report->Status=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}
     else Report->ClockReleaseMask|=1U<<Index;
   }
-  if(mPersistent.DomainHeld && !mUsbCleanupBlocked) {
+  if(mPersistent.PhyDomainHeld && !mUsbCleanupBlocked) {
+    S=mPersistent.Clock->DisableClockPowerDomain(mPersistent.Clock,mPersistent.PhyDomain);
+    if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;Report->Status=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}
+    else mPersistent.PhyDomainHeld=FALSE;
+  }
+  if(mPersistent.DomainHeld && !mPersistent.PhyDomainHeld && !mUsbCleanupBlocked) {
     S=mPersistent.Clock->DisableClockPowerDomain(mPersistent.Clock,mPersistent.Domain);
     if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;Report->Status=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}else mPersistent.DomainHeld=FALSE;
   }
-  Report->ClocksReleased=Report->ClockReleaseMask==0xff && !mPersistent.DomainHeld;
+  Report->ClocksReleased=Report->ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK && !mPersistent.DomainHeld && !mPersistent.PhyDomainHeld;
   Report->Clean=!Report->Retained && Report->DeviceStatus==EFI_SUCCESS && Report->DomainFreed && Report->ClocksReleased;
   if(!Report->Retained)mUsbControllerRunning=FALSE;
   if(Report->Clean) {
@@ -742,7 +777,7 @@ EFI_STATUS PianoUsbControllerRunForRamBoot(CONST VOID *Fdt,CONST PIANO_FB_BOOT *
   for(UINTN I=0;I<ARRAY_SIZE(mUsbContext.Mapping);++I)if(mUsbContext.Mapping[I].Used)Report->DomainFreed=FALSE;
   Report->ClockReleaseMask=mRamClockReleaseMask;
   Report->OwnedStreamIndex=mRamOwnedStreamIndex;
-  Report->ClocksReleased=mRamClockReleaseMask==0xff && mRamDomainReleased && !mRamClockUnknown;
+  Report->ClocksReleased=mRamClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK && mRamDomainReleased && !mRamClockUnknown;
   Report->Retained=mUsbCleanupBlocked || mUsbControllerRunning;
   // Consume the device result even on a controller failure, preserving any
   // transferred token in the caller's ledger; never discard a partial Take.

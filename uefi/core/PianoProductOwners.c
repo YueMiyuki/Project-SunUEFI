@@ -233,7 +233,7 @@ EFI_STATUS PianoProductOwnersResolveReturnedAction(PIANO_PRODUCT_OWNERS *Owners)
 STATIC BOOLEAN UsbClean(CONST PIANO_USB_SERVICE_RETIRE_REPORT *R) {
   return R->Revision==1 && R->Attempted && R->Clean && !R->Retained && R->Status==EFI_SUCCESS &&
     R->DeviceStatus==EFI_SUCCESS && R->OwnedCloseStatus==EFI_SUCCESS && R->TimerCloseStatus==EFI_SUCCESS &&
-    R->DeviceHalted && R->DmaFreed && R->DomainFreed && R->ClocksReleased && R->DmaBuffersFreed==9 && R->ClockReleaseMask==0xff;
+    R->DeviceHalted && R->DmaFreed && R->DomainFreed && R->ClocksReleased && R->DmaBuffersFreed==9 && R->ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK;
 }
 STATIC BOOLEAN UfsClean(CONST PIANO_UFS_RESET_REPORT *R) {
   return R && R->Started && R->Prepared && R->Returned && R->Clean && !R->Failed && R->TplHeld &&

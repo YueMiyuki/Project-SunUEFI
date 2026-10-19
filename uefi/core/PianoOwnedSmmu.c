@@ -406,7 +406,7 @@ STATIC EFI_STATUS PeerRetired(CONST PIANO_OWNED_SMMU *U,CONST PIANO_SMMU_USB_RET
     E->DmaBuffersAllocated==0 && E->DmaBuffersFreed==0;
   if(E->Revision!=PIANO_SMMU_USB_RETIRE_REVISION || E->DeviceCleanupStatus!=EFI_SUCCESS || E->ControllerCleanupStatus!=EFI_SUCCESS ||
      E->DeviceHalted!=TRUE || E->DmaFreed!=TRUE || E->ClocksReleased!=TRUE || E->GdscReleased!=TRUE ||
-     !BuffersRetired || E->ClockReleaseMask!=0xff || U->DeviceIndex!=1 || !U->OwnedIdentitySaved ||
+     !BuffersRetired || E->ClockReleaseMask!=PIANO_USB_CLOCK_RELEASE_MASK || U->DeviceIndex!=1 || !U->OwnedIdentitySaved ||
      U->Attached || U->Verified || U->ExitRetained || U->Domain!=NULL || U->TableMemory.Signature || U->TableMemory.Quarantined ||
      U->TableMemory.Active || U->TableMemory.Mapped || U->TableMemory.Cpu!=NULL || U->TableMemory.AllocationPages)return EFI_NOT_READY;
   CONST PIANO_SMMU_CLOSE_LEDGER *L=&U->CloseLedger;

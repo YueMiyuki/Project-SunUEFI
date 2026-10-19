@@ -25,6 +25,7 @@ STATIC CONST PIANO_FB_BOOT *Backend;
 STATIC PIANO_FB_BOOT_ACTION DeviceAction;
 STATIC PIANO_SMMU_SNAPSHOT Hardware;
 STATIC CONST UINT16 OwnedIndex=117;
+STATIC BOOLEAN PhyDomainHeld;
 
 BOOLEAN EFIAPI DebugPrintEnabled(VOID){return FALSE;}
 BOOLEAN EFIAPI DebugPrintLevelEnabled(UINTN Level){(void)Level;return FALSE;}
@@ -48,7 +49,7 @@ UINT32 EFIAPI MmioWrite32(UINTN Address,UINT32 Value){assert(Address==USB_BASE+0
 STATIC EFI_STATUS EFIAPI Stall(UINTN Us){(void)Us;return EFI_SUCCESS;}
 STATIC EFI_STATUS EFIAPI Locate(EFI_GUID *Guid,VOID *Registration,VOID **Interface){(void)Guid;(void)Registration;*Interface=&Clock;return EFI_SUCCESS;}
 STATIC EFI_STATUS EFIAPI Install(EFI_HANDLE *Handle,...) {
-  Installs++;assert(ClockHeld==255&&DomainHeld);va_list Args;va_start(Args,Handle);
+  Installs++;assert(ClockHeld==PIANO_USB_CLOCK_RELEASE_MASK&&DomainHeld);va_list Args;va_start(Args,Handle);
   EFI_GUID *Guid=va_arg(Args,EFI_GUID *);VOID *Protocol=va_arg(Args,VOID *);assert(va_arg(Args,VOID *)==NULL);va_end(Args);
   EFI_GUID Expected=PIANO_USB_SHUTDOWN_GUID;assert(!memcmp(Guid,&Expected,sizeof(Expected)));
 #if PIANO_USB_RAM_BOOT
@@ -59,17 +60,18 @@ STATIC EFI_STATUS EFIAPI Install(EFI_HANDLE *Handle,...) {
   *Handle=(VOID *)0x456;return EFI_SUCCESS;
 }
 STATIC EFI_STATUS EFIAPI Uninstall(EFI_HANDLE Handle,...) {
-  Removes++;assert(Handle==(VOID *)0x456&&ClockHeld==255&&DomainHeld&&Closed==1);return EFI_SUCCESS;
+  Removes++;assert(Handle==(VOID *)0x456&&ClockHeld==PIANO_USB_CLOCK_RELEASE_MASK&&DomainHeld&&Closed==1);return EFI_SUCCESS;
 }
 STATIC EFI_STATUS EFIAPI ClockId(EFI_CLOCK_PROTOCOL *C,CONST CHAR8 *Name,UINTN *Id){
-  assert(C==&Clock);*Id=!strcmp(Name,"gcc_usb30_prim_gdsc")?100:NextClock++;return EFI_SUCCESS;
+  assert(C==&Clock);*Id=!strcmp(Name,"gcc_usb30_prim_gdsc")?100:!strcmp(Name,"gcc_usb3_phy_gdsc")?101:NextClock++;return EFI_SUCCESS;
 }
 STATIC EFI_STATUS EFIAPI Enable(EFI_CLOCK_PROTOCOL *C,UINTN Id){
-  assert(C==&Clock);if(Id==100)DomainHeld=TRUE;else {assert(Id<8&&DomainHeld);ClockHeld|=1U<<Id;}return EFI_SUCCESS;
+  assert(C==&Clock);if(Id==100)DomainHeld=TRUE;else if(Id==101){assert(DomainHeld);PhyDomainHeld=TRUE;}else {assert(Id<PIANO_USB_CLOCK_COUNT&&DomainHeld&&PhyDomainHeld);ClockHeld|=1U<<Id;}return EFI_SUCCESS;
 }
 STATIC EFI_STATUS EFIAPI Disable(EFI_CLOCK_PROTOCOL *C,UINTN Id){
-  assert(C==&Clock);if(Id==100){DomainReleases++;assert(!ClockHeld);if(Case==14)return EFI_WARN_STALE_DATA;DomainHeld=FALSE;return EFI_SUCCESS;}
-  ClockReleases++;assert(Id<8&&(ClockHeld&(1U<<Id)));if(Case==13&&Id==3)return EFI_WARN_STALE_DATA;
+  assert(C==&Clock);if(Id==100){DomainReleases++;assert(!ClockHeld&&!PhyDomainHeld);if(Case==14)return EFI_WARN_STALE_DATA;DomainHeld=FALSE;return EFI_SUCCESS;}
+  if(Id==101){assert(!ClockHeld&&DomainHeld);PhyDomainHeld=FALSE;return EFI_SUCCESS;}
+  ClockReleases++;assert(Id<PIANO_USB_CLOCK_COUNT&&(ClockHeld&(1U<<Id)));if(Case==13&&Id==3)return EFI_WARN_STALE_DATA;
   ClockHeld&=~(1U<<Id);return EFI_SUCCESS;
 }
 STATIC VOID EFIAPI Reset(EFI_RESET_TYPE Type,EFI_STATUS Status,UINTN Bytes,VOID *Data){
@@ -86,7 +88,7 @@ EFI_STATUS PianoDwc3ConsumeBootAction(PIANO_FB_BOOT_ACTION *Action){
 }
 BOOLEAN PianoDwc3ConsumeRebootRequest(VOID){return FALSE;}
 EFI_STATUS PianoDwc3Ep0Experiment(PIANO_OWNED_SMMU *C,PIANO_DMA_DEVICE *D){
-  (void)D;assert(C->Attached&&C->Verified&&ClockHeld==255&&DomainHeld&&Backend);DwcRuns++;
+  (void)D;assert(C->Attached&&C->Verified&&ClockHeld==PIANO_USB_CLOCK_RELEASE_MASK&&DomainHeld&&Backend);DwcRuns++;
 #if PIANO_USB_RAM_BOOT
   assert(mUsbShutdownLive && mUsbShutdown.Halt()==EFI_SUCCESS && C->Attached && C->Domain!=NULL);
 #endif
@@ -95,7 +97,7 @@ EFI_STATUS PianoDwc3Ep0Experiment(PIANO_OWNED_SMMU *C,PIANO_DMA_DEVICE *D){
   return EFI_SUCCESS;
 }
 EFI_STATUS PianoOwnedSmmuOpenUsb(CONST VOID *Fdt,PIANO_OWNED_SMMU *C,PIANO_DMA_DEVICE *D){
-  (void)D;assert(Fdt==(VOID *)123&&ClockHeld==255&&DomainHeld);Opened++;
+  (void)D;assert(Fdt==(VOID *)123&&ClockHeld==PIANO_USB_CLOCK_RELEASE_MASK&&DomainHeld);Opened++;
   C->Before=Hardware;C->Domain=(VOID *)0x111;C->Attached=C->Verified=TRUE;C->TableMemory.Signature=1;
   Hardware.Device[1]=(PIANO_SMMU_DEVICE){.Sid=0x40,.Present=TRUE,.Enabled=TRUE,.StreamIndex=OwnedIndex,.Type=0,.ContextBank=1,.Ttbr0=0x82000000};
   if(Case==5)Hardware.Device[1].StreamIndex=256;
@@ -153,9 +155,9 @@ STATIC VOID Run(UINT32 Scenario){
   if(!PIANO_USB_RAM_BOOT){assert(Status==EFI_UNSUPPORTED&&!Captures&&!Setters&&!Opened&&!DwcRuns&&!Report.Clean&&!Reboot);return;}
   if(Scenario==0) {
     assert(Status==EFI_SUCCESS&&Report.Clean&&!Report.Retained&&Report.DomainFreed&&Report.ClocksReleased&&Report.OtherStreamsStable);
-    assert(Report.OwnedStreamIndex==117&&Report.ClockReleaseMask==255&&Report.UfsAbsent&&Report.UsbAbsent);
+    assert(Report.OwnedStreamIndex==117&&Report.ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK&&Report.UfsAbsent&&Report.UsbAbsent);
     assert(Report.DeviceHalted&&Report.DmaFreed&&Action.Taken&&Action.Token==(VOID *)0xcafe);
-    assert(Captures==2&&Opened==1&&Closed==1&&DwcRuns==1&&ClockReleases==8&&DomainReleases==1&&Clears==1);
+    assert(Captures==2&&Opened==1&&Closed==1&&DwcRuns==1&&ClockReleases==PIANO_USB_CLOCK_COUNT&&DomainReleases==1&&Clears==1);
     assert(Installs==1&&Removes==1);
     assert(Allocations==1&&Maps==1&&Frees==1&&!ClockHeld&&!DomainHeld&&!Reboot);return;
   }
@@ -167,15 +169,15 @@ STATIC VOID Run(UINT32 Scenario){
   if(Scenario==7)assert(!Report.UsbAbsent);
   if(Scenario==8 || Scenario==9)assert(!Report.OtherStreamsStable);
   if(Scenario==10 || Scenario==11 || Scenario==12 || Scenario==15) {
-    assert(Report.Retained&&!Report.ClocksReleased&&ClockHeld==255&&DomainHeld&&!ClockReleases&&!DomainReleases);
+    assert(Report.Retained&&!Report.ClocksReleased&&ClockHeld==PIANO_USB_CLOCK_RELEASE_MASK&&DomainHeld&&!ClockReleases&&!DomainReleases);
     assert(Installs==1&&!Removes);
     if(Scenario==15)assert(!Maps&&!DwcRuns);
     BOOLEAN Again=TRUE;PIANO_FB_BOOT_ACTION A;PIANO_USB_BOOT_RETIRE_REPORT R;
     assert(PianoUsbControllerRunForRamBoot((VOID *)123,&Boot,&A,&R,&Again)==EFI_NOT_READY&&!Again);
   }
   if(Scenario==10 || Scenario==11)assert(!Report.DomainFreed);
-  if(Scenario==13)assert(Report.Retained&&!Report.ClocksReleased&&Report.ClockReleaseMask==0xf7&&!DomainReleases&&DomainHeld);
-  if(Scenario==14)assert(Report.Retained&&!Report.ClocksReleased&&Report.ClockReleaseMask==0xff&&DomainReleases==1&&DomainHeld);
+  if(Scenario==13)assert(Report.Retained&&!Report.ClocksReleased&&Report.ClockReleaseMask==(PIANO_USB_CLOCK_RELEASE_MASK&~BIT3)&&!DomainReleases&&DomainHeld);
+  if(Scenario==14)assert(Report.Retained&&!Report.ClocksReleased&&Report.ClockReleaseMask==PIANO_USB_CLOCK_RELEASE_MASK&&DomainReleases==1&&DomainHeld);
 }
 int main(void){
   UINT32 Count=PIANO_USB_RAM_BOOT?16:1;

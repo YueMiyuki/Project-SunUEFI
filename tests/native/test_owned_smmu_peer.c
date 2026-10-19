@@ -55,7 +55,7 @@ static void setup(void){
   now.Device[1]=(PIANO_SMMU_DEVICE){.Sid=0x40};now.RawSmr[1]=now.RawS2cr[1]=0;capture=now;
   detached=now;detached.Device[0]=(PIANO_SMMU_DEVICE){.Sid=0x60};detached.RawSmr[0]=detached.RawS2cr[0]=0;
   execution=(PIANO_SMMU_USB_RETIRE_EVIDENCE){.Revision=1,.DeviceCleanupStatus=EFI_SUCCESS,.ControllerCleanupStatus=EFI_SUCCESS,
-    .DeviceHalted=TRUE,.DmaFreed=TRUE,.ClocksReleased=TRUE,.GdscReleased=TRUE,.DmaBuffersFreed=9,.ClockReleaseMask=0xff};
+    .DeviceHalted=TRUE,.DmaFreed=TRUE,.ClocksReleased=TRUE,.GdscReleased=TRUE,.DmaBuffersFreed=9,.ClockReleaseMask=PIANO_USB_CLOCK_RELEASE_MASK};
   detach_calls=destroy_calls=free_calls=0;detach_code=destroy_code=0;capture_status=free_status=EFI_SUCCESS;
 }
 static void close_usb(void){assert(PianoOwnedSmmuClose(usb)==EFI_SUCCESS && usb->CloseLedger.ExactClose);assert(detach_calls==1 && destroy_calls==1 && free_calls==1);}
