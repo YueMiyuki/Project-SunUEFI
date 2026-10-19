@@ -29,8 +29,9 @@ def build(root, output, resume=False):
         raise ValueError('Use a new output below build/')
     installed = subprocess.check_output(['chroot', root, 'ffmpeg', '-version'],
                                         text=True, stderr=subprocess.STDOUT)
-    if not re.search(r'^ffmpeg version n?7\.[01](?:[.\s-])', installed):
-        raise ValueError('This recipe requires FFmpeg 7.0/7.1; do not downgrade another ABI')
+    # Diagnostics may precede the banner on native ARM hosts. Version/ABI
+    # decisions belong to pacman's package record, not banner formatting.
+    installed = re.sub(r'\x1b\[[0-9;]*m', '', installed)
     line = next(line for line in installed.splitlines() if line.startswith('configuration:'))
     options = shlex.split(line.split(':', 1)[1])
     dbpath = subprocess.check_output(['chroot', root, 'pacman-conf', 'DBPath'], text=True).strip()
@@ -42,7 +43,11 @@ def build(root, output, resume=False):
     def field(name):
         return text.split('%' + name + '%\n', 1)[1].split('\n\n', 1)[0].splitlines()
     deps, provides = field('DEPENDS'), field('PROVIDES')
-    epoch = field('VERSION')[0].split(':')[0] if ':' in field('VERSION')[0] else '0'
+    package_version = field('VERSION')[0]
+    upstream_version = package_version.split(':')[-1]
+    if not re.match(r'^7\.[01](?:[.\s-])', upstream_version):
+        raise ValueError('FFmpeg 7.0/7.1 ABI required; installed package is ' + package_version)
+    epoch = package_version.split(':')[0] if ':' in package_version else '0'
     output.mkdir(parents=True, exist_ok=resume)
     provenance = (json.loads((output / 'source/SOURCE.json').read_text())
                   if resume else source.prepare(output / 'source'))

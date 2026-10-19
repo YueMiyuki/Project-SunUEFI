@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     debootstrap debian-archive-keyring qemu-user-static \
     mtools dosfstools e2fsprogs cpio kmod device-tree-compiler \
     zstd rsync ccache alsa-utils m4 pkg-config curl ca-certificates openssh-client openssl \
-    util-linux file squashfs-tools busybox-static && rm -rf /var/lib/apt/lists/*
+    util-linux file squashfs-tools busybox-static libarchive-tools libglib2.0-bin && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 # No source or personal workspace is embedded in the builder image.

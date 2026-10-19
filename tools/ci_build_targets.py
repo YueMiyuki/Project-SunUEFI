@@ -15,7 +15,7 @@ FULL_FILES = {'.github/workflows/build-products.yml', '.gitmodules',
               'uefi/handoff/bootselect/BootRequest.h',
               'docs/user/install-from-artifact.md'}
 FULL_PREFIXES = ('tools/', 'config/', 'containers/', 'linux/',
-                 'vendor/piano-linux/', 'patches/', 'upstream/')
+                 'vendor/piano-linux/', 'vendor/firmware/', 'patches/', 'upstream/')
 UEFI_FILES = {'requirements-build.txt', 'tools/build_android_product_module.py',
               'tools/build_android_module.py', 'tools/build_boot_repack.py',
               'tools/build_boot_request.py', 'tools/build_storage.py',
@@ -30,17 +30,18 @@ UEFI_FILES = {'requirements-build.txt', 'tools/build_android_product_module.py',
 UEFI_PREFIXES = ('android/', 'uefi/', 'vendor/piano/', 'patches/firmware/',
                  'tools/prepare_product_')
 DRAFT_PREFIXES = ('patches/linux/7.2.9/drafts/', 'linux/dts/drafts/')
+DISTROS = ['debian-gnome', 'debian-kde', 'nyarch', 'steamos']
 
 
 def select(files, manual=None):
     if manual:
-        if manual not in ('uefi', 'linux', 'debian-gnome', 'debian-kde', 'steamos'):
+        if manual == 'all':
+            return DISTROS.copy()
+        if manual not in ('uefi', 'linux', *DISTROS):
             raise ValueError('Unknown manual product target')
         return [manual]
     files = list(files)
-    full = ['debian-gnome']
-    if any('steamos' in name or 'steam_client' in name or 'steam-client' in name for name in files):
-        full.append('steamos')
+    full = DISTROS.copy()
     uefi = False
     for name in files:
         # Candidates in these directories are not product inputs. Promoting

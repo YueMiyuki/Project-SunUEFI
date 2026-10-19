@@ -1,0 +1,33 @@
+{
+  "base_url": "https://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz",
+  "base_policy": "HTTPS bootstrap; SHA256 recorded per build; signed pacman repositories",
+  "desktop_repository": "https://github.com/NyarchLinux/NyarchLinux.git",
+  "desktop_commit": "5088f5cbd80131176cdb2a669e8cfb7ce580312a",
+  "extensions": [
+    {
+      "uuid": "arch-update@RaphaelRochet",
+      "url": "https://extensions.gnome.org/download-extension/arch-update@RaphaelRochet.shell-extension.zip?version_tag=75997",
+      "sha256": "14a9f1899a671f08fd7acf00131465be7b5ca49c6514bbd425e87d4ab35ac5a7"
+    },
+    {
+      "uuid": "blur-my-shell@aunetx",
+      "url": "https://extensions.gnome.org/download-extension/blur-my-shell@aunetx.shell-extension.zip?version_tag=76297",
+      "sha256": "0f57037869428558e7d712892e2cdd4c20a61929b936c0b99c938905ec9d0658"
+    },
+    {
+      "uuid": "dash-to-dock@micxgx.gmail.com",
+      "url": "https://extensions.gnome.org/download-extension/dash-to-dock@micxgx.gmail.com.shell-extension.zip?version_tag=76105",
+      "sha256": "b05003e79835a35451e94931539ba1977f2a7a93b652a4fc6b7be60a77c18ae1"
+    },
+    {
+      "uuid": "gsconnect@andyholmes.github.io",
+      "url": "https://extensions.gnome.org/download-extension/gsconnect@andyholmes.github.io.shell-extension.zip?version_tag=76737",
+      "sha256": "30293c8d4fa2a3193e777202759ffa95888dfc4fc32202a7896e19ac9b12268d"
+    },
+    {
+      "uuid": "user-theme@gnome-shell-extensions.gcampax.github.com",
+      "url": "https://extensions.gnome.org/download-extension/user-theme@gnome-shell-extensions.gcampax.github.com.shell-extension.zip?version_tag=75038",
+      "sha256": "f5e8b7104f2385ac8f7df7fa151ced9d25ed84cfa80ea9dd56329f372001fa07"
+    }
+  ]
+}

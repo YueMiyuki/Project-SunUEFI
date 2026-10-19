@@ -15,6 +15,7 @@ case "$command" in
   boot-repack) python3 tools/build_boot_repack.py "$@" ;;
   ffmpeg) python3 tools/build_ffmpeg_packages.py "$@" ;;
   steamos-rootfs) python3 tools/build_steamos_rootfs.py "$@" ;;
+  nyarch-rootfs) python3 tools/build_nyarch_rootfs.py "$@" ;;
   gsd) python3 tools/build_gsd_packages.py "$@" ;;
   mutter)
     if (($#)); then

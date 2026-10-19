@@ -44,6 +44,10 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 
 ## 完整 Debian / GNOME
 
+Actions 默认 `all` 同时构建 `debian-gnome`、`debian-kde`、`nyarch`、
+`steamos`。KDE 沿用下面的 Debian 流程，将根系统步骤改为
+`./build.sh release-rootfs --desktop kde`。
+
 需要 ARM64 构建机，容器需要 `--privileged` 才能 chroot 并挂载：
 
 ```sh
@@ -74,6 +78,23 @@ SteamOS 的独立目标、原生 FFmpeg 软件包与相同 ESP/root 打包流程
 * **CPU 型号**：`linux/dts/piano-cpu-model.dtso` 给八个 CPU 节点加标准 `model` 属性，内核小补丁把它输出为 `/proc/cpuinfo` 的 `model name`，让 GNOME 显示 Snapdragon 8 Elite。MIDR、核心拓扑、时钟和板型号保持原值。
 * **gnome-settings-daemon**（`./build.sh gsd`）：在副本里编译带 Piano 自动亮度策略的标准包，使用原厂 lux 阈值和延迟，不修改传感器读数，再经 APT 安装。
 * **Mutter**（`./build.sh mutter`）：修正空 Gamma 曲线的恢复，以及无 EDID 的内置屏幕颜色配置。保留标准颜色服务和用户配置，不伪造 EDID；通用 sRGB 是未校准的默认值，不等于原厂色彩校准。来源与补丁见[Mutter 适配说明](../../linux/desktops/gnome/patches/mutter/README.md)。
+
+## Nyarch / GNOME
+
+在相同 ARM64 构建容器中，完成 `sources`、`uefi`、`module`、`linux` 后运行
+`./build.sh nyarch-rootfs`。它下载 Arch Linux ARM 基础系统，通过签名仓库安装
+当前软件包，构建 Nyarch 应用和 Piano 原生硬件包，再安装 Material UwU、
+模糊主题与桌面扩展。源码和扩展选择见 `config/nyarch.json`。
+
+打包时向 `./build.sh package` 传入
+`--rootfs build/distros/nyarch-piano/rootfs`、
+`--rootfs-manifest build/distros/nyarch-piano/manifest.json`、
+`--initramfs build/distros/nyarch-piano/initramfs/initramfs.cpio.gz` 和
+`--root-size-mib 16384`，之后按相同流程运行 `installer`。
+
+所有发行版通过 `tools/stage_piano_firmware.py` 安装同一套设备固件。
+`config/release.json` 的 `firmware.overlays` 选择完整的 HyperOS 4 ADSP/
+ADSP-DTB 更新，覆盖旧版对应文件；来源、大小和 SHA256 随固件清单保存。
 
 ## 合体 BOOT 相关工具
 
