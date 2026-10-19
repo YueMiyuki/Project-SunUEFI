@@ -10,27 +10,29 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 import ci_build_targets as targets
 
+PRODUCTS = ['debian-gnome', 'debian-kde', 'nyarch', 'steamos']
+
 
 class CiBuildTargetsTests(unittest.TestCase):
     def test_domains_and_shared_inputs(self):
-        self.assertEqual(targets.select(['uefi/core/PianoProductCore.c']), ['debian-gnome'])
-        self.assertEqual(targets.select(['linux/dts/piano-audio-dmic-clock.dtso']), ['debian-gnome'])
-        self.assertEqual(targets.select(['config/release.json']), ['debian-gnome'])
-        self.assertEqual(targets.select(['sources.lock.json']), ['debian-gnome'])
-        self.assertEqual(targets.select(['tools/build_simpleinit.sh']), ['debian-gnome'])
-        self.assertEqual(targets.select(['patches/firmware/series.json']), ['debian-gnome'])
-        self.assertEqual(targets.select(['upstream/piano-mesa-current']), ['debian-gnome'])
-        self.assertEqual(targets.select(['patches/piano-sensors/import.patch']), ['debian-gnome'])
-        self.assertEqual(targets.select(['android/native/piano-boot-request.c']), ['debian-gnome'])
-        self.assertEqual(targets.select(['uefi/handoff/bootselect/BootRequest.h']), ['debian-gnome'])
-        self.assertEqual(targets.select(['tools/export_installer.py']), ['debian-gnome'])
-        self.assertEqual(targets.select(['docs/user/install-from-artifact.md']), ['debian-gnome'])
-        self.assertEqual(targets.select(['uefi/core/PianoProductCore.c', 'linux/config']), ['debian-gnome'])
+        self.assertEqual(targets.select(['uefi/core/PianoProductCore.c']), PRODUCTS)
+        self.assertEqual(targets.select(['linux/dts/piano-audio-dmic-clock.dtso']), PRODUCTS)
+        self.assertEqual(targets.select(['config/release.json']), PRODUCTS)
+        self.assertEqual(targets.select(['sources.lock.json']), PRODUCTS)
+        self.assertEqual(targets.select(['tools/build_simpleinit.sh']), PRODUCTS)
+        self.assertEqual(targets.select(['patches/firmware/series.json']), PRODUCTS)
+        self.assertEqual(targets.select(['upstream/piano-mesa-current']), PRODUCTS)
+        self.assertEqual(targets.select(['patches/piano-sensors/import.patch']), PRODUCTS)
+        self.assertEqual(targets.select(['android/native/piano-boot-request.c']), PRODUCTS)
+        self.assertEqual(targets.select(['uefi/handoff/bootselect/BootRequest.h']), PRODUCTS)
+        self.assertEqual(targets.select(['tools/export_installer.py']), PRODUCTS)
+        self.assertEqual(targets.select(['docs/user/install-from-artifact.md']), PRODUCTS)
+        self.assertEqual(targets.select(['uefi/core/PianoProductCore.c', 'linux/config']), PRODUCTS)
         self.assertEqual(targets.select(['README.md', 'docs/status.md']), [])
-        self.assertEqual(targets.select(['patches/linux/7.2.9/drafts/0018-piano-pen-dock.patch',
+        self.assertEqual(targets.select(['patches/linux/7.2.9/drafts/0045-drm-igcv5-high-precision-grid.patch',
                                          'linux/dts/drafts/piano-pen-dock.dtso']), [])
         self.assertEqual(targets.select(['linux/dts/drafts/piano-pen-dock.dtso',
-                                         'config/release.json']), ['debian-gnome'])
+                                         'config/release.json']), PRODUCTS)
         self.assertEqual(targets.select([], 'debian-gnome'), ['debian-gnome'])
         self.assertEqual(targets.select(['linux/config'], 'uefi'), ['uefi'])
         self.assertEqual(targets.select(['config/release.json'], 'linux'), ['linux'])
@@ -50,8 +52,8 @@ class CiBuildTargetsTests(unittest.TestCase):
             before = git('rev-parse', 'HEAD')
             (root / 'linux/config').write_text('new\n'); git('add', '.')
             git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Linux change')
-            self.assertEqual(targets.select(targets.changed_files(root, before)), ['debian-gnome'])
-            self.assertEqual(targets.select(targets.changed_files(root, '0' * 40)), ['debian-gnome'])
+            self.assertEqual(targets.select(targets.changed_files(root, before)), PRODUCTS)
+            self.assertEqual(targets.select(targets.changed_files(root, '0' * 40)), PRODUCTS)
 
 
 if __name__ == '__main__':
