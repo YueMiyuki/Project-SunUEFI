@@ -95,8 +95,9 @@ def build(args):
     mutter = recipes / 'mutter'
     shutil.copytree(ROOT / 'linux/desktops/gnome/arch/mutter', mutter,
                     dirs_exist_ok=True)
-    shutil.copy2(ROOT / 'linux/desktops/gnome/patches/mutter/0003-wayland-touch-ignore-cancelled-grab.patch',
-                 mutter)
+    for name in ('0001-kms-empty-gamma-bypass.patch',
+                 '0003-wayland-touch-ignore-cancelled-grab.patch'):
+        shutil.copy2(ROOT / 'linux/desktops/gnome/patches/mutter' / name, mutter)
     # SteamOS's protobuf compatibility rebuild is intentionally not selected
     # for Arch: its rolling packages already share the current library ABI.
     for name in ('mutter', 'mesa', 'fastrpc', 'libssc', 'iio-sensor-proxy'):

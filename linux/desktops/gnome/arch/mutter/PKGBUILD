@@ -12,7 +12,7 @@ pkgname=(
   mutter-docs
 )
 pkgver=51.1
-pkgrel=1.1
+pkgrel=1.2
 pkgdesc="Window manager and compositor for GNOME"
 url="https://gitlab.gnome.org/GNOME/mutter"
 arch=(aarch64)
@@ -97,8 +97,12 @@ b2sums=('0064caf6a85d9cb42d9544ad2dab31ef158a957d20d5a99aabe27f40986f128714f97a5
 source+=(0003-wayland-touch-ignore-cancelled-grab.patch)
 b2sums+=(eb54eec5f1ad4be823c7874d52d864b58dbb0bc895adea88e317f10a288a62ab29adbe6cbabe45b57f9029a373a8dae7d534feabfacd616021b867244fcaa62b)
 
+source+=(0001-kms-empty-gamma-bypass.patch)
+b2sums+=(19f88efef340721249b1c9200b7f2b23818c012f491501732a9c8b01764478dedb2531899e133fdd8ba3506c7f8888d23fdbe1719390ea33653f7a8df9cfe223)
+
 prepare() {
   cd mutter
+  patch --forward --fuzz=0 -Np1 < ../0001-kms-empty-gamma-bypass.patch
   patch --forward --fuzz=0 -Np1 < ../0003-wayland-touch-ignore-cancelled-grab.patch
 }
 
