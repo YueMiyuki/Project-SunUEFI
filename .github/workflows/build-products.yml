@@ -55,7 +55,9 @@ jobs:
     if: needs.select.outputs.has_build == 'true'
     concurrency:
       group: build-products-${{ github.ref }}-${{ matrix.target }}
-      cancel-in-progress: true
+      # Rootfs builds take over an hour. Finish the running image; GitHub keeps
+      # only the newest pending build for the same branch and distribution.
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
