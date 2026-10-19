@@ -11,33 +11,40 @@ if [ -f "$MODPATH/installed-core.json" ]; then
   set_perm "$MODPATH/bin/piano-boot-repack" 0 0 0755
   set_perm "$MODPATH/bin/piano-boot-request" 0 0 0755
   repack="$MODPATH/bin/piano-boot-repack"
-  work="$MODPATH/.work"
-  mkdir -p "$work"
+  mkdir -p "$MODPATH/.work"
+  # BOOT is slot-specific after an OTA. Keep every generated metadata file in
+  # a fresh directory because the native writer intentionally uses O_EXCL.
+  work=$(mktemp -d "$MODPATH/.work/install.XXXXXX")
+  state_output="$work/install-state.json"
   ui_print "正在识别当前 Android 引导。"
   if grep -Eq '"generic_core"[[:space:]]*:[[:space:]]*true' "$MODPATH/installed-core.json"; then
     "$repack" status --boot-device "$bootdev" --active-slot "$slot" --policy "$MODPATH/policy.json" > "$work/status.json" ||
       abort "无法识别当前 BOOT，尚未写入。"
     if grep -q '"wrapped":true' "$work/status.json"; then
-      if "$repack" adopt --boot-device "$bootdev" --active-slot "$slot" --policy "$MODPATH/policy.json"         --state-output "$MODPATH/install-state.json" > /dev/null 2> "$work/adopt.log"; then
+      if "$repack" adopt --boot-device "$bootdev" --active-slot "$slot" --policy "$MODPATH/policy.json"         --state-output "$state_output" > /dev/null 2> "$work/adopt.log"; then
         ui_print "当前引导已是相同核心，保留现有启动选择。"
       elif piano_choose_boot_install; then
         ui_print "正在更新 SunUEFI，保留当前 Android 内核和启动选择。"
         # Manual BOOT installations may not have an old module record. The
         # upgrade command validates and reconstructs the actual current carrier
         # and rechecks its full source and device identity before writing.
-        "$repack" upgrade --boot-device "$bootdev" --active-slot "$slot" --policy "$MODPATH/policy.json"           --payload-dir "$MODPATH/payload" --state-output "$MODPATH/install-state.json" --execute > /dev/null ||
+        "$repack" upgrade --boot-device "$bootdev" --active-slot "$slot" --policy "$MODPATH/policy.json"           --payload-dir "$MODPATH/payload" --state-output "$state_output" --execute > /dev/null ||
           abort "引导更新未完成，请查看上面的原因。"
       fi
     elif piano_choose_boot_install; then
       ui_print "正在安装开机选择器，保留当前 Android 内核，默认进入 Android。"
       "$repack" probe --boot-device "$bootdev" --active-slot "$slot"         --rom-fingerprint "$rom_fingerprint" --boot-fingerprint "$boot_fingerprint"         --policy "$MODPATH/policy.json" --output "$work/current.json" --reject-wrapped > /dev/null ||
         abort "当前 BOOT 格式不受支持，尚未写入。"
-      "$repack" repack --boot-device "$bootdev" --active-slot "$slot"         --source-metadata "$work/current.json" --payload-dir "$MODPATH/payload"         --policy "$MODPATH/policy.json" --state-output "$MODPATH/install-state.json" --execute > /dev/null ||
+      "$repack" repack --boot-device "$bootdev" --active-slot "$slot"         --source-metadata "$work/current.json" --payload-dir "$MODPATH/payload"         --policy "$MODPATH/policy.json" --state-output "$state_output" --execute > /dev/null ||
         abort "引导安装未完成，请查看上面的原因。"
     fi
   else
-    "$repack" adopt --boot-device "$bootdev" --active-slot "$slot"       --policy "$MODPATH/policy.json" --state-output "$MODPATH/install-state.json" > /dev/null ||
+    "$repack" adopt --boot-device "$bootdev" --active-slot "$slot"       --policy "$MODPATH/policy.json" --state-output "$state_output" > /dev/null ||
       abort "没有找到与模块匹配的 SunUEFI 引导。"
+  fi
+  if [ -f "$state_output" ]; then
+    mv -f "$state_output" "$MODPATH/install-state.json" ||
+      abort "无法保存安装记录，请查看本次安装日志。"
   fi
   # Preserve the actual boot preference across module upgrades and later OTA
   # stock-BOOT replacement; the installer never infers it from a stale UI.
@@ -47,6 +54,7 @@ if [ -f "$MODPATH/installed-core.json" ]; then
     printf '%s\n' "$preferred" > "$MODPATH/.preferred-target"
   fi
   rm -f "$work/current.json" "$work/status.json" "$work/adopt.log"
+  rmdir "$work"
   set_perm_recursive "$MODPATH" 0 0 0755 0644
   set_perm "$MODPATH/bin/piano-boot-repack" 0 0 0755
   set_perm "$MODPATH/bin/piano-boot-request" 0 0 0755

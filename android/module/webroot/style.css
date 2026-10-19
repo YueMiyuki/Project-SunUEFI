@@ -113,7 +113,7 @@ body { padding-bottom:calc(86px + env(safe-area-inset-bottom)); }
 
 @keyframes spin { to { transform:rotate(360deg); } }
 button[aria-busy="true"] { opacity:.85; }
-button[aria-busy="true"]::after { content:""; display:inline-block; width:18px; height:18px; flex:0 0 18px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; }
+button[aria-busy="true"]::after { content:""; display:inline-block; width:22px; height:22px; flex:0 0 22px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spin .7s linear infinite; will-change:transform; }
 button[aria-busy="true"] .chevron,button[aria-busy="true"] > svg { display:none; }
 .tool[aria-busy="true"]::after { margin-left:auto; }
 .quiet[aria-busy="true"] { display:flex; align-items:center; gap:9px; }

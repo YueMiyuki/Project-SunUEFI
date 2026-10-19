@@ -25,8 +25,17 @@ function nativeAction(action, target, extra, bytes) {
       if (Number(code) !== 0) { reject(new Error(String(stderr || t('failed')).trim())); return; }
       try { resolve(JSON.parse(String(stdout).trim())); } catch (_) { reject(new Error(t('invalid'))); }
     };
-    try { window.ksu.exec(command, '{}', name); }
-    catch (error) { clearTimeout(timer); delete window[name]; reject(error); }
+    const invoke = () => {
+      try { window.ksu.exec(command, '{}', name); }
+      catch (error) { clearTimeout(timer); delete window[name]; reject(error); }
+    };
+    // Let the disabled button and spinner reach the screen before entering
+    // the manager's native bridge, which can hold the JS thread briefly.
+    if (typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(invoke));
+    } else {
+      invoke();
+    }
   });
 }
 if (typeof document !== 'undefined') {

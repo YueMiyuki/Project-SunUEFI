@@ -126,7 +126,13 @@ case "$operation" in
  status)
   if [ -f "$state" ]; then
    # A complete BOOT check is deliberately requested by Check boot. Do it once.
-   exec "$repack" status --boot-device "$bootdev" --active-slot "$slot" --policy "$policy" --installed-state "$state"
+   if "$repack" status --boot-device "$bootdev" --active-slot "$slot" \
+      --policy "$policy" --installed-state "$state"; then
+    exit 0
+   fi
+   # OTA can replace a wrapped BOOT while leaving the old slot metadata. Show
+   # the real current slot so the maintenance page can offer reinstall.
+   echo '旧槽位的安装记录已失效，当前 BOOT 将按未安装处理。' >&2
   fi
   # Missing installation metadata is reported as-is. Reinstall/adopt owns state
   # creation; checking boot must not silently change installation metadata.
@@ -143,31 +149,39 @@ case "$operation" in
   mv "$MODPATH/.preferred-target.new" "$MODPATH/.preferred-target"
   (sleep 1; /system/bin/reboot) >/dev/null 2>&1 </dev/null & ;;
  reinstall)
-  work="$MODPATH/.work"
-  mkdir -p "$work"
+  mkdir -p "$MODPATH/.work"
+  # Every attempt needs fresh exclusive-create outputs. OTA leaves the old
+  # slot's state in place, and an interrupted attempt may leave its probe.
+  work=$(mktemp -d "$MODPATH/.work/reinstall.XXXXXX")
+  next_state="$work/install-state.json"
   current=$($repack status --boot-device "$bootdev" --active-slot "$slot" --policy "$policy")
   if echo "$current" | grep -q '"wrapped":true'; then
    if ! "$repack" adopt --boot-device "$bootdev" --active-slot "$slot" --policy "$policy" \
-     --state-output "$state" 2>"$work/adopt.log"; then
+     --state-output "$next_state" 2>"$work/adopt.log"; then
     # Assistant-only installation may leave an older core in BOOT. Upgrade
     # reconstructs and validates that carrier before replacing its UEFI core.
     "$repack" upgrade --boot-device "$bootdev" --active-slot "$slot" \
      --policy "$policy" --payload-dir "$MODPATH/payload" \
-     --state-output "$state" --execute
+     --state-output "$next_state" --execute
    fi
+   mv -f "$next_state" "$state"
   else
    "$repack" probe --boot-device "$bootdev" --active-slot "$slot" \
     --rom-fingerprint "$rom_fingerprint" --boot-fingerprint "$boot_fingerprint" \
     --policy "$policy" --output "$work/current.json" --reject-wrapped >/dev/null
    "$repack" repack --boot-device "$bootdev" --active-slot "$slot" \
     --source-metadata "$work/current.json" --payload-dir "$MODPATH/payload" \
-    --policy "$policy" --state-output "$state" --execute >/dev/null
+    --policy "$policy" --state-output "$next_state" --execute >/dev/null
+   # Replace the prior slot's metadata only after native write/readback
+   # verification. Failed attempts retain their prepared record for diagnosis.
+   mv -f "$next_state" "$state"
    previous=$(cat "$MODPATH/.preferred-target" 2>/dev/null || echo android)
    case "$previous" in android|uefi|linux|setup) ;; *) previous=android ;; esac
    "$repack" request --target "$previous" --boot-device "$bootdev" --active-slot "$slot" \
     --rom-fingerprint "$rom_fingerprint" --boot-fingerprint "$boot_fingerprint" \
     --policy "$policy" --installed-state "$state" --execute
   fi
-  rm -f "$work/current.json" "$work/adopt.log" ;;
+  rm -f "$work/current.json" "$work/adopt.log"
+  rmdir "$work" ;;
  *) exit 2 ;;
 esac
