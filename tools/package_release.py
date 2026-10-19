@@ -381,7 +381,12 @@ def package(args):
         require(embedded['etc/piano/kernel-release'].decode().strip() == release, 'Initramfs embedded release mismatch')
     require(all(n.split('/')[2] == release for n in embedded if n.startswith('lib/modules/') and len(n.split('/')) > 2), 'Initramfs module release mismatch')
     rows = scan_root(root, release)
-    tools = ['tar', 'zstd', 'mkfs.vfat', 'mmd', 'mcopy'] + (['mke2fs', 'debugfs'] if args.root_size_mib else [])
+    build_archive = not args.root_size_mib or args.root_archive
+    tools = ['mkfs.vfat', 'mmd', 'mcopy']
+    if build_archive:
+        tools += ['tar', 'zstd']
+    if args.root_size_mib:
+        tools += ['mke2fs', 'debugfs']
     require(all(shutil.which(t) for t in tools), 'Missing host tools: ' + ', '.join(t for t in tools if not shutil.which(t)))
     maker, maker_source = pinned_mkbootimg()
     output.mkdir(parents=True)
@@ -423,7 +428,8 @@ def package(args):
         verify = work / ('readback-' + path.name)
         run(['mcopy', '-i', esp, '::/EFI/Piano/stable/' + path.name, verify])
         require(sha(verify) == sha(path), 'ESP file readback differs: ' + path.name)
-    archive_root(root, output / 'root.tar.zst', args.epoch)
+    if build_archive:
+        archive_root(root, output / 'root.tar.zst', args.epoch)
     if args.root_size_mib:
         ext4(root, output / 'root.ext4.img', args.root_size_mib, args.root_selector.split('=', 1)[1], args.epoch, rows, work)
     require({n: (s.st_mode, s.st_uid, s.st_gid, s.st_size, s.st_mtime_ns, s.st_ctime_ns) for n, s in rows.items()} ==
@@ -436,7 +442,7 @@ def package(args):
               'partitions': {'esp': {'partlabel': 'sunuefi_esp', 'label': 'SUNUEFI_ESP', 'sector_bytes': 4096, 'capacity_bytes': esp.stat().st_size},
                              'root': {'partlabel': 'sunuefi_root', 'label': args.root_selector.split('=', 1)[1], 'capacity_bytes': args.root_size_mib * MIB if args.root_size_mib else None}},
               'esp_files': ['/EFI/Piano/stable/' + n for n in ('Image', 'board.dtb', 'initramfs', 'boot.img')],
-              'metadata': {'archive': 'numeric uid/gid, modes, symlinks, hardlinks, xattrs and ACLs; mtime normalized except /usr/lib/clock-epoch',
+              'metadata': {'archive': 'numeric uid/gid, modes, symlinks, hardlinks, xattrs and ACLs; mtime normalized except /usr/lib/clock-epoch' if build_archive else None,
                            'ext4': 'all inode uid/gid/mode/mtime and source xattrs/ACLs checked; ctime normalized; sparse source allocation not preserved'},
               'files': {}}
     if CLOCK_EPOCH in rows and stat.S_ISREG(rows[CLOCK_EPOCH].st_mode):
@@ -471,6 +477,8 @@ def parser():
     ap.add_argument('--root-selector', default='LABEL=PIANOROOT')
     ap.add_argument('--esp-size-mib', type=int, default=512)
     ap.add_argument('--root-size-mib', type=int)
+    ap.add_argument('--root-archive', action='store_true',
+                    help='Also export root.tar.zst when building a root.ext4.img')
     ap.add_argument('--epoch', type=int, default=int(os.environ.get('SOURCE_DATE_EPOCH', '0')))
     return ap
 
