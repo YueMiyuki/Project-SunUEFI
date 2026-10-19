@@ -67,6 +67,15 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			sc96231@38 {
+				reg = <0x38>;
+				/* Legacy pinctrl properties reference an unbound
+				 * vendor TLMM provider. Use a separate active node
+				 * rather than retaining those supplier links.
+				 */
+				status = "disabled";
+			};
+
+			charger@38 {
 				compatible = "southchip,sc96231";
 				reg = <0x38>;
 				status = "okay";

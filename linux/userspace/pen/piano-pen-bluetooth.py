@@ -62,6 +62,18 @@ def dock_address():
     return address.upper() if re.fullmatch(r'(?:[0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}', address) else None
 
 
+def screen_on():
+    """Use the internal connector's real DRM power state."""
+    for node in Path('/sys/class/drm').glob('card*-DSI-*/dpms'):
+        try:
+            value = node.read_text().strip()
+        except OSError:
+            continue
+        if value in ('On', 'Standby', 'Suspend', 'Off'):
+            return value == 'On'
+    return None
+
+
 def profile(path):
     data = json.loads(path.read_text())
     if data.get('version') != 1 or data.get('device') != 'piano':
@@ -358,6 +370,7 @@ class Pen:
         self.stationary = stationary if stationary is not None and stationary.exists() else None
         self.last_stationary = None
         self.last_dock = None
+        self.last_screen = None
         self.stop = False
         self.failure = None
         self.subscription = None
@@ -423,12 +436,19 @@ class Pen:
     def follow_dock(self):
         try:
             attached = read_dock()
-        except RuntimeError:
+        except (RuntimeError, OSError):
             return  # Optional dock driver may not yet be installed.
         if attached != self.last_dock:
             self.request(b'\x51\x01' + bytes([0 if attached else 1]), b'\xd1\x00', 2)
             self.last_dock = attached
             self.log('dock_updated', attached=attached)
+
+    def follow_screen(self):
+        active = screen_on()
+        if active is not None and active != self.last_screen:
+            self.request(b'\x61\x01' + bytes([int(active)]), b'\xe1\x00', 2)
+            self.last_screen = active
+            self.log('screen_updated', active=active)
 
     def open(self):
         self.subscription = self.bus.signal_subscribe(
@@ -440,6 +460,10 @@ class Pen:
     def initialize(self, p):
         started = time.monotonic()
         self.log('initialization_started')
+        # Send actual wake/dock state before radio setup. The pen can retain
+        # the previous OS's screen state across a host reboot.
+        if screen_on():
+            self.follow_screen()
         self.request(b'\x52\x00', b'\xd2\x01', 3)
         self.request(b'\x00\x00', b'\x80\x01', 3)
         self.request(b'\x01\x00', b'\x81\x02', 4)
@@ -448,6 +472,14 @@ class Pen:
         assigned = []
         for cycle in ('first_id_cycle', 'second_id_cycle'):
             pen_id = self.request(b'\x04\x00', b'\x84\x01', 3)[2:3]
+            if pen_id == b'\xff':
+                # Reopening only the helper while the existing BLE session
+                # still owns both slots returns the unassigned sentinel.
+                # Start a fresh session instead of programming slot 255.
+                self.bus.call_sync('org.bluez', self.base, 'org.bluez.Device1',
+                                   'Disconnect', None, None,
+                                   self.Gio.DBusCallFlags.NONE, 5000, None)
+                raise ConnectionError('pen radio slots need a fresh connection')
             assigned.append(pen_id[0])
             parameters = (self.host_address + p['parameter_prefix'] + pen_id + p['timing'] +
                           p[cycle] + p['intervals'] + p['parameter_tail'])
@@ -457,21 +489,15 @@ class Pen:
             self.request(b'\x32\x03' + pen_id + p['voltage'], b'\xb2\x00', 2)
         # The protocol uses Unix seconds; report/frame timing uses BOOTTIME.
         self.request(b'\x33\x04' + struct.pack('>I', int(time.time()) & 0xffffffff), b'\xb3\x00', 2)
-        try:
-            attached = read_dock()
-        except RuntimeError:
-            attached = None
-        if attached is not None:
-            self.request(b'\x51\x01' + bytes([0 if attached else 1]), b'\xd1\x00', 2)
-        self.last_dock = attached
+        self.follow_dock()
         self.log('radio_configured', elapsed_ms=round((time.monotonic() - started) * 1000))
         self.request(b'\x5f\x01' + bytes([int(p['double_tap'])]), b'\xdf\x01\x01', 3)
         self.request(b'\x5a\x01' + bytes([p['squeeze_motor_level']]), b'\xda\x01\x01', 3)
         self.request(b'\x5c\x04' + struct.pack('>HH', p['squeeze_threshold_down'],
                      p['squeeze_threshold_up']), b'\xdc\x01\x01', 3)
-        self.request(b'\x61\x01\x01', b'\xe1\x00', 2)
+        self.follow_screen()
         self.initialized = True
-        self.log('initialized', assigned_ids=assigned, attached=attached,
+        self.log('initialized', assigned_ids=assigned, attached=self.last_dock,
                  haptic_level=p['squeeze_motor_level'], haptic_setting_accepted=True)
 
     def close(self):
@@ -530,6 +556,7 @@ def main():
                             pen.log('disconnected')
                             break
                         pen.follow_dock()
+                        pen.follow_screen()
                     time.sleep(.01)
             except InterruptedError:
                 if not stopped:
