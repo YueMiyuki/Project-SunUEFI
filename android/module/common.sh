@@ -55,6 +55,27 @@ piano_current_identity() {
     piano_fail "Install only after the current Android ROM has booted normally."; return 1
   fi
 }
+piano_sync_linux_boot() (
+  # The active slot can change after OTA. Publish the validated BOOT identity
+  # on the shared ESP so every installed Linux root can return to Android.
+  [ -b /dev/block/by-name/sunuefi_esp ] || exit 0
+  current=$("$MODPATH/bin/piano-boot-request" status --device "$bootdev") || exit 1
+  generation=$(printf '%s' "$current" | sed -n 's/.*"app_generation":"\([0-9a-f]*\)".*/\1/p')
+  [ "${#generation}" = 32 ] || exit 1
+  mkdir -p "$MODPATH/.work"
+  esp=$(mktemp -d "$MODPATH/.work/boot-sync.XXXXXX") || exit 1
+  mounted=0
+  trap '[ "$mounted" = 0 ] || umount "$esp"; rmdir "$esp" 2>/dev/null' EXIT
+  mount -t vfat -o rw,nosuid,nodev,noexec /dev/block/by-name/sunuefi_esp "$esp" || exit 1
+  mounted=1
+  mkdir -p "$esp/EFI/SunUEFI" || exit 1
+  printf '{"version":1,"boot_device":"/dev/disk/by-partlabel/boot%s","app_generation":"%s"}\n' \
+    "$slot" "$generation" > "$esp/EFI/SunUEFI/boot-request.json.new" || exit 1
+  mv -f "$esp/EFI/SunUEFI/boot-request.json.new" "$esp/EFI/SunUEFI/boot-request.json" || exit 1
+  sync
+  umount "$esp" || exit 1
+  mounted=0
+)
 piano_check_payload() {
   [ "$PIANO_POLICY_SCHEMA" = 1 ] && [ "$PIANO_INTERFACE_VERSION" = 1 ] &&
   [ "$PIANO_DEVICE_PASSTHROUGH_VERIFIED" = true ] &&

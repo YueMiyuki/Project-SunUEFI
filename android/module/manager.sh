@@ -142,6 +142,9 @@ case "$operation" in
   [ "$target" != linux ] || piano_installed_linux || {
    echo '未找到已安装的 Linux 启动文件，请先完成 Linux 安装。' >&2; exit 2;
   }
+  if [ "$target" = linux ]; then
+   piano_sync_linux_boot || { echo '无法更新 Linux 的返回启动配置，请检查 ESP 分区。' >&2; exit 1; }
+  fi
   "$repack" request --target "$target" --boot-device "$bootdev" --active-slot "$slot" \
    --rom-fingerprint "$rom_fingerprint" --boot-fingerprint "$boot_fingerprint" \
    --policy "$policy" --installed-state "$state" --execute
@@ -182,6 +185,7 @@ case "$operation" in
     --policy "$policy" --installed-state "$state" --execute
   fi
   rm -f "$work/current.json" "$work/adopt.log"
-  rmdir "$work" ;;
+  rmdir "$work"
+  piano_sync_linux_boot || echo '引导已安装，但 Linux 的返回启动配置未能同步；切换前会再次尝试。' >&2 ;;
  *) exit 2 ;;
 esac

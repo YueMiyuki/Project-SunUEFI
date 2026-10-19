@@ -52,6 +52,7 @@ if [ -f "$MODPATH/installed-core.json" ]; then
     selected=$(printf '%s' "$choice" | sed -n 's/.*"target":\([0-3]\).*/\1/p')
     case "$selected" in 0) preferred=android ;; 1) preferred=uefi ;; 2) preferred=linux ;; 3) preferred=setup ;; *) abort "启动选择格式无效。" ;; esac
     printf '%s\n' "$preferred" > "$MODPATH/.preferred-target"
+    piano_sync_linux_boot || ui_print "Linux 返回启动配置尚未同步，切换前会再次尝试。"
   fi
   rm -f "$work/current.json" "$work/status.json" "$work/adopt.log"
   rmdir "$work"

@@ -9,13 +9,17 @@ import subprocess
 import sys
 
 CONFIG = Path('/etc/piano/boot-request.json')
+SHARED_CONFIG = Path('/boot/efi/EFI/SunUEFI/boot-request.json')
 NATIVE = Path('/usr/local/sbin/piano-boot-request')
 TARGETS = {'android': 0, 'menu': 1, 'linux': 2, 'setup': 3}
 
 
 def installed_config():
+    # Android's installer owns this ESP record and refreshes it after OTA.
+    # Keep the local record for installations predating shared slot tracking.
+    selected = SHARED_CONFIG if SHARED_CONFIG.exists() else CONFIG
     try:
-        fd = os.open(CONFIG, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(selected, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
     except FileNotFoundError:
         raise ValueError('缺少 /etc/piano/boot-request.json。请先由安装器记录实际启动分区和 APP generation。')
     with os.fdopen(fd, 'rb') as stream:

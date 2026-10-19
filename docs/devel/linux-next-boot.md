@@ -4,7 +4,7 @@
 
 当前选择会持续保留，后续正常开机继续沿用，直到改选其他路线。一次性请求自动消费尚未实现。已部署的新选择器让原厂 Recovery 优先，持久 Linux 偏好与实际 Recovery 的组合检查仍待完成。
 
-已部署到研究设备并完成配置、只读 status 和当前桌面管理员的 polkit 授权查询。2026-10-08 从 g086 Linux 执行 `piano-next-boot android --reboot` 后，原厂 Android 启动完成，读回 target0/sequence4。随后部署含 Recovery 优先的新选择器，在 Android 原生保存 target2/sequence1并正常重启，已通过 SSH 确认返回 g086 Linux，磁盘 ext4 根为 rw，GDM/ADSP/sensors active。两份 GTK 确认内容已按现场主题和2×缩放渲染检查，尚未通过真实桌面点击执行切换；菜单/Setup路线也未实测。
+Android 与 Linux 可通过同一份合体 BOOT 相互切换。原生工具校验当前启动记录，写入后同步并读回，再执行正常重启。
 
 ## 使用
 
@@ -15,15 +15,15 @@ piano-next-boot menu             # 保存下次进入启动选择菜单
 piano-next-boot android --reboot # 保存成功后正常重启
 ```
 
-普通用户通过pkexec调用这一次操作。新增的有限polkit规则允许本地、当前活动会话中的sudo或wheel管理员免密码使用此启动action；其他用户仍须管理员认证。piano账号没有工厂密码，本入口不会修改或解锁账号，不增加通用sudo免密或强制锁屏流程。root可直接调用同一CLI。
-
-2026-10-08 对当前 g086 的检查：piano 在 sudo 组，密码locked；`sudo -l -U piano` 仅 `(ALL : ALL) ALL`，没有NOPASSWD，`/etc/sudoers.d`只有README。polkit默认管理员为sudo组。单独auth_admin会让未设置密码的owner无法使用按钮，因此本任务明确新增`49-piano-boot-request.rules`这一有限能力，不把它描述为已有NOPASSWD继承。规则只匹配`org.sunuefi.boot-request`，并同时要求local、active和sudo/wheel组；其他用户/action由原policy处理。规则已安装，当前桌面会话的授权查询通过；随后 CLI 的原生请求写入与正常返回 Android 也已验证。
+普通用户通过 pkexec 调用。本地活动会话中的 sudo／wheel 管理员可使用这一项 polkit 授权；其他用户需要管理员认证。默认账户和密码见项目首页。root 可直接调用同一 CLI。
 
 两个`.desktop`入口为“返回 Android”和“SunUEFI 启动选择菜单”。按钮先显示GTK确认对话框，提醒保存当前工作，再走相同CLI/helper。取消不保存请求；失败显示错误。桌面环境需要标准polkit认证代理及Python GI/GTK3，CLI仅需Python标准库、pkexec和原生工具。
 
 ## 安装配置
 
-安装器/provisioning在合体镜像安装成功并读回后，必须把**实际安装分区和该镜像APP generation**记录为root所有、普通用户不可改写的`/etc/piano/boot-request.json`：
+Android 助手在安装引导、重装或切换到 Linux 时，将当前活动槽和 UEFI 标识写入 ESP 的 `EFI/SunUEFI/boot-request.json`。Linux 优先读取 `/boot/efi/EFI/SunUEFI/boot-request.json`，所以 OTA 从 A 槽切换到 B 槽后也会使用新的 BOOT。
+
+旧安装方式仍可使用本地的 `/etc/piano/boot-request.json`。格式相同：
 
 ```json
 {
