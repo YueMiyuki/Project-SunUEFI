@@ -176,8 +176,11 @@ def scan_root(root, release):
                     parts.append(part)
             require(parts and parts[0] in ('bin', 'sbin', 'lib', 'lib64', 'usr', 'etc', 'var', 'run', 'proc', 'sys', 'dev', 'root', 'home', 'opt', 'tmp', 'boot'),
                     'Host symlink in rootfs: ' + name)
-            mapped = guest_resolve(root, '/' + name)
-            require(not target.startswith('/') or mapped.exists() or parts[0] in ('run', 'proc', 'sys', 'dev'), 'Absolute host/dangling symlink: ' + name)
+            # Resolve chains in the guest namespace to catch escapes/loops.
+            # Optional software can supply a link target after installation
+            # (SteamOS libopenvr_api.so -> /opt/steamvr/...). tar and mke2fs
+            # preserve the link itself; absence does not imply a host link.
+            guest_resolve(root, '/' + name)
         if stat.S_ISREG(info.st_mode):
             links[(info.st_dev, info.st_ino)] += 1
         rows[name] = info

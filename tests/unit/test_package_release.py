@@ -100,7 +100,11 @@ class ReleasePackageTests(unittest.TestCase):
         (self.root / 'var/lib/dbus/machine-id').symlink_to('/etc/machine-id')
         (self.root / 'bin').symlink_to('/usr/bin')
         (self.root / 'usr/bin').mkdir(parents=True)
+        (self.root / 'usr/lib').mkdir(parents=True)
+        optional = self.root / 'usr/lib/libopenvr_api.so'
+        optional.symlink_to('/opt/steamvr/bin/linuxarm64/libopenvr_api.so')
         pr.scan_root(self.root, '6.6-fixture')
+        self.assertEqual(os.readlink(optional), '/opt/steamvr/bin/linuxarm64/libopenvr_api.so')
 
     def test_usr_module_fallback_resolves_inside_guest(self):
         (self.root / 'opt').mkdir()
@@ -121,10 +125,6 @@ class ReleasePackageTests(unittest.TestCase):
         link.unlink()
         outside = self.base / 'outside'
         outside.write_text('FIXTURE')
-        link.symlink_to(outside)
-        with self.assertRaisesRegex(ValueError, 'host/dangling'):
-            pr.scan_root(self.root, '6.6-fixture')
-        link.unlink()
         os.link(outside, link)
         with self.assertRaisesRegex(ValueError, 'Hardlink outside'):
             pr.scan_root(self.root, '6.6-fixture')
