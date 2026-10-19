@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Build and install the shared FFmpeg BSP patches as a native SteamOS package.
+"""Build shared FFmpeg BSP patches as native SteamOS or Arch packages.
 
-Preserve the base image's codec configuration and dependency list. FFmpeg 7.0
-and 7.1 share library SONAMEs; do not replace newer ABI generations with 7.1.
+Preserve the target's codec configuration and library ABI. FFmpeg 7.0/7.1
+use the shared Debian source; rolling FFmpeg 9 uses its matching patch port.
 """
 import argparse
 import json
@@ -19,6 +19,21 @@ from build_nyarch_apps import guest_environment
 from build_release_rootfs import build_resolver
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def package_recipe(version, epoch, pkgrel, options, deps, provides):
+    quote_array = lambda values: '(' + ' '.join(shlex.quote(v) for v in values) + ')'
+    return (
+        f"pkgname=ffmpeg\npkgver={version}\npkgrel={pkgrel}\n"
+        f"epoch={epoch}\npkgdesc='FFmpeg with Piano stateful V4L2 fixes'\n"
+        "arch=(aarch64)\nurl=https://ffmpeg.org\nlicense=(GPL-3.0-or-later)\n"
+        "options=(!debug !lto)\n"
+        f"depends={quote_array(deps)}\nprovides={quote_array(provides)}\n"
+        "build() {\n  cd \"$startdir/ffmpeg-source\"\n  ./configure " +
+        shlex.join(options) + "\n  make -j4\n}\n"
+        "package() {\n  cd \"$startdir/ffmpeg-source\"\n"
+        "  make DESTDIR=\"$pkgdir\" install\n"
+        "  install -Dm644 COPYING.GPLv3 \"$pkgdir/usr/share/licenses/ffmpeg/COPYING.GPLv3\"\n}\n")
 
 
 def build(root, output, resume=False):
@@ -45,38 +60,34 @@ def build(root, output, resume=False):
     deps, provides = field('DEPENDS'), field('PROVIDES')
     package_version = field('VERSION')[0]
     upstream_version = package_version.split(':')[-1]
-    if not re.match(r'^7\.[01](?:[.\s-])', upstream_version):
-        raise ValueError('FFmpeg 7.0/7.1 ABI required; installed package is ' + package_version)
+    if re.match(r'^7\.[01](?:[.\s-])', upstream_version):
+        series_path = source.SERIES
+    elif re.match(r'^9\.0\.2-', upstream_version):
+        series_path = source.SERIES.with_name('series-9.json')
+    else:
+        raise ValueError('Port the BSP fixes to the installed FFmpeg ABI before replacing ' + package_version)
+    series = json.loads(series_path.read_text())
+    version = series['upstream_version']
+    # Retain Arch's package release ordering while identifying our rebuild.
+    pkgrel = upstream_version.rsplit('-', 1)[1] + '.1'
     epoch = package_version.split(':')[0] if ':' in package_version else '0'
     output.mkdir(parents=True, exist_ok=resume)
     provenance = (json.loads((output / 'source/SOURCE.json').read_text())
-                  if resume else source.prepare(output / 'source'))
-    series = json.loads(source.SERIES.read_text())
+                  if resume else source.prepare(output / 'source', series=series_path))
     expected_patches = [
-        {'path': str((source.SERIES.parent / row['path']).relative_to(ROOT)),
+        {'path': str((series_path.parent / row['path']).relative_to(ROOT)),
          'sha256': row['sha256']} for row in series['series']]
     if (provenance.get('patches') != expected_patches or
             provenance.get('upstream_version') != series['upstream_version']):
         raise ValueError('Cached FFmpeg source differs from the configured patch series')
-    # Build from the same patched source used by Debian, inside the target ABI.
+    # Compile inside the target ABI with its complete installed codec options.
     guest_work = root / 'var/tmp/sunuefi-ffmpeg'
     if guest_work.exists() and not resume:
         raise ValueError('Existing FFmpeg build directory must be inspected before retry')
     guest_work.mkdir(parents=True, exist_ok=resume)
     if not (guest_work / 'ffmpeg-source').exists():
         shutil.copytree(output / 'source', guest_work / 'ffmpeg-source')
-    quote_array = lambda values: '(' + ' '.join(shlex.quote(v) for v in values) + ')'
-    recipe = (
-        "pkgname=ffmpeg\npkgver=7.1.5\npkgrel=1.3\n"
-        f"epoch={epoch}\npkgdesc='FFmpeg with Piano stateful V4L2 fixes'\n"
-        "arch=(aarch64)\nurl=https://ffmpeg.org\nlicense=(GPL-3.0-or-later)\n"
-        "options=(!debug !lto)\n"
-        f"depends={quote_array(deps)}\nprovides={quote_array(provides)}\n"
-        "build() {\n  cd \"$startdir/ffmpeg-source\"\n  ./configure " +
-        shlex.join(options) + "\n  make -j4\n}\n"
-        "package() {\n  cd \"$startdir/ffmpeg-source\"\n"
-        "  make DESTDIR=\"$pkgdir\" install\n"
-        "  install -Dm644 COPYING.GPLv3 \"$pkgdir/usr/share/licenses/ffmpeg/COPYING.GPLv3\"\n}\n")
+    recipe = package_recipe(version, epoch, pkgrel, options, deps, provides)
     (guest_work / 'PKGBUILD').write_text(recipe)
     with build_resolver(root), guest_environment(root) as guest:
         guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel', 'clang',
@@ -89,13 +100,14 @@ def build(root, output, resume=False):
         guest(['chown', '-R', 'sunuefi-ffmpeg:sunuefi-ffmpeg', '/var/tmp/sunuefi-ffmpeg'])
         guest(['runuser', '-u', 'sunuefi-ffmpeg', '--', 'bash', '-c',
                'cd /var/tmp/sunuefi-ffmpeg && makepkg --noconfirm --nocheck --nodeps'])
-        packages = list(guest_work.glob('ffmpeg-*.pkg.tar.zst'))
+        packages = [p for p in guest_work.glob('ffmpeg-*.pkg.tar.*')
+                    if p.is_file() and p.suffix in ('.xz', '.zst', '.gz', '.bz2', '.lz4', '.lzo')]
         if len(packages) != 1:
             raise ValueError('FFmpeg package was not produced')
         package = packages[0]
         guest(['pacman', '-U', '--noconfirm', '/var/tmp/sunuefi-ffmpeg/' + package.name])
         version = guest(['ffmpeg', '-version'], capture_output=True, text=True).stdout
-        if '7.1.5' not in version:
+        if series['upstream_version'] not in version:
             raise ValueError('Installed FFmpeg differs from the built package')
         guest(['userdel', '-r', 'sunuefi-ffmpeg'])
     shutil.copy2(package, output / package.name)

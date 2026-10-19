@@ -13,6 +13,7 @@ import zipfile
 
 import assemble_rootfs
 import build_arch_package
+import build_arch_ffmpeg
 import build_nyarch_apps
 import build_release_rootfs as release
 import stage_arch_piano
@@ -105,6 +106,10 @@ def build(args):
         if not (packages / 'manifest.json').exists():
             build_arch_package.build(root, recipes / name, packages)
 
+    ffmpeg = output / 'packages/ffmpeg'
+    if not (ffmpeg / 'SOURCE.json').exists():
+        build_arch_ffmpeg.build(root, ffmpeg, resume=ffmpeg.exists())
+
     kernel = ROOT / 'artifacts/kernels/release-7.2.9'
     source = Path(json.loads((ROOT / 'build/release-7.2.9/source-manifest.json').read_text())['worktree'])
     runtime = output / 'runtime'
@@ -119,7 +124,8 @@ def build(args):
         desktop_source=desktop, extensions=extensions))
     manifest = output / 'manifest.json'
     record = json.loads(manifest.read_text())
-    record.update(base_archive_sha256=base_hash, nyarch_inputs=cfg)
+    record.update(base_archive_sha256=base_hash, nyarch_inputs=cfg,
+                  ffmpeg=json.loads((ffmpeg / 'SOURCE.json').read_text()))
     manifest.write_text(json.dumps(record, indent=2) + '\n')
 
 

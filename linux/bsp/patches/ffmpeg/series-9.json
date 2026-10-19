@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "component": "ffmpeg-v4l2m2m",
+  "upstream_version": "9.0.2",
+  "local_revision": "sunuefi1",
+  "source": {
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "filename": "ffmpeg-9.0.2.tar.xz",
+    "size": 12040788,
+    "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e"
+  },
+  "series": [
+    {
+      "path": "0004-v4l2m2m-ffmpeg9-stateful.patch",
+      "sha256": "ad7b86872378f38fbbdf8a24e31726f62a765869b6f910322be6a8d8695b1a3c",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
+    }
+  ]
+}

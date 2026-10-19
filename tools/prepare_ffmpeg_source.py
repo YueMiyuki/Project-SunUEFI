@@ -18,15 +18,20 @@ def sha(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def prepare(output, apply_patches=True):
+def prepare(output, apply_patches=True, series=SERIES):
     output = Path(output).resolve()
     if not output.is_relative_to(ROOT / 'build') or output.exists():
         raise ValueError('Use a new project build directory; existing source edits are preserved')
-    record = json.loads(SERIES.read_text())
+    series = Path(series)
+    record = json.loads(series.read_text())
     origin = record['source']
-    archive = next(row for row in origin['archives'] if row['filename'].endswith('.orig.tar.xz'))
-    cache = ROOT / 'build/source-cache/ffmpeg-7.1.5-source' / archive['filename']
-    url = origin['dsc_url'].rsplit('/', 1)[0] + '/' + archive['filename']
+    if 'archives' in origin:
+        archive = next(row for row in origin['archives'] if row['filename'].endswith('.orig.tar.xz'))
+        url = origin['dsc_url'].rsplit('/', 1)[0] + '/' + archive['filename']
+    else:
+        archive = origin
+        url = origin['url']
+    cache = ROOT / 'build/source-cache' / ('ffmpeg-' + record['upstream_version'] + '-source') / archive['filename']
     cache.parent.mkdir(parents=True, exist_ok=True)
     if not cache.exists():
         with urllib.request.urlopen(url) as response:
@@ -39,7 +44,7 @@ def prepare(output, apply_patches=True):
             stream.extractall(temporary, filter='data')
         shutil.copytree(Path(temporary) / ('ffmpeg-' + record['upstream_version']), output)
     for row in record['series']:
-        patch = SERIES.parent / row['path']
+        patch = series.parent / row['path']
         if sha(patch) != row['sha256']:
             raise ValueError('FFmpeg BSP patch checksum mismatch: ' + row['path'])
         if apply_patches:
@@ -49,7 +54,7 @@ def prepare(output, apply_patches=True):
     source = {'component': record['component'], 'upstream_version': record['upstream_version'],
               'local_revision': record['local_revision'], 'archive_url': url,
               'archive_sha256': archive['sha256'], 'patches': patches,
-              'debian_reference': record['debian_reference'], 'patches_applied': apply_patches,
+              'debian_reference': record.get('debian_reference'), 'patches_applied': apply_patches,
               'packages_built': False}
     (output / 'SOURCE.json').write_text(json.dumps(source, indent=2) + '\n')
     return source
@@ -58,9 +63,10 @@ def prepare(output, apply_patches=True):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--series', type=Path, default=SERIES)
     args = parser.parse_args()
     try:
-        print(json.dumps(prepare(args.output), indent=2))
+        print(json.dumps(prepare(args.output, series=args.series), indent=2))
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         parser.exit(2, str(error) + '\n')
 

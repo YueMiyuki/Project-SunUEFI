@@ -12,7 +12,7 @@ from build_nyarch_apps import guest_environment
 from build_release_rootfs import build_resolver, digest
 from prepare_steamos_rootfs import prepare, download
 import build_arch_package
-import build_steamos_ffmpeg
+import build_arch_ffmpeg
 import stage_arch_piano
 import prepare_steam_client
 
@@ -113,7 +113,7 @@ def build(args):
             build_arch_package.build(root, recipes / name, packages)
     ffmpeg = output / 'packages/ffmpeg'
     if not (ffmpeg / 'SOURCE.json').is_file():
-        build_steamos_ffmpeg.build(root, ffmpeg, resume=ffmpeg.exists())
+        build_arch_ffmpeg.build(root, ffmpeg, resume=ffmpeg.exists())
     client = output / 'steam-client'
     if not (client / 'SOURCE.json').is_file():
         prepare_steam_client.prepare(root, client)
