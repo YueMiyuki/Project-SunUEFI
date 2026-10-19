@@ -13,4 +13,11 @@
                          "qcom,sunp", "qcom,mtp";
         };
     };
+    fragment@1 {
+        target-path = "/soc/qcom,pmic_glink";
+        __overlay__ {
+            // Matched to the HyperOS 4 ADSP shipped by config/release.json.
+            xiaomi,mca-pd-protocol-version = <2>;
+        };
+    };
 };
