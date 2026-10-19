@@ -184,7 +184,7 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 '
 ```
 
-模块输出在 `artifacts/android/`，与 `artifacts/product/` 中的 UEFI 使用同一份核心。GitHub Actions 的 `uefi` 和 `debian-gnome` 目标都会同时构建并上传模块。
+模块输出在 `artifacts/android/`，与 `artifacts/product/` 中的 UEFI 使用同一份核心。GitHub Actions 默认构建 Debian GNOME、Debian KDE、Nyarch GNOME 和 SteamOS，每个系统目标都提供配套的模块、ESP 和 root 镜像；也可以手动选择单个目标。
 
 完整的 Debian / GNOME 系统包需要 ARM64 构建机，以及允许 chroot 的 `--privileged` 容器，依次运行 `./build.sh linux`、`mesa`、`sensors`、`ffmpeg --install-dependencies`、`release-rootfs`、`package`、`installer`。需要主机检查时手动运行 `./build.sh check`，不用连接平板。完整流程、输入材料和各步骤的输出位置见[构建手册](docs/devel/building.md)与[公开构建链](docs/devel/public-build.md)。
 
@@ -197,6 +197,7 @@ SunUEFI 不是从零重写所有东西。上游源码保持固定版本放在 `u
 | 项目 | 负责什么 | 我们在上面做了什么 |
 | --- | --- | --- |
 | [TianoCore EDK2](https://github.com/tianocore/edk2) / [Mu-Silicium](https://github.com/Project-Silicium/Mu-Silicium) | UEFI 基础代码和高通平台集成 | Piano 平台、启动交接、存储、输入、显示继承、UEFI Fastboot，以及对原厂分区的只读保护和安全退出 |
+| [mu_wide_platforms](https://github.com/sunflower2333/mu_wide_platforms) | 基于 Project Mu 的高通设备 UEFI，包含小米平板 8 Pro 的 Piano 平台与 ACPI | 作为同机 UEFI 初始化、ACPI 和 Windows 引导适配的参考 |
 | [simple-init](https://github.com/BigfootACA/simple-init) | UEFI 里的图形启动菜单 | 平板布局、中文、实体按键，以及和固件后台服务的联动 |
 | [linux-piano](https://github.com/blu-sharky/linux-piano) | SM8750 内核、设备树和板级驱动基线 | 合入稳定版内核，修正内存 / DMA、显示、音频等 |
 | [BigfootACA/linux](https://github.com/BigfootACA/linux) · Junhao Xie | 高通显示驱动改进 | 采用 DSI PLL 初始化、DPU 视频流水线停止顺序及 DSI PHY 接口时钟管理补丁，改善显示初始化与熄屏恢复；精确来源见 [THIRD_PARTY.md](THIRD_PARTY.md) |
@@ -207,7 +208,7 @@ SunUEFI 不是从零重写所有东西。上游源码保持固定版本放在 `u
 | [SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port) | Valve ARM64 根系统提取方法和移动设备移植参考 | 复用固定版本提取器，接入 SunUEFI 的 ESP/root、内核及 BSP；不采用其设备启动器和分区方案 |
 | [MiCode](https://github.com/MiCode) 与本机 HyperOS | 原厂设备树、驱动、配置的参照 | 对照真实命令、时序和参数，按标准接口移植 |
 
-内核之外的 Debian 软件仍通过标准 APT 安装。除 Debian / GNOME 之外，仓库里还有 Ubuntu、Arch、KDE 等目标的配置，但只有 Debian / GNOME 完整走通过，其他目标没有验证。
+Debian 软件通过 APT 安装，Nyarch 和 SteamOS 使用原生 pacman 包。Nyarch 从 Arch Linux ARM 和应用源码构建，不依赖旧版 ISO；SteamOS 仍是实验目标。Ubuntu、Deepin 等配置暂未纳入默认构建。
 
 ## 文档
 
