@@ -1,78 +1,34 @@
-# SM8750 双路 DSI 状态恢复
+# SM8750 双路 DSI 与刷新率切换
 
-Piano 使用两路 DSI 驱动面板。默认保持 120 Hz，以兼容当前手写笔扫描。
+Piano 使用两路 DSI 驱动同一块面板，默认 120 Hz。当前默认内核支持 30／48／50／60／120 Hz 无缝切换；90／144 Hz 仍走完整显示重设，144 Hz 花屏和手写笔输入继续适配。
 
-## DSI PHY 接口时钟管理
+## 无缝切换
 
-默认内核纳入 Junhao Xie 的 [接口时钟运行时管理补丁](https://github.com/BigfootACA/linux/commit/b95037aef0a0bf5cd612e7517a67644887e9fd5d)，本地文件为 `0034-dsi-phy-runtime-interface-clock.patch`。将 `pm_clk` 的长期准备改为运行时恢复时 `clk_prepare_enable()`、暂停时 `clk_disable_unprepare()`，与当前已有的 PLL 和从路恢复补丁配合。
+原厂 BOE、CSOT 设备树都提供基于垂直前沿空白的动态刷新率。`0035-panel-piano-low-refresh-rates.patch` 加入 30、48、50 Hz，与 60 Hz 一样沿用 120 Hz 的时钟和水平时序，通过延长每帧的空白时间降频。
 
-实机对照完成正常启动、显示电源关闭再开启、二十秒 RTC 唤醒的整机挂起以及挂起后的普通重启。画面正常，操作中未再出现先前观察到的短暂红色虚影；恢复后触控收帧、ADSP 运行、Wi-Fi 为 D0，未出现新的 PLL、FIFO、时钟失衡或内核崩溃日志。共享显示 AHB 时钟仍可能被其他使用者占用，因此这些结果不证明显示整体已完全断电，也不等同于待机耗电测量。
+`0037-drm-piano-seamless-vfp.patch` 在标准 atomic modeset 中识别同一时序族：更新 DSI 双缓冲时序和 DPU 接口的帧周期，在帧边界提交。面板电源、DSC 和触控固件保持运行；正常 Gamma 更新可以同时提交。改变水平时序、链路时钟或 CTM 路由时仍执行完整重设。
 
-## 2026-10-13 修正
+设备已反复完成 30～120 Hz 切换，触控固件 epoch 保持不变；稳定帧中断频率与请求档位相符，没有新增 underrun。这里实现的是固定档位之间的无缝切换，**按视频帧率或内容空闲自动选择档位，以及连续 VRR，仍需桌面和驱动继续配合**。
 
-灭屏再亮屏时，从路 PHY 的时钟寄存器没有恢复。首次启动两路
-`CMN_CLK_CFG0` 均为 `0x51`，恢复后主路仍为 `0x51`，从路却变成
-`0xf1`；像素时钟分频从 5 变成 15。随后 host1 出现视频 FIFO
-溢出，画面无法恢复。GNOME 回退显示配置也不能纠正这个底层状态。
+## 关闭和恢复显示
 
-修正在 `patches/linux/7.2.9/0025-dsi-sm8750-restore-bonded-slave.patch`：
-SM8750 关闭链路前同时保存主、从 PHY 状态，在重新启用 PHY 时分别恢复。
-复用现有 PLL 保存/恢复接口，不写死分频数值或显示模式；其他芯片的
-从路恢复策略保持原样。
+以下修正共同处理此前的黑屏、灰屏和关闭时彩色残影：
 
-另一项修正
-`0024-dsi-pll-defer-unprogrammed-clock.patch` 来自
-[BigfootACA/linux 的 67b3cbd4bab](https://github.com/BigfootACA/linux/commit/67b3cbd4bab5687c3aa3c9fe5a14c37433e28bbf)。
-它避免时钟提供者注册时提前启动尚未配置的 PLL，消除了首次启动的
-PLL 锁定失败及不平衡关闭警告。这项问题与灭屏恢复是分别定位的。
+| 补丁 | 作用 |
+| --- | --- |
+| `0024-dsi-pll-defer-unprogrammed-clock.patch` | 避免注册时钟提供者时提前启动未配置的 PLL |
+| `0025-dsi-sm8750-restore-bonded-slave.patch` | 保存并恢复主、从两路 PHY 的实际分频状态 |
+| `0026-dpu-video-stop-order.patch` | 在停止视频时序前清理 DPU 流水线，使清理能在帧边界完成 |
+| `0034-dsi-phy-runtime-interface-clock.patch` | 通过 runtime PM 管理 PHY 接口时钟 |
+| `0036-backlight-ktz8866-wait-disable-ramp.patch` | 等待两颗背光芯片渐灭完成，再关闭面板和视频链路 |
+| `0038-panel-piano-vendor-refresh-order.patch` | 保留 CSOT 的 B2→B3 和 BOE 的 B3→B2 原厂命令顺序 |
 
-## 验证范围
+PLL 注册、DPU 停止顺序和 PHY 接口时钟补丁分别参考 Junhao Xie 的 [67b3cbd4bab](https://github.com/BigfootACA/linux/commit/67b3cbd4bab5687c3aa3c9fe5a14c37433e28bbf)、[8f353c130fee](https://github.com/BigfootACA/linux/commit/8f353c130fee0fcf09afbe10e7fc58f901931418)、[b95037aef0a0](https://github.com/BigfootACA/linux/commit/b95037aef0a0bf5cd612e7517a67644887e9fd5d)，保留原作者署名。
 
-在 Nyarch GNOME 上通过 Mutter 的标准接口执行：
+正常启动、120 Hz 下关闭／恢复显示、RTC 和电源键唤醒已有实机结果。显示恢复后可以继续操作，触控和网络可恢复；这不等同于待机耗电已达到原厂水平。整机睡眠的其他驱动处理见[电源管理](piano-power-button.md)。
 
-- 120 Hz 下真正关闭显示链路两秒，再恢复。
-- 60 → 120 → 90 → 144 → 120 Hz 临时切换，结束后恢复原来的 120 Hz。
-- 移除诊断寄存器日志、DPU 停止顺序及 PHY runtime PM 对照改动后，
-  再验证上述行为。
+## 144 Hz 的剩余问题
 
-修正后的主、从分频均恢复为 `0x51`；最终模块没有再出现原来必现的
-DSI FIFO 错误，Mutter 报告的模式与请求一致，桌面截图正常。
-电脑摄像头随后确认：120 Hz 下 DPMS 关闭后重新开启能够显示，
-但切到 60 Hz 后物理屏幕变成灰屏，切回 120 Hz 也不能恢复。
-因此上述模式状态和无 FIFO 错误只证明部分修正有效，刷新率切换
-仍未解决。正在对照面板显示开启、DSC PPS 与视频数据启动顺序。
-分别测试将显示开启/PPS 移至 panel enable 阶段，以及让 DSI 主机
-保留面板指定的 DSC 速率控制参数，两项对照均仍在切入 60 Hz 后
-灰屏。这些实验没有加入产品补丁，设备已恢复正式模块与默认 120 Hz。
-面板诊断日志确认切入 90 Hz 时没有退回默认模式，DSC 专用参数仍为
-首行 BPG 13、首个范围 max QP 8。去掉额外控制器复位也未解决。
-CSOT 原厂 B2/B3 命令顺序与 BOE 相反，对照补丁保存于
-`drafts/0026-panel-piano-vendor-fps-order.patch`，该项单独未解决灰屏。
-进一步补发原厂 post-enable 的 HS 时序同步命令后仍灰屏。
-原厂完整流程及动态采集结果见[原厂刷新率切换](piano-oem-refresh.md)。
-这些结果也不代表系统睡眠、休眠或 144 Hz 手写笔已经完成。
+90／144 Hz 与 120 Hz 的水平时序不同，不能直接套用上述 VFP 更新。此前 144 Hz 出现过花屏，桌面自动回退到 120 Hz 后恢复。原厂命令顺序修正后，已确认实际 144 Hz 帧中断及回切没有控制器报错，但尚缺新的物理画面与笔输入确认，不能据此报告问题已全部修复。
 
-## 组合修正的物理验证
-
-随后重新组合验证社区的 DPU 停止顺序修正与从路 PLL 恢复。
-前者之前被从路时钟错误干扰，单独测试不能排除它。
-两项组合后，依次切换 120→60→90→144→120 Hz，电脑摄像头均看到
-物理面板正常显示桌面。返回 120 Hz 后打开快速设置，画面内容
-随之更新，排除了屏幕仅停留在旧画面的可能。
-
-DPU 原先在停止视频时序后才清理数据流水线；视频模式下清理需要
-在帧边界提交，先停时序会让旧配置留在硬件中。修正先清理流水线，
-再停时序，来自 BigfootACA/linux 的
-`8f353c130fee0fcf09afbe10e7fc58f901931418`，保留原作者署名，
-正式补丁为 `0026-dpu-video-stop-order.patch`。
-
-DSI 日志中 120 Hz 的 TOTAL 为 `0x0905023f`，60 Hz 为
-`0x120b023f`，两路同步；时钟频率保持不变。临时寄存器日志不进入
-产品源码。本地与 CI 的内核准备程序已加入同一 DPU 补丁和源码树校验。
-完整内核 `7.2.9-piano-gnome-g9a0d23f4a13c` 已构建，配套模块、
-启动内存盘及 ESP 启动文件已部署。正常重启后，摄像头确认
-120→60→120 Hz 和一次显示关闭/恢复均正常。临时寄存器日志已去除。
-这些结果不代表整机睡眠、
-144 Hz 手写笔、VRR 或 HDR 已完成。
-
-PHY 接口时钟 runtime PM 对照仍留在 `drafts/`，没有加入产品。
+原厂切换流程见[原厂刷新率分析](piano-oem-refresh.md)；显示位深、HDR 和 FRC 的边界见[色彩处理](piano-display-depth.md)。

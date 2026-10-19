@@ -1,32 +1,32 @@
+From 85604009fd1782a47ec8accccee2d4b19e2b247d Mon Sep 17 00:00:00 2001
 From: slwyts <slwyts@foxmail.com>
-Subject: [PATCH] drm/msm/dpu: add ordinary IGC v5 through shared REGDMA color state
+Date: Tue, 20 Oct 2026 03:58:17 +0800
+Subject: [PATCH] drm/msm/dpu: expose IGCv5 through standard degamma LUT
 
-Expose the verified ordinary 257-entry, 16-bit IGC v5 layout through standard
-DEGAMMA_LUT. Use R/G/B LUTBUS transfers, the published three-NOP workaround,
-and IGC control enable at DSPP 0x1264. Preserve the standard endpoint including
-zero; leave high precision and dither disabled.
-
-Merge complete GC and IGC state in the existing REGDMA BO and queue. Calculate
-the final descriptor offset from the actual command length and reject an
-out-of-buffer layout before taking clocks or publishing DMA. Existing GEM/VM,
-mutex, PM/module/clock lifetime and unknown-queue reset retention are unchanged.
-
-Keep assigned DSPPs for this backend even when both LUTs are bypassed, clear
-unassigned duplicate pointers, and validate every actual split-display half.
-On color change or modeset, submit both current LUTs (NULL disables each).
-Only successful combined DMA stages GC/IGC flush; failure cannot apply PCC
-alone. Other platforms keep their existing GC programming implementation.
-
-Based on Piano source 95b72a5bd7eb7fb31b2b385faa915edeee5a31cf, tree
-70a83a85970d3c6b50afe8886b4f6b855bd32d6a. Register/command ABI from MiCode
-vendor_opensource_display-drivers aa06fd1757c28dce96fbe4e04d4530ec21b52aac.
-This candidate is not in the default series. Seven ARM64 objects and actual
-CPU packer boundary calls passed; no full kernel link or hardware test.
-It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
+Apply the existing Piano IGCv5 REGDMA candidate to the current source and link the complete MSM module. Hardware color-transfer behavior remains to be validated before enabling the release series.
 ---
+ drivers/gpu/drm/msm/Makefile                  |  1 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c      | 79 ++++++++++++++++---
+ .../gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c    |  2 +
+ .../gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h    |  4 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c    |  3 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.c   | 10 +++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.h   |  6 ++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.c   | 16 ++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.h   |  3 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.c  | 68 ++++++++++++++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.h  | 21 +++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.c    | 48 ++++++++---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.h    |  5 ++
+ 13 files changed, 246 insertions(+), 20 deletions(-)
+ create mode 100644 drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.c
+ create mode 100644 drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.h
+
+diff --git a/drivers/gpu/drm/msm/Makefile b/drivers/gpu/drm/msm/Makefile
+index 8a14301a74b..b662e428036 100644
 --- a/drivers/gpu/drm/msm/Makefile
 +++ b/drivers/gpu/drm/msm/Makefile
-@@ -90,6 +90,7 @@
+@@ -90,6 +90,7 @@ msm-display-$(CONFIG_DRM_MSM_DPU) += \
  	disp/dpu1/dpu_hw_sspp_v13.o \
  	disp/dpu1/dpu_hw_dspp.o \
  	disp/dpu1/dpu_hw_gcv2.o \
@@ -34,6 +34,8 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	disp/dpu1/dpu_lutdma.o \
  	disp/dpu1/dpu_hw_merge3d.o \
  	disp/dpu1/dpu_hw_top.o \
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
+index c6b245207f9..77bfbd02d49 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_crtc.c
 @@ -25,6 +25,7 @@
@@ -44,7 +46,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  #include "dpu_hw_lm.h"
  #include "dpu_hw_ctl.h"
  #include "dpu_hw_dspp.h"
-@@ -886,9 +887,26 @@
+@@ -900,9 +901,26 @@ static void _dpu_crtc_setup_cp_blocks(struct drm_crtc *crtc)
  			else
  				_dpu_crtc_get_gc_lut(state, gc_lut);
  		}
@@ -73,7 +75,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	}
  
  	for (i = 0; i < cstate->num_mixers; i++) {
-@@ -935,6 +953,9 @@
+@@ -949,6 +967,9 @@ static void _dpu_crtc_setup_cp_blocks(struct drm_crtc *crtc)
  			/* stage config flush mask */
  			ctl->ops.update_pending_flush_dspp(ctl,
  				mixer[i].hw_dspp->idx, DPU_DSPP_GC);
@@ -83,11 +85,10 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  		}
  	}
  }
-@@ -1416,6 +1437,39 @@
- 
+@@ -1440,6 +1461,39 @@ static int dpu_crtc_reassign_planes(struct drm_crtc *crtc, struct drm_crtc_state
  #define MAX_CHANNELS_PER_CRTC PIPES_PER_PLANE
  #define MAX_HDISPLAY_SPLIT 1080
-+
+ 
 +static bool dpu_crtc_has_regdma_color(struct dpu_kms *kms)
 +{
 +	struct dpu_hw_blk *block = kms->catalog->dspp_count ? kms->rm.dspp_blks[0] : NULL;
@@ -120,10 +121,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
 +	}
 +	return hweight32(mask) == cstate->num_mixers ? 0 : -EINVAL;
 +}
- 
++
  static struct msm_display_topology dpu_crtc_get_topology(
  		struct drm_crtc *crtc,
-@@ -1444,7 +1498,7 @@
+ 		struct dpu_kms *dpu_kms,
+@@ -1467,7 +1521,7 @@ static struct msm_display_topology dpu_crtc_get_topology(
  	 *
  	 * If DSC is enabled, use 2 LMs for 2:2:1 topology
  	 *
@@ -132,7 +134,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	 *
  	 * Only hardcode num_lm to 2 for cases where num_intf == 2 and CWB is not
  	 * enabled. This is because in cases where CWB is enabled, num_intf will
-@@ -1464,7 +1518,8 @@
+@@ -1487,7 +1541,8 @@ static struct msm_display_topology dpu_crtc_get_topology(
  	else
  		topology.num_lm = 1;
  
@@ -142,7 +144,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  		topology.num_dspp = topology.num_lm;
  
  	return topology;
-@@ -1521,8 +1576,8 @@
+@@ -1544,8 +1599,8 @@ static int dpu_crtc_assign_resources(struct drm_crtc *crtc,
  
  		cstate->mixers[i].hw_lm = to_dpu_hw_mixer(hw_lm[i]);
  		cstate->mixers[i].lm_ctl = to_dpu_hw_ctl(hw_ctl[ctl_idx]);
@@ -153,7 +155,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	}
  
  	cstate->num_mixers = num_lm;
-@@ -1579,8 +1634,8 @@
+@@ -1635,8 +1690,8 @@ static int dpu_crtc_atomic_check(struct drm_crtc *crtc,
  	/* A hardware failure latches the engine unusable. Do not accept a
  	 * later gamma update as though its transport were still initialized.
  	 */
@@ -164,18 +166,18 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  		return -EIO;
  
  
-@@ -1610,6 +1665,10 @@
- 	}
+@@ -1667,6 +1722,10 @@ static int dpu_crtc_atomic_check(struct drm_crtc *crtc,
  
  	DRM_DEBUG_ATOMIC("%s: check\n", dpu_crtc->name);
-+
+ 
 +	rc = dpu_crtc_check_regdma_color(crtc, crtc_state);
 +	if (rc)
 +		return rc;
- 
++
  	if (cstate->num_mixers) {
  		rc = _dpu_crtc_check_and_setup_lm_bounds(crtc, crtc_state);
-@@ -1978,7 +2037,9 @@
+ 		if (rc)
+@@ -2039,7 +2098,9 @@ struct drm_crtc *dpu_crtc_init(struct drm_device *dev, struct drm_plane *plane,
  		 */
  		if (dspp && dspp->ops.setup_gc) {
  			drm_mode_crtc_set_gamma_size(crtc, DPU_GAMMA_LUT_SIZE);
@@ -186,9 +188,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  		} else {
  			drm_crtc_enable_color_mgmt(crtc, 0, true, 0);
  		}
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+index ceed0d6d2c7..9fa40480bc0 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
-@@ -430,6 +430,8 @@
+@@ -430,6 +430,8 @@ static const struct dpu_dspp_sub_blks sm8750_dspp_sblk = {
  		.len = 0x90, .version = 0x60000},
  	.gc = {.name = "gc", .base = 0x17c0,
  		.len = 0x40, .version = 0x20000},
@@ -197,9 +201,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  };
  
  /*************************************************************
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h
+index 9b4ce6fd576..e41983a4941 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h
-@@ -78,10 +78,12 @@
+@@ -78,10 +78,12 @@ enum {
   * DSPP sub-blocks
   * @DPU_DSPP_PCC             Panel color correction block
   * @DPU_DSPP_GC              Gamma correction block
@@ -212,7 +218,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	DPU_DSPP_MAX
  };
  
-@@ -331,10 +333,12 @@
+@@ -331,10 +333,12 @@ struct dpu_lm_sub_blks {
   * struct dpu_dspp_sub_blks: Information of DSPP block
   * @pcc: pixel color correction block
   * @gc: gamma correction block
@@ -225,9 +231,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  };
  
  struct dpu_pingpong_sub_blks {
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+index e8729fe1cfe..548f51e54d7 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
-@@ -403,6 +403,9 @@
+@@ -403,6 +403,9 @@ static void dpu_hw_ctl_update_pending_flush_dspp_sub_blocks(
  	case DPU_DSPP_GC:
  		ctx->pending_dspp_flush_mask[dspp - DSPP_0] |= BIT(5);
  		break;
@@ -237,9 +245,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	default:
  		return;
  	}
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.c
+index c9f216fbc1b..3631b256b95 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.c
-@@ -124,6 +124,13 @@
+@@ -124,6 +124,13 @@ static int dpu_setup_dspp_gcv2(struct dpu_hw_dspp *ctx,
  	return dpu_lutdma_submit_gc(ctx->lutdma, ctl, dspp_mask, lut);
  }
  
@@ -253,7 +263,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  void dpu_hw_dspp_bind_regdma(struct dpu_hw_dspp *ctx, struct dpu_lutdma *dma)
  {
  	if (ctx->cap->sblk->gc.version != 0x20000 ||
-@@ -131,6 +138,9 @@
+@@ -131,6 +138,9 @@ void dpu_hw_dspp_bind_regdma(struct dpu_hw_dspp *ctx, struct dpu_lutdma *dma)
  		return;
  	ctx->lutdma = dma;
  	ctx->ops.setup_gc = dpu_setup_dspp_gcv2;
@@ -263,6 +273,8 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  }
  
  /**
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.h
+index ac7762c824a..635c37edc19 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.h
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dspp.h
 @@ -8,6 +8,7 @@
@@ -273,7 +285,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  
  /**
   * struct dpu_hw_pcc_coeff - PCC coefficient structure for each color
-@@ -75,6 +76,11 @@
+@@ -75,6 +76,11 @@ struct dpu_hw_dspp_ops {
  	int (*setup_gc)(struct dpu_hw_dspp *ctx, struct dpu_hw_gc_lut *gc_lut,
  			struct dpu_hw_ctl *ctl, u32 dspp_mask);
  
@@ -285,9 +297,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  };
  
  /**
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.c
+index f5d9abffe13..a148b0e5983 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.c
-@@ -75,3 +75,19 @@
+@@ -75,3 +75,19 @@ int dpu_hw_gcv2_pack_regdma(__le32 *words, size_t capacity,
  	words[n++] = cpu_to_le32(GC_ENABLE);
  	return n;
  }
@@ -307,9 +321,11 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
 +	*offset = last;
 +	return 0;
 +}
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.h
+index b627e9dd476..0bc86b38285 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.h
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_gcv2.h
-@@ -19,4 +19,7 @@
+@@ -19,4 +19,7 @@ struct dpu_hw_gc_lut;
  int dpu_hw_gcv2_pack_regdma(__le32 *words, size_t capacity,
  			  u32 dspp_mask, const struct dpu_hw_gc_lut *lut);
  
@@ -317,6 +333,9 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
 +				    size_t *offset);
 +
  #endif
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.c
+new file mode 100644
+index 00000000000..3dbd2494b5f
 --- /dev/null
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.c
 @@ -0,0 +1,68 @@
@@ -388,6 +407,9 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
 +	words[n++] = cpu_to_le32(lut ? IGC_ENABLE : 0);
 +	return n;
 +}
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.h
+new file mode 100644
+index 00000000000..4155aa61904
 --- /dev/null
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_igcv5.h
 @@ -0,0 +1,21 @@
@@ -412,6 +434,8 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
 +			   u32 dspp_mask, const struct drm_color_lut *lut);
 +
 +#endif
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.c
+index ff6082b1d79..6b9d070c241 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.c
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.c
 @@ -14,6 +14,7 @@
@@ -431,7 +455,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  
  struct dpu_lutdma {
  	struct dpu_kms *kms;
-@@ -145,12 +146,20 @@
+@@ -145,12 +146,20 @@ static void retire_reference(struct dpu_lutdma *dma)
  	}
  }
  
@@ -455,7 +479,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  
  	might_sleep(); /* Called by the process-context atomic commit, never IRQ. */
  	if (!dma || !ctl || ctl->idx < CTL_0 || ctl->idx >= CTL_MAX ||
-@@ -162,12 +171,23 @@
+@@ -162,12 +171,23 @@ int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  		ret = -EIO;
  		goto unlock;
  	}
@@ -481,7 +505,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	ret = clocks_get(dma);
  	if (ret)
  		goto unlock;
-@@ -178,7 +198,7 @@
+@@ -178,7 +198,7 @@ int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  		goto unlock;
  	}
  	dma->module_held = true;
@@ -490,7 +514,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	last[0] = cpu_to_le32(0x18180114);
  	last[1] = 0; /* Real downstream final descriptor: decode-select no blocks. */
  	dma_wmb(); /* WC GEM writes must precede descriptor publication. */
-@@ -187,12 +207,12 @@
+@@ -187,12 +207,12 @@ int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  	writel(REGDMA_DONE, queue_reg(dma, ctl->idx, REGDMA_DONE_CLEAR));
  	dma->active_ctl = ctl->idx;
  	WRITE_ONCE(dma->inflight, true);
@@ -505,7 +529,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	descriptor = REGDMA_WRITE | REGDMA_LAST | 2;
  	writel(descriptor, queue_reg(dma, ctl->idx, 4));
  	wmb();
-@@ -202,7 +222,7 @@
+@@ -202,7 +222,7 @@ int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  	errors = readl(dma->mmio + dma->cfg->db_base + REGDMA_ERROR_STATUS) & REGDMA_ERROR_MASK;
  	if (ret || errors) {
  		WRITE_ONCE(dma->faulted, true);
@@ -514,7 +538,7 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  			ctl->idx, done, errors, ret);
  		ret = ret ? ret : -EIO;
  		if (queue_reset(dma, ctl->idx)) {
-@@ -210,12 +230,18 @@
+@@ -210,7 +230,7 @@ int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  			goto unlock;
  		}
  	} else {
@@ -523,17 +547,21 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  	}
  	retire_reference(dma);
  unlock:
- 	mutex_unlock(&dma->lock);
+@@ -218,6 +238,12 @@ int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  	return ret;
-+}
-+
+ }
+ 
 +int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
 +			u32 dspp_mask, const struct dpu_hw_gc_lut *lut)
 +{
 +	return dpu_lutdma_submit_color(dma, ctl, dspp_mask, lut, NULL, false);
- }
- 
++}
++
  struct dpu_lutdma *dpu_lutdma_init(struct dpu_kms *kms)
+ {
+ 	const struct dpu_lutdma_cfg *cfg = kms->catalog->lutdma;
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.h
+index fbd94229c46..8eaa3209219 100644
 --- a/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.h
 +++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_lutdma.h
 @@ -6,12 +6,17 @@
@@ -554,3 +582,6 @@ It does not implement high-precision sampling, HDR metadata or 12-bit FRC.
  void dpu_lutdma_quiesce(struct dpu_lutdma *dma);
  int dpu_lutdma_submit_gc(struct dpu_lutdma *dma, struct dpu_hw_ctl *ctl,
  			u32 dspp_mask, const struct dpu_hw_gc_lut *lut);
+-- 
+2.56.0
+

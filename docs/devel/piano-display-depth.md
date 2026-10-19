@@ -1,93 +1,47 @@
-# Piano 显示位深与 HDR
+# 显示位深与 HDR
 
-## 当前状态
+## 当前实现
 
-当前默认内核采用十位像素输出和 DSC10，标准 `max bpc` 属性为 10，范围为 10～10；这是驱动实际使用的传输配置。标准 1024 项 `GAMMA_LUT` 已接通，GNOME 夜灯可用。HDR 所需的输入传递函数和色域处理尚未接完整，不能把十位输出等同于 HDR。
+Piano 的默认内核使用 RGB101010 和 DSC 1.1：输入是 **10 bpc**，压缩传输为 **8 bpp**，slice 为 `800×24`。压缩位率不等于面板位深。BOE、CSOT 两份原厂最终设备树采用相同的十位传输配置，驱动按实际面板选择初始化序列。
 
-GNOME 51.1 的显示设置提供 HDR 开关，但没有独立的 8/10/12 位色深选择器；对应源码为 [`cc-display-settings.c`](https://github.com/GNOME/gnome-control-center/blob/51.1/panels/display/cc-display-settings.c)。HDR 开关取决于合成器是否报告 BT.2100 支持。当前不扩宽 `max bpc` 的范围，因为驱动还不能按用户选择重新配置面板和 DSC。
+标准 DRM/KMS 接口包括：
 
-以下保留原厂对照及早期接口分析；其中“尚未接通 Gamma”描述的是早期版本。
+| 接口 | 实际能力 |
+| --- | --- |
+| `max bpc` | 固定 10..10，与当前面板和 DSC 配置一致 |
+| `GAMMA_LUT` | 1024 项，GCv2 硬件输出曲线；GNOME 夜灯使用此接口 |
+| `DEGAMMA_LUT` | 257 项、每色 16 位，IGCv5 输入曲线 |
+| `CTM` | 现有 PCC 色彩矩阵 |
 
-2026-10-08，依据 `release-7.2.9` 源码、原厂最终 Android DTB、公开显示驱动及现有 Android HWC/Linux DRM 记录核对。Android 当前没有 HDR layer；尚未取得 HDR 输出时的色彩处理状态或活跃显示寄存器。
+GC 和 IGC 在同一 REGDMA 缓冲区提交到实际使用的两路 DSPP，完成后一起生效。设备已完成恒等、非线性、恢复旁路的标准 LUT 更新，传输完成状态正常。实现及资源管理见 [GCv2／IGCv5 后端](piano-gcv2-night-light.md)。
 
-## 已有的十位链路
+GNOME 51 的显示设置有 HDR 开关，但没有单独的 8／10／12 位色深选择器。HDR 设置依赖合成器确认 BT.2100 输出能力；当前只有十位传输和基础色彩处理，**HDR 仍未完成**。
 
-Piano 面板驱动已经使用 `MIPI_DSI_FMT_RGB101010`，DSC 1.1 输入为 **10bpc**、压缩位率为 **8bpp**，slice 为 `800×24`。原厂 BOE、CSOT 的最终 DTB 都是 RGB30bpp，三个 DSC 时序均为 10bpc；page `0x10` 的 DSC 初始化命令也与当前驱动一致。压缩后的 8bpp 是带宽参数，不是八位面板。
+## 原厂的色彩处理
 
-本地源码：[NT36532 驱动](../../build/kernel-worktrees/release-7.2.9/drivers/gpu/drm/panel/panel-novatek-nt36532.c)，`piano_dsc_cfg`、`piano_init_sequence()` 与 `PIANO_PANEL_INFO`；原厂采集位于 `private/analysis/android-board-runtime-2026-10-05/live.dtb`。本机原厂选择为 CSOT `p81_35_02_0b`，应保留对应初始化序列。
+固定的 [MiCode 显示驱动](https://github.com/MiCode/vendor_opensource_display-drivers/tree/aa06fd1757c28dce96fbe4e04d4530ec21b52aac)及同机 Android DRM 状态表明：
 
-Night Light的缺口同样在真实色彩处理backend：[Mutter48.7 `update_night_light_supported()`](https://github.com/GNOME/mutter/blob/48.7/src/backends/meta-monitor-manager.c#L1340)检查CRTC gamma LUT size是否大于0。g086 connector实际报告NightLightSupported=false，DRM只有CTM；SM8750的GC2尚未接标准gamma接口，因此不添加night-light-enabled强制设置或用户空间染色替身。
+- 原厂 SDR／P3 模式使用 IGCv5、GCv2 和 Gamut v4。IGC 开启高精度扩展与内部 dither，GC 开启高精度扩展。
+- IGC 的高精度格式是 257 个普通点加 128 个暗部扩展点，不能按均匀 385 点解释。原厂 QDCM 的 sRGB 表与普通步长 `1/256`、暗部步长 `1/1024` 精确对应；独立的 Gamma 2.2 表误差不超过一个十六位码值。默认后端仍使用普通 257 点格式，高精度候选另行验证。
+- 原厂 DSI 的 `hdr_properties` 描述静态原色和亮度能力；它不等于 HDMI／DP 的动态 `HDR_OUTPUT_METADATA`，也不证明 DDIC 直接接收 PQ 像素。
+- 尚需取得真实 HDR 图层播放时的曲线、色域和亮度处理，对照 SDR 确认原厂在哪一层进行转换和色调映射。
 
-2026-10-08已准备完整GCv2 REGDMA3后端RFC，沿标准`GAMMA_LUT`，包含真实MMIO资源、GPUVM GEM、队列提交、完成/reset与退出。它尚未进入默认镜像或实机验证；实现与准确限制见[GCv2 Night Light后端](piano-gcv2-night-light.md)。
+参考源码：[`reg_dmav2_setup_dspp_igcv5`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_reg_dma_v1_color_proc.c#L5366)、[`dsi_panel_parse_hdr_config`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/dsi/dsi_panel.c#L4061)。
 
-[小米官方规格](https://www.mi.com/global/product/xiaomi-pad-8-pro/)和 [FAQ](https://www.mi.com/ph/support/faq/details/KA-667493/)明确宣传 12-bit 色深，但未说明 native12、10+2 FRC 或内部 LUT 精度。现有 DTB 与未公开含义的 DDIC 命令，不能确定“额外两位”在哪一层实现。
+HyperOS 4 的实际配置位于 `/odm/etc/display/qdcm_calib_data_xiaomi_p81_35_02_0b_vid_mode_dualdsi_dsc_panel.json` 和对应的 `p81_42_02_0a` 文件。JSON 中的十六进制 payload 还需还原字节对顺序，才能读取内部曲线和 XML：
 
-## 原厂 PP dither 不用于这套十位配置
+- `native_hdr` 的输出 Gamma 为 2.2，包含 P3 面板校准、17 点色调映射、实时亮度补偿和内容统计；CSOT 配置中的满屏峰值约 844.5 nit，SDR 参考峰值为 400 nit。这些是配置值，不是本次物理亮度测量。
+- HDR 模式配置了 LUMA dither，但 `temporalEnable=0`；配置内容不能代替实际播放时的寄存器状态，也不能单凭该字段认定面板 FRC。
+- [`0045` 高精度候选](../../patches/linux/7.2.9/drafts/0045-drm-igcv5-high-precision-grid.patch)暴露均匀 1025 项 `DEGAMMA_LUT`，由驱动选取两组硬件采样点，仍不启用 dither。组合 DMA 扩大到 16 KiB；实机恒等、非线性和旁路恢复已完成，提交 2142 个 word，两路 DSPP 均返回完成状态。尚未加入默认序列，也不代表 HDR 或面板 FRC 已验证。
 
-MiCode 显示驱动固定提交 `aa06fd1757c28dce96fbe4e04d4530ec21b52aac` 的 [_sde_encoder_setup_dither()，第 4002 行](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_encoder.c#L4002)明确在 DSC 10bpc 或面板 30bpp 时调用 `setup_dither(..., NULL, 0)` 关闭 PP dither。原厂 [bitdepth 映射](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_pingpong.h#L18)长度为 9，[接收端](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_pingpong.c#L328)拒绝 10/12 的 bitdepth 参数。因此，开启 PP temporal 不能作为还原原厂 10+2 的实现。
+## 12-bit 与抖动
 
-另一个 [DSPP PA dither 实现](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_color_processing_v1_7.c#L967)仅设置 enable、offset、strength 和矩阵，没有 temporal 控制。PP temporal、DSPP PA dither、FP16/PQ 与 DDIC FRC 应分别确认。公开源码描述的配置也尚未用实际模块的寄存器状态验证。
+[小米官方规格](https://www.mi.com/global/product/xiaomi-pad-8-pro/)宣称支持 12-bit 色深。当前可确认的原厂链路是十位传输；额外两位是否来自面板内部 FRC、显示处理或组合机制，仍需确认具体实现。
 
-## 十位 framebuffer 与 HDR
+不能直接打开高通普通 pingpong dither 来代替。原厂 [`_sde_encoder_setup_dither`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_encoder.c#L4002)在 DSC10／30bpp 配置下关闭该模块，其位深表只覆盖 6／7／8 位输出。IGC 的 16 位 LUT、内部 dither 和面板 12-bit FRC 也不是同一个概念。
 
-十位 framebuffer 和 DSC10 只能说明像素精度与传输配置。HDR 还需要正确的原色、传递函数、亮度映射，以及实际消费这些设置的显示路径。
+## HDR 接入要求
 
-Mutter 48.7 从 [KMS connector 与 EDID](https://github.com/GNOME/mutter/blob/48.7/src/backends/native/meta-output-kms.c#L469)同时检查 BT.2020、HDR type 1/PQ 与 metadata 能力，满足后才提供 [BT.2100 模式](https://github.com/GNOME/mutter/blob/48.7/src/backends/meta-monitor.c#L210)。冻结基线的面板 `get_modes()` 没有报告 bpc/HDR 或 EDID，[MSM DSI connector](../../build/kernel-worktrees/release-7.2.9/drivers/gpu/drm/msm/dsi/dsi_manager.c)也没有附加并消费 `Colorspace`、`HDR_OUTPUT_METADATA`。DSI 不走 HDMI connector 的自动属性安装路径。
+后续实现需要完整处理内容的传递函数、色域、面板亮度和色调映射，再通过标准 DRM/KMS 能力交给桌面使用。不能只添加 HDR 属性或虚构 EDID 来显示开关。Mutter 当前还从 EDID 联合检查 BT.2020、PQ 和静态 HDR metadata 能力；无 EDID 的内屏需要真实的能力描述与对应输出处理。
 
-最小改动顺序是补充已知 `bpc=10`，保留 RGB101010、DSC10 和原厂 DDIC 序列，再接入有依据的色彩处理与标准 DRM 属性。**不得用假 HDR metadata、未经确认的 HDR EDID 或 `max_bpc=12` 让桌面出现开关。**
-
-## 当前真正缺的接线
-
-Android 2026-10-08 的 SurfaceFlinger/HWC实际报告 wideColorGamut、HDR10/10+/HLG/DV，metadata mask=7，最小/最大/最大平均亮度为0.7/1000/1000；DisplayManager也报告HDR类型1/2/3/4。SF每mode的`INVALID`不能据此解释为整机不支持HDR。此份捕获是DISPLAY_P3、120Hz、numHdrLayers=0，SF显示powerMode=Off，因此是能力及软件状态证据，不是正在输出PQ或FRC的证明。原始文件在`private/captures/2026-10-08-android-display-pen/`。
-
-原厂两个P81节点都有真实hdr-enabled、WRGB primaries、peak/blackness字段；MiCode [`dsi_panel_parse_hdr_config`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/dsi/dsi_panel.c#L4061)读取它们，再发布vendor immutable `hdr_properties`。这不是标准HDR_OUTPUT_METADATA，也没有直接给出PQ/type1标志。两份XBL panel XML都描述DSC1.1/profile0x8/slice800×24，但其PanelDescription都写P81_42/24bpp，连P81_35文件也如此；该文字不能覆盖最终DT的30bpp/DSC10配置，更不能作为额外两位FRC寄存器定义。
-
-标准Linux路径的具体缺口不只是connector属性：当前SM8750 catalog的DSPP只接PCC6，`gc.base=0`，所以`dpu_crtc.c:1925`不发布GAMMA_LUT，当前真实CRTC只有CTM，connector没有HDR_OUTPUT_METADATA/Colorspace/max bpc。原厂DT实际给出GC2.0、IGC5、gamut4.3和PA dither1.7；MiCode [`dspp_gc`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_dspp.c#L97)对GC2只绑定REGDMA实现，失败则NULL，没有旧GC的AHB fallback。[GC2实现](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_reg_dma_v1_color_proc.c#L1214)包含high-precision扩展LUT、swap和REGDMA kickoff。不能只把catalog的gc地址补上就复用现有主线10bit GC，然后宣称HDR已接好。
-
-要支持标准HDR，应先为SM8750接正确GC2/IGC5/色彩处理原子更新，核对panel实际PQ/亮度行为，再让DSI atomic check/commit真正消费Colorspace和HDR_OUTPUT_METADATA；Mutter48.7还要求可信sink/EDID色彩与EOTF信息。添加属性、迁移Android枚举数字或生成虚构EDID都不能替代这些步骤。PP dither、无temporal字段的PA dither和原厂DT另有的AIQE dither必须分别追踪；当前公开AIQE参数与DDIC命令尚不能确认12-bit FRC由谁实现。
-
-已有标准入口 [`0003-panel-nt36532-piano-color-depth.patch`](../../patches/linux/7.2.9/0003-panel-nt36532-piano-color-depth.patch)让Piano RGB101010面板在`get_modes()`报告实际DSC bpc，并已由`prepare_release_kernel.py`引用。本轮准备的重复改动已删除，不留下另一个未接线patch。对应原始字段、版本、source hashes和当前接口差异保存在`private/analysis/piano-hdr-frc-gap-20261008/review.json`；这不是HDR/FRC实现完成的声明。
-
-## 最少的 Android 动态采集
-
-保持同一刷新率、亮度和色彩模式，SDR 与实际 HDR 内容各保存一个稳定状态，只采集活跃显示路径：
-
-- DSI connector、CRTC、plane 的关联，实际 framebuffer 格式与 DSC 配置/PPS；静态 `hdr_properties` 只用于核对面板能力，不能证明当前输出 PQ。
-- Connector `SDE_PP_DITHER_V2`，CRTC `SDE_DSPP_PA_DITHER_V1`、`SDE_DSPP_GC_V2`、`SDE_DSPP_IGC_V5`、`SDE_DSPP_GAMUT_V4` 的实际 blob ID 与内容；同时记录活跃 SSPP 的 FP16 GC mode、CSC/IGC 配置。
-- 驱动现有 dump 中，活跃 PP 的 dither enable、bitdepth/temporal 位，以及 DSPP dither control 和矩阵。实例基址按原厂 DT 与活跃对象确定，不能套用主线 catalog 地址。
-
-若这些记录仍不能解释额外两位，再查DDIC的可靠寄存器定义与对应状态。目前已取得Android保留的P3软件payload，但仍缺HDR输出时的稳定状态对照，不能据此宣布FRC/HDR已启用。
-
-## 读取实际 DRM 属性与 blob
-
-`tools/android/piano_drm_snapshot.c` 通过标准 DRM UAPI 读取 connector、CRTC、plane 的当前属性与 blob 原始字节。它只改变本次文件描述符的 client capability，不设置显示模式、不申请 DRM master、不访问 MMIO；Android 和 Linux 可使用同一个静态 ARM64 程序。
-
-在准备好的构建环境中编译：
-
-```sh
-python3 tools/build_drm_snapshot.py \
-  --kernel-source build/kernel-worktrees/piano-fastrpc-dma-7.2.9 \
-  --sysroot build/distros/release-7.2.9/rootfs \
-  --output build/android-drm-snapshot-capture
-```
-
-使用设备的实际 KMS card 节点，不使用 `renderD*`；节点编号不固定。设备恢复后，在同一刷新率、亮度和色彩模式下，先保存 SDR，再播放实际 HDR 内容保存第二份。例如 Linux 中运行：
-
-```sh
-sudo /run/piano-drm-snapshot /dev/dri/cardN --blobs > sdr.json
-sudo /run/piano-drm-snapshot /dev/dri/cardN --blobs > hdr.json
-```
-
-Android 可将程序放在 `/data/local/tmp/`，使用 `adb exec-out su -c` 执行，把标准输出直接保存到电脑。默认省略 blob 内容，`--blobs` 才输出原始十六进制数据，包括存在的 HDR metadata、色彩 LUT 与原厂 dither blob；属性不存在时不会编造。每份记录包含单调时钟起止时间和真实 errno。对象依次读取，**不是跨对象的原子快照**；采集期间应保持画面模式稳定，属性数量增长或 blob 已删除会报错，不把部分结果当成完整采集。
-
-2026-10-08 已在 g086 Linux 的实际 `/dev/dri/card2` 运行静态 ARM64 产物，读取完成且 errors=0；活动 CRTC 为103，DSI connector 指向同一 CRTC。当前没有 `HDR_OUTPUT_METADATA`、`Colorspace` 或 `max bpc` 属性，CTM为0。驱动现有 state 同时显示主画面 `XR30`、光标 `AR24` 和 `3200×2136@144` 模式。这证明当前 Linux 的十位扫描输出，不证明 HDR/PQ 或额外两位 FRC 已启用。
-
-Android相同程序在真正`/dev/dri/card0`完成读取（errors=0），原始记录为`private/captures/2026-10-08-android-display-pen/drm-snapshot.json`。DSI connector67指向CRTC205，首份记录ACTIVE=0、SF powerMode=Off，是保留的软件配置。正常唤醒后追加`drm-snapshot-awake.json`（errors=0），PowerManager为Awake、CRTC205 ACTIVE=1、connector67仍指向205；其余CRTC inactive。四份blob的ID/长度/原始字节与首份完全相同，因此现在取得了active atomic软件配置，仍不是寄存器消费读回。
-
-`hdr_properties`为44字节，enabled、WRGB、peak10000000和black7000与原厂DT完全相同。IGC_V5/GC_V2/gamut_V4分别为4632/7688/39536字节，flags3/2/0；IGC strength=4，包含IGC dither和高精度标志，GC也有高精度标志。两次PP_DITHER、PA_DITHER和hdr_metadata均为0。本次没有播放HDR或强改模式；高精度LUT和内部IGC dither不能直接说明PQ或12-bit temporal FRC。raw payload可作为移植GC2/IGC5数据布局的参照，不应原样复制为所有模式的HDR曲线。离线对照在`private/analysis/piano-hdr-frc-gap-20261008/android-blobs-awake-decoded.json`。
-
-原始记录为本地 `private/analysis/recover-dma-20261008-131916/g086-drm-snapshot.json`。采集程序不读取扫描输出的 framebuffer 格式或活跃硬件寄存器，仍需配合驱动现有 state/dump；有 blob 不等同于硬件已消费它。
-
-下一默认内核增加 [固定 DSC 位深报告](../../patches/linux/7.2.9/0009-drm-msm-dsi-fixed-dsc-bpc.patch)：标准 `max bpc` 的范围取实际 PPS 的 `bits_per_component`，Piano 为10..10。当前驱动不支持按属性动态改变 PPS，所以不暴露8/12的选择。通用 bridge reset 会重新分配 connector state，补丁也恢复固定范围的 `max_requested_bpc/max_bpc`；逻辑仅作用于非HDMI的DSI。两个相关ARM64对象已独立编译，目标属性读回尚未验证。该报告不会实现HDR或FRC，也没有生成EDID。
-
-bde3普通BOOT启动后，实际DSI connector36的 `max bpc` 为10、范围10..10，两个CRTC的 `GAMMA_LUT_SIZE` 为1024。此结果已从真实DRM只读ioctl取得，`errors=0`，记录在 `bde3-drm.json`；十位报告已实机确认，HDR metadata、Colorspace和12-bit FRC没有因此实现。
+[`tools/android/piano_drm_snapshot.c`](../../tools/android/piano_drm_snapshot.c)可在 Android 和 Linux 中只读导出 DRM 属性及 LUT blob。将同一画面设置下的 SDR 与实际 HDR 播放状态对照，同时确认活动 CRTC、HDR 图层和电源状态；blob 存在或 DMA 完成不能单独证明物理 HDR 输出。

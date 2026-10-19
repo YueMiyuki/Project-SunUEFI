@@ -4,7 +4,7 @@
 
 ## 测试设备
 
-所有结果来自同一台小米平板 8 Pro（`piano`，型号 `25091RP04C`，SM8750P，16 GB 内存），原厂 Android 16（`OS3.0.309.0.WPYCNXM`），Bootloader 已解锁，当前运行使用 CSOT 面板配置（由原厂引导程序传来的标识选择，不等同于对物理供应商的识别）。Linux 对面板的选择见[面板选择](devel/panel-selection.md)；其他面板、内存容量和 ROM 版本没有测试过。
+所有结果来自同一台小米平板 8 Pro（`piano`，型号 `25091RP04C`，SM8750P，16 GB 内存），原厂已更新到 Android 17／HyperOS 4（`OS4.0.4.0.XPYCNXM`，vendor `OS4.0.2.1.XPYCN`），Bootloader 已解锁，当前运行使用 CSOT 面板配置（由原厂引导程序传来的标识选择，不等同于对物理供应商的识别）。Linux 对面板的选择见[面板选择](devel/panel-selection.md)；其他面板、内存容量和 ROM 版本没有测试过。
 
 这台机器划出了 `sunuefi_esp`（512 MiB FAT32，4 KiB 扇区，与 UFS 逻辑扇区一致）和 `sunuefi_root`（63.5 GiB ext4），安装了 Debian 13 / GNOME。当前 Linux 内核为 `7.2.9-piano-gnome-gd33a42990baf`，从合体 BOOT 经 UEFI 启动，已实际来回切换 Android 与 Linux。
 
@@ -39,7 +39,7 @@
 
 | 项目 | 状态 | 已知问题 |
 | --- | --- | --- |
-| 显示 | 3200×2136，默认 120 Hz，十位输出、夜灯、刷新率切换及熄屏恢复 | HDR、12-bit FRC、无缝动态刷新率仍未完成；144 Hz 下手写笔需要继续适配 |
+| 显示 | 3200×2136，默认 120 Hz，十位输出、夜灯、标准 Gamma／Degamma、30／48／50／60／120 Hz 无缝切换及熄屏恢复 | HDR、12-bit FRC、按内容自动选刷新率仍未完成；144 Hz 可能花屏，笔输入需继续适配 |
 | GPU | Adreno 加速的 GNOME | 部分 GTK 窗口连续缩放约 30 次/秒画面提交，需继续区分客户端处理和帧回调等待；见[窗口缩放](devel/piano-window-resize.md) |
 | 触屏 | 点按、拖动、长按、手势，约 144 Hz | 360 Hz 未实现；依赖主机端触点算法和 uinput |
 | 键盘 / 触控板 | 可用，键盘背光走 UPower / GNOME | 特殊键和睡眠恢复未完成 |
