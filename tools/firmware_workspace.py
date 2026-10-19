@@ -48,7 +48,8 @@ def _tracked_sources(root):
     paths.add('sources.lock.json')
     # This helper is needed while its first implementation is still untracked.
     paths.add('tools/firmware_workspace.py')
-    return sorted(p for p in paths if not p.startswith('uefi/platforms/pianoProductPkg/'))
+    return sorted(p for p in paths if not p.startswith(
+        ('uefi/platforms/pianoProductPkg/', 'vendor/firmware/')))
 
 
 def _check_repo(path, commit):
