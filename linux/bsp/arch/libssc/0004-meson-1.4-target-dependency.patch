@@ -1,0 +1,18 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] mocking: depend on the protobuf target with Meson 1.4
+
+SteamOS ships Meson 1.4, whose custom_target(depends:) does not accept a
+CustomTargetIndex. The target itself preserves the same generation ordering.
+This does not change the installed sensor library or its protocol.
+
+--- a/mocking/ssc_server/meson.build
++++ b/mocking/ssc_server/meson.build
+@@ -47,7 +47,7 @@
+     install: true,
+     install_dir: [join_paths(python.get_install_dir(), 'ssc_server')]
+   )
+-  python_gen += protobuf_python_gen[0]
++  python_gen += protobuf_python_gen
+ endforeach
+ 
+ # Make the SSC Server available during tests

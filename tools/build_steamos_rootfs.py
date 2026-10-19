@@ -39,6 +39,7 @@ def sensor_sources(output, cfg):
 
 
 def sensor_recipes(output, source):
+    shutil.copytree(ROOT / 'linux/bsp/steamos/protobuf-c', output / 'protobuf-c')
     for name in ('fastrpc', 'libssc', 'iio-sensor-proxy'):
         recipe = output / name
         shutil.copytree(ROOT / 'linux/bsp/arch' / name, recipe)
@@ -106,7 +107,7 @@ def build(args):
     recipes = output / 'sensor-recipes'
     if not recipes.exists():
         sensor_recipes(recipes, source)
-    for name in ('fastrpc', 'libssc', 'iio-sensor-proxy'):
+    for name in ('protobuf-c', 'fastrpc', 'libssc', 'iio-sensor-proxy'):
         packages = output / 'packages' / name
         if not (packages / 'manifest.json').is_file():
             build_arch_package.build(root, recipes / name, packages)

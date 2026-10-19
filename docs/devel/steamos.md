@@ -38,6 +38,8 @@ root 镜像容量为 16 GiB，独立 root 分区至少需要相同容量。账�
 
 FFmpeg 默认从源码构建为原生 pacman 包并替换根系统中的版本。使用与 Debian 相同的三个 V4L2 补丁，保留 Valve 原包的完整编解码配置和依赖。当前基础镜像使用 FFmpeg 7.0，修补版为同一主要库 ABI 的 7.1.5；构建器拒绝用它覆盖其他 ABI 代际。构建失败时整个 rootfs 构建失败，不会悄悄退回原包。
 
+这会覆盖系统 FFmpeg 及使用它的程序。Steam 或 Electron 自带的私有编解码库不属于系统包，不能用不同 ABI 的共享库强行替换；其硬件视频路径需要分别确认。
+
 图形部分保留 Valve 成套的 ARM64 Mesa 和 x86 客体运行时，不向 SteamOS 安装 Debian 的共享库。传感器依赖在 SteamOS 内重编译为原生包。平板硬件是否全部适用于这套 Valve 图形栈仍需实机验证。
 
 Nyarch 的 FFmpeg 已进入不同 ABI 代际，不能直接安装这里的 7.1 包；本次 SteamOS 默认配置不代表 Nyarch 已经完成对应移植。

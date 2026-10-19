@@ -77,7 +77,7 @@ jobs:
           restore-keys: |
             ccache-${{ runner.arch }}-${{ env.SUNUEFI_BUILD_TARGET }}-${{ hashFiles('sources.lock.json', 'patches/**', 'config/build-container.json') }}-
       - name: Build the pinned-base environment
-        run: docker build -t sunuefi-builder -f containers/Dockerfile .
+        run: python3 tools/build_container.py
       - name: Build selected product
         run: |
           set -o pipefail

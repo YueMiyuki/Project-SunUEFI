@@ -1,0 +1,26 @@
+# The Frame image updates Abseil without relinking protoc-gen-c. Rebuild the
+# same protobuf-c release against its installed protobuf/Abseil libraries.
+pkgname=protobuf-c
+pkgver=1.5.0
+pkgrel=2.1
+pkgdesc='Protocol Buffers C bindings rebuilt for the SteamOS library cohort'
+arch=(aarch64)
+url='https://github.com/protobuf-c/protobuf-c'
+license=(BSD-2-Clause)
+depends=(glibc protobuf abseil-cpp)
+makedepends=(base-devel)
+options=(!debug !lto)
+source=("https://github.com/protobuf-c/protobuf-c/releases/download/v$pkgver/protobuf-c-$pkgver.tar.gz")
+sha256sums=('7b404c63361ed35b3667aec75cc37b54298d56dd2bcf369de3373212cc06fd98')
+
+build() {
+  cd "protobuf-c-$pkgver"
+  ./configure --prefix=/usr
+  make -j4
+}
+
+package() {
+  cd "protobuf-c-$pkgver"
+  make DESTDIR="$pkgdir" install
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/protobuf-c/LICENSE"
+}

@@ -32,8 +32,15 @@ def build(root, recipe, output, resume=False):
         dependencies = guest(
             ['bash', '-c', 'source "$1/PKGBUILD"; printf "%s\\n" "${makedepends[@]}" "${depends[@]}"',
              'dependencies', folder], capture_output=True, text=True).stdout.splitlines()
-        dependencies = list(dict.fromkeys(p for p in dependencies if p))
-        guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel', *dependencies])
+        dependencies = list(dict.fromkeys(['base-devel', *[p for p in dependencies if p]]))
+        # A locally built dependency (for example libssc on SteamOS) need not
+        # exist in the base's repositories. Resolve installed versions first.
+        missing = subprocess.run(['chroot', root, 'pacman', '-T', *dependencies],
+                                 capture_output=True, text=True)
+        if missing.returncode not in (0, 127):
+            raise RuntimeError(missing.stderr)
+        if missing.returncode:
+            guest(['pacman', '-S', '--needed', '--noconfirm', *missing.stdout.splitlines()])
         if subprocess.run(['chroot', root, 'id', '-u', 'sunuefi-package'],
                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
             guest(['useradd', '-m', '-u', '60002', 'sunuefi-package'])

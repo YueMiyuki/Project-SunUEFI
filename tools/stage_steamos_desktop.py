@@ -27,6 +27,7 @@ FRAME_UNITS = (
     'setubootenv.service', 'deckard-fpga-resume.service',
     'deckard-audio-setup.service', 'steamos-offload.target', 'etc.mount',
     'steamos-post-update.service', 'holo-post-update-shutdown.service',
+    'gpu-trace.service', 'softapmanager.service', 'steam-video-codec-setup.service',
 )
 
 
@@ -43,6 +44,10 @@ def configure(root):
         link = root / 'etc/systemd/system' / unit
         link.unlink(missing_ok=True)
         link.symlink_to('/dev/null')
+    offload = root / 'etc/tmpfiles.d/steamos-offload.conf'
+    offload.parent.mkdir(parents=True, exist_ok=True)
+    offload.unlink(missing_ok=True)
+    offload.symlink_to('/dev/null')
     # The VR-only payload is not part of the handheld client/runtime. Its
     # PulseAudio link points at a Debian path absent from the Valve Arch image.
     if (root / 'opt/steamvr').exists():

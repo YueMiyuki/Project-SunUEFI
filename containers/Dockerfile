@@ -1,4 +1,5 @@
-FROM public.ecr.aws/docker/library/debian@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+ARG SUNUEFI_BASE_IMAGE=public.ecr.aws/docker/library/debian@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+FROM ${SUNUEFI_BASE_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive SUNUEFI_TOOLCHAIN_ROOT=/usr
 RUN apt-get update && apt-get install -y --no-install-recommends \

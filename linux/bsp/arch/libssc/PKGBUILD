@@ -11,11 +11,13 @@ options=(!debug !lto)
 source=('libssc_0.4.4.orig.tar.gz'
         '0001-fix-sensor-property-types.patch'
         '0002-raw-vector-reports.patch'
-        '0003-piano-ssc-vector-cli.patch')
+        '0003-piano-ssc-vector-cli.patch'
+        '0004-meson-1.4-target-dependency.patch')
 sha256sums=('716d6bd6b34d2d753060c6b54c9a87e34fae75b724c763bf9ef487efa3621587'
             '5df924dfd755bab6ba6ea7e39bc6e14aa6e3ea2ae51dcec382e6b492d24826df'
             '5beca09f4b31b4174a9169d0789d12cbef11be893c463e1190dfc5169c8fdadc'
-            '4480a787612d99274a0ebee0cd452134a8ddeb9c51238c0b65536c451c5d181d')
+            '4480a787612d99274a0ebee0cd452134a8ddeb9c51238c0b65536c451c5d181d'
+            'f8be6fb76e70e048d547de017412e8ea516b2d59e5d69d9b999247a6045d3175')
 
 prepare() {
   cd libssc
