@@ -21,6 +21,8 @@ SunUEFI 站在这些项目之上：EDK2 / Mu-Silicium 提供 UEFI 基础和高�
 
 `sources.lock.json` 只覆盖部分依赖，其他 pin 仍在脚本中。内核 linked-worktree 获取方式见 [内核复现说明](docs/linux-reproducible-builds.md)。
 
+小米平板相关参考还包括 [code002-2/Xiaomi-pad-6s-pro-Linux](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/tree/053169b1ed48335d8139694ea6ccaacf52462dd9) 及其引用的 [debian-sheng](https://github.com/ianchb/debian-sheng)、[xiaomi-mipps-auth](https://github.com/ianchb/xiaomi-mipps-auth/tree/9176efbdf276b874fc0a97912a914449a88155fb) 和 [xiaomi-sheng-fingerprint](https://github.com/ianchb/xiaomi-sheng-fingerprint/tree/76e7301163b0e708f609c9864b3e5833e9f57402)。分别用于多发行版集成、MiPPS 认证和标准 libfprint/fprintd 接入的参考。指纹项目使用 FPC1553，Piano 原厂使用 Goodix，不能直接互换传感器协议。MiPPS 工具标注 GPL-2.0-only；指纹后端为 Apache-2.0，libfprint/fprintd 补丁及 QTEE 依赖遵循各自许可。
+
 SteamOS 根系统提取使用 [hashtagbasit/SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1) 的 `scripts/extract_rootfs.py`（GPL-2.0）。提交与文件 SHA256 固定在 `config/steamos.json`，下载时保留源文件通知。该项目提供提取方法和移植参考，SunUEFI 使用自己的启动器、设备内核与 BSP。Valve ARM64 根系统与公开 Steam 客户端分别记录在 `config/steamos.json`、`config/steam-client.json`，继续适用各组件的原有许可，不因提取脚本采用 GPL 而改变。FFmpeg 使用既有 BSP 补丁，构建为匹配 SteamOS 库 ABI 的 pacman 包，保留完整编解码配置与许可文件。
 
 ## 字体、图标与显示资源
