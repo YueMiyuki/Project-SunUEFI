@@ -39,5 +39,5 @@ Root binds one read-only snapshot after successful GCC acquire and caches it
 for later replay. Test104 verifies that actual path: two matching snapshots,
 zero node/client/domain refs, pinned config corner38hex, cached vote0 and
 non-NULL MM/MX client pointers. It also verifies clean owner retirement and
-Android recovery. See [test104](piano-product-test104.md); actual rail application
-and physical panel recovery remain unverified.
+Android recovery. This describes the historical selector experiment; current
+display support is listed in [project status](status.md).

@@ -41,9 +41,9 @@
 | 产品构建与核心 | [产品构建](piano-product-build.md)、[启动策略](piano-product-boot-policy.md)、[共同 pump](piano-product-pump.md) |
 | 生命周期 | [产品 owners](piano-product-owners.md)、[OS 控制](piano-product-os-controller.md)、[退出](piano-product-os-exit-contract.md) |
 | 内存与 DMA / SMMU | [内存](piano-platform-memory-contract.md)、[DMA 基础](dma-smmu-milestone.md) |
-| 显示 | [回归窗口](piano-display-regression-window.md)、[GOP](piano-gop-framebuffer-publishing.md)、[映射](piano-display-mapping-contract.md) |
+| 显示 | [GOP](piano-gop-framebuffer-publishing.md)、[映射](piano-display-mapping-contract.md) |
 | USB | [驻留服务](piano-usb-persistent-service.md)、[日志快照](piano-usb-log-snapshot.md) |
 | UFS | [BlockIO / USB](blockio-usb-progress.md)、[退出](ufs-ebs-lifecycle.md) |
 | Linux | [构建历史](linux-reproducible-builds.md)、[完整 Linux 基线](piano-full-linux-candidate.md)、[EFI 会话](piano-linux-efi-session.md) |
 
-实验编号（如 `piano-product-test92.md`）和旧结论见[历史索引](archive/README.md)。
+当前功能以[项目状态](status.md)为准。已删除的一次性实验记录可从 Git 历史查阅。
