@@ -28,6 +28,18 @@ def run(args, **kwargs):
     subprocess.run(list(map(str, args)), check=True, **kwargs)
 
 
+def align_gbm_development(log):
+    """SDL2 needs the GBM headers matching the runtime already in the builder."""
+    installed = subprocess.run(
+        ['dpkg-query', '-W', '-f=${db:Status-Status}\t${Version}', 'libgbm1'],
+        text=True, capture_output=True)
+    if installed.returncode or not installed.stdout.startswith('installed\t'):
+        return  # A clean builder can resolve the ordinary stable pair.
+    version = installed.stdout.split('\t', 1)[1].strip()
+    run(['apt-get', 'install', '-y', '--no-remove', '--no-install-recommends',
+         'libgbm-dev=' + version], stdout=log, stderr=subprocess.STDOUT)
+
+
 def build_isolated(output, sysroot, jobs):
     """Build ARM64 Debian packages in a disposable copy, never in the tablet."""
     import build_gsd_packages as debian
@@ -130,9 +142,11 @@ def build(output, jobs, install_dependencies=False):
             run(['apt-get', 'install', '-y', '--no-install-recommends',
                  'devscripts', 'equivs', 'dpkg-dev', 'build-essential'],
                 stdout=log, stderr=subprocess.STDOUT)
+            align_gbm_development(log)
             run(['mk-build-deps', '--install', '--remove', '--build-arch=arm64',
                  '--host-arch=arm64', '--arch=arm64',
-                 '--tool=apt-get -y --no-install-recommends', 'debian/control'],
+                 '--tool=apt-get -y --no-remove --no-install-recommends '
+                 '-o Debug::pkgProblemResolver=yes', 'debian/control'],
                 cwd=work, env=env, stdout=log, stderr=subprocess.STDOUT)
         run(['dpkg-source', '--before-build', '.'], cwd=work, env=env,
             stdout=log, stderr=subprocess.STDOUT)
