@@ -44,7 +44,7 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 
 ## 完整 Debian / GNOME
 
-Actions 默认 `all` 同时构建 `debian-gnome`、`debian-kde`、`nyarch`、
+Actions 默认 `all` 同时构建 `debian-gnome`、`debian-kde`、`nyarch-gnome`、
 `steamos`。KDE 沿用下面的 Debian 流程，将根系统步骤改为
 `./build.sh release-rootfs --desktop kde`。
 
@@ -57,10 +57,10 @@ Actions 默认 `all` 同时构建 `debian-gnome`、`debian-kde`、`nyarch`、
 ./build.sh ffmpeg --install-dependencies
 ./build.sh release-rootfs
 ./build.sh package --root-size-mib 8192
-./build.sh installer --bundle artifacts/release-7.2.9
+./build.sh installer --bundle artifacts/release
 ```
 
-* 默认内核目标为 `7.2.9`：在 `debian-piano` 配套的内核基线上，合入官方 `v7.2.9` stable 提交和登记的 release 补丁。当前选择记录在 `build/release-7.2.9/source-manifest.json`。只准备源码：`python3 tools/prepare_release_kernel.py --refresh`。
+* 默认内核源码基线为正式版 Linux `7.3`，使用 `-piano-sunuefi-cachy` 后缀。硬件适配、Gunyah 和对应版本的 CachyOS BORE 按主题维护，固定输入见 [`patches/linux/7.3/series.json`](../../patches/linux/7.3/series.json)。当前选择记录在 `build/release/source-manifest.json`；内核与模块输出到 `artifacts/kernels/release/`。只准备源码：`python3 tools/prepare_release_kernel.py --refresh`。具体改动见[内核与调度配置](kernel-roles.md)。
 * 重建内核时，旧产物清单先作废，编译完成后才原子发布新的，避免旧 Image 与新模块混用。O 目录与产物目录有文件锁。
 * 基础根系统已构建后，用 `./build.sh release-rootfs --resume` 更新内核、硬件包和配置，不重新运行 debootstrap。
 * 其他目标：`./build.sh rootfs --distro ID --desktop ID --plan` 列出 Ubuntu / Deepin / Arch 与 KDE 等组合的计划，目前只有 Debian / GNOME 完整验证。
@@ -82,14 +82,14 @@ SteamOS 的独立目标、原生 FFmpeg 软件包与相同 ESP/root 打包流程
 ## Nyarch / GNOME
 
 在相同 ARM64 构建容器中，完成 `sources`、`uefi`、`module`、`linux` 后运行
-`./build.sh nyarch-rootfs`。它下载 Arch Linux ARM 基础系统，通过签名仓库安装
+`./build.sh nyarch-gnome-rootfs`。它下载 Arch Linux ARM 基础系统，通过签名仓库安装
 当前软件包，构建 Nyarch 应用和 Piano 原生硬件包，再安装 Material UwU、
 模糊主题与桌面扩展。源码和扩展选择见 `config/nyarch.json`。
 
 打包时向 `./build.sh package` 传入
-`--rootfs build/distros/nyarch-piano/rootfs`、
-`--rootfs-manifest build/distros/nyarch-piano/manifest.json`、
-`--initramfs build/distros/nyarch-piano/initramfs/initramfs.cpio.gz` 和
+`--rootfs build/distros/nyarch-gnome-piano/rootfs`、
+`--rootfs-manifest build/distros/nyarch-gnome-piano/manifest.json`、
+`--initramfs build/distros/nyarch-gnome-piano/initramfs/initramfs.cpio.gz` 和
 `--root-size-mib 16384`，之后按相同流程运行 `installer`。
 
 所有发行版通过 `tools/stage_piano_firmware.py` 安装同一套设备固件。

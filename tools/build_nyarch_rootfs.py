@@ -99,9 +99,14 @@ def build(args):
     for name in ('0001-kms-empty-gamma-bypass.patch',
                  '0003-wayland-touch-ignore-cancelled-grab.patch'):
         shutil.copy2(ROOT / 'linux/desktops/gnome/patches/mutter' / name, mutter)
+    control_center = recipes / 'control-center'
+    shutil.copytree(ROOT / 'linux/desktops/gnome/arch/control-center',
+                    control_center, dirs_exist_ok=True)
+    shutil.copy2(ROOT / 'linux/desktops/gnome/patches/control-center/0001-about-gunyah-primary-domain.patch',
+                 control_center)
     # SteamOS's protobuf compatibility rebuild is intentionally not selected
     # for Arch: its rolling packages already share the current library ABI.
-    for name in ('mutter', 'mesa', 'fastrpc', 'libssc', 'iio-sensor-proxy'):
+    for name in ('mutter', 'control-center', 'mesa', 'fastrpc', 'libssc', 'iio-sensor-proxy'):
         packages = output / 'packages' / name
         if not (packages / 'manifest.json').exists():
             build_arch_package.build(root, recipes / name, packages)
@@ -110,13 +115,13 @@ def build(args):
     if not (ffmpeg / 'SOURCE.json').exists():
         build_arch_ffmpeg.build(root, ffmpeg, resume=ffmpeg.exists())
 
-    kernel = ROOT / 'artifacts/kernels/release-7.2.9'
-    source = Path(json.loads((ROOT / 'build/release-7.2.9/source-manifest.json').read_text())['worktree'])
+    kernel = ROOT / 'artifacts/kernels/release'
+    source = Path(json.loads((ROOT / 'build/release/source-manifest.json').read_text())['worktree'])
     runtime = output / 'runtime'
     if not (runtime / 'manifest.json').exists():
         run(sys.executable, ROOT / 'tools/build_release_helpers.py',
             '--kernel', kernel, '--source', source,
-            '--kernel-build', ROOT / 'build/kernels/release-7.2.9',
+            '--kernel-build', ROOT / 'build/kernels/release',
             '--output', runtime, '--sysroot', args.bootstrap_sysroot.resolve())
     stage_arch_piano.stage(argparse.Namespace(
         rootfs=root, kernel=kernel, runtime=runtime, sensor_source=sensors,
@@ -131,7 +136,7 @@ def build(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, default=ROOT / 'build/distros/nyarch-piano')
+    parser.add_argument('--output', type=Path, default=ROOT / 'build/distros/nyarch-gnome-piano')
     parser.add_argument('--bootstrap-sysroot', type=Path, default=Path('/'))
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)

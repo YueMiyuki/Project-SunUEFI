@@ -30,7 +30,7 @@ UEFI_FILES = {'requirements-build.txt', 'tools/build_android_product_module.py',
 UEFI_PREFIXES = ('android/', 'uefi/', 'vendor/piano/', 'patches/firmware/',
                  'tools/prepare_product_')
 DRAFT_PREFIXES = ('patches/linux/7.2.9/drafts/', 'linux/dts/drafts/')
-DISTROS = ['debian-gnome', 'debian-kde', 'nyarch', 'steamos']
+DISTROS = ['debian-gnome', 'debian-kde', 'nyarch-gnome', 'steamos']
 
 
 def select(files, manual=None):

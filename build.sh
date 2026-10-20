@@ -15,23 +15,23 @@ case "$command" in
   boot-repack) python3 tools/build_boot_repack.py "$@" ;;
   ffmpeg) python3 tools/build_ffmpeg_packages.py "$@" ;;
   steamos-rootfs) python3 tools/build_steamos_rootfs.py "$@" ;;
-  nyarch-rootfs) python3 tools/build_nyarch_rootfs.py "$@" ;;
+  nyarch-rootfs|nyarch-gnome-rootfs) python3 tools/build_nyarch_rootfs.py "$@" ;;
   gsd) python3 tools/build_gsd_packages.py "$@" ;;
   mutter)
     if (($#)); then
       python3 tools/build_mutter_packages.py "$@"
     else
-      python3 tools/build_mutter_packages.py --sysroot build/distros/release-7.2.9/rootfs
+      python3 tools/build_mutter_packages.py --sysroot build/distros/release/rootfs
     fi ;;
   linux)
     python3 tools/prepare_release_kernel.py --refresh
     python3 - <<'PY_KERNEL'
 import json, subprocess
 from pathlib import Path
-record=json.loads(Path('build/release-7.2.9/source-manifest.json').read_text())
+record=json.loads(Path('build/release/source-manifest.json').read_text())
 subprocess.run(['python3','tools/build_piano_full_kernel.py','--worktree',record['worktree'],
  '--commit',record['actual_commit'],'--root','LABEL=PIANOROOT','--rebuild',
- '--build-dir','build/kernels/release-7.2.9','--artifacts','artifacts/kernels/release-7.2.9'],check=True)
+ '--build-dir','build/kernels/release','--artifacts','artifacts/kernels/release'],check=True)
 PY_KERNEL
     ;;
   mesa)
@@ -87,12 +87,12 @@ PY_SENSORS
     sunuefi_release_source="$(python3 - <<'PY_RELEASE_SOURCE'
 import json
 from pathlib import Path
-print(json.loads(Path('build/release-7.2.9/source-manifest.json').read_text())['worktree'])
+print(json.loads(Path('build/release/source-manifest.json').read_text())['worktree'])
 PY_RELEASE_SOURCE
 )"
-    python3 tools/build_release_rootfs.py --kernel artifacts/kernels/release-7.2.9 \
-      --source "$sunuefi_release_source" --kernel-build build/kernels/release-7.2.9 \
-      --output build/distros/release-7.2.9 --mesa-dir build/mesa/runtime \
+    python3 tools/build_release_rootfs.py --kernel artifacts/kernels/release \
+      --source "$sunuefi_release_source" --kernel-build build/kernels/release \
+      --output build/distros/release --mesa-dir build/mesa/runtime \
       --sensors-dir build/sensors/runtime --ffmpeg-dir build/ffmpeg/runtime --execute "$@" ;;
   package|esp)
     python3 - "$@" <<'PY_PACKAGE'
@@ -101,16 +101,16 @@ from pathlib import Path
 kernel = json.loads(Path('config/release.json').read_text())['kernel']
 args = ['python3', 'tools/package_release.py',
         '--uefi', 'artifacts/product/PianoUEFI-product.img',
-        '--kernel', 'artifacts/kernels/release-7.2.9',
+        '--kernel', 'artifacts/kernels/release',
         '--dtb', 'vendor/piano-linux/board.dtb',
         '--cpu-model-overlay', kernel['cpu_model_overlay'],
         '--panel-vendor', kernel['preferred_display_mode']['panel_vendor']]
 for overlay in kernel['additional_dtb_overlays']:
     args += ['--dtb-overlay', overlay]
-args += ['--initramfs', 'build/distros/release-7.2.9/initramfs/initramfs.cpio.gz',
-         '--rootfs', 'build/distros/release-7.2.9/rootfs',
-         '--rootfs-manifest', 'build/distros/release-7.2.9/manifest.json',
-         '--output', 'artifacts/release-7.2.9', '--root-selector', kernel['root_policy']]
+args += ['--initramfs', 'build/distros/release/initramfs/initramfs.cpio.gz',
+         '--rootfs', 'build/distros/release/rootfs',
+         '--rootfs-manifest', 'build/distros/release/manifest.json',
+         '--output', 'artifacts/release', '--root-selector', kernel['root_policy']]
 subprocess.run(args + sys.argv[1:], check=True)
 PY_PACKAGE
     ;;
@@ -130,7 +130,7 @@ PY_PACKAGE
   help|-h|--help)
     printf '%s\n' 'Usage: ./build.sh sources|check|uefi|trampoline|module|module-package|boot-request|boot-repack|linux|mesa|sensors|ffmpeg|gsd|mutter|bsp|rootfs|release-rootfs|steamos-rootfs|package|all|installer|install' \
       'Full builds need the documented builder environment; rootfs/Mesa/sensors run in a root ARM64 build container.' \
-      'release-rootfs reads its kernel source worktree from build/release-7.2.9/source-manifest.json.' \
+      'release-rootfs reads its kernel source worktree from build/release/source-manifest.json.' \
       'Building never partitions or flashes a tablet. install is a separate explicit command.' ;;
   *) printf 'Unknown command: %s\n' "$command" >&2; exit 2 ;;
 esac

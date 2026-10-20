@@ -1,0 +1,156 @@
+# ARM64 adaptation: use the complete GNOME release archive and omit the
+# virtual-machine row for the Qualcomm Gunyah primary hardware domain.
+# Original recipe: https://gitlab.archlinux.org/archlinux/packaging/packages/gnome-control-center
+# Maintainer: Fabian Bornschein <fabiscafe@archlinux.org>
+# Maintainer: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
+# Contributor: Jan de Groot <jgc@archlinux.org>
+
+pkgbase=gnome-control-center
+pkgname=(
+  gnome-control-center
+  gnome-keybindings
+)
+pkgver=51.1
+pkgrel=1.1
+pkgdesc="GNOME's main interface to configure various aspects of the desktop"
+url="https://apps.gnome.org/Settings/"
+license=(GPL-2.0-or-later)
+arch=(aarch64)
+depends=(
+  accountsservice
+  bolt
+  cairo
+  colord-gtk4
+  cups-pk-helper
+  dconf
+  fontconfig
+  gcr-4
+  gdk-pixbuf2
+  glib2
+  glibc
+  gnome-bluetooth-3.0
+  gnome-color-manager
+  gnome-desktop-4
+  gnome-online-accounts
+  gnome-settings-daemon
+  gnome-shell
+  gnutls
+  graphene
+  gsettings-desktop-schemas
+  gsound
+  gst-plugins-good
+  gtk4
+  hicolor-icon-theme
+  json-glib
+  krb5
+  libadwaita
+  libcolord
+  libcups
+  libepoxy
+  libgcc
+  libgoa
+  libgtop
+  libgudev
+  libibus
+  libmalcontent
+  libmm-glib
+  libnm
+  libnma-gtk4
+  libpulse
+  libpwquality
+  libsecret
+  libsoup3
+  libwacom
+  libx11
+  libxi
+  libxml2
+  pango
+  polkit
+  smbclient
+  sound-theme-freedesktop
+  tecla
+  udisks2
+  upower
+  wayland
+)
+makedepends=(
+  blueprint-compiler
+  docbook-xsl
+  git
+  glib2-devel
+  meson
+  modemmanager
+)
+checkdepends=(
+  python-dbusmock
+  python-gobject
+  xorg-server-xvfb
+)
+source=("https://download.gnome.org/sources/$pkgbase/${pkgver%%.*}/$pkgbase-$pkgver.tar.xz"
+        "0001-about-gunyah-primary-domain.patch")
+sha256sums=('1054976c2f1977f770ba134b872f547c89db7005e4422f09a96d521379c083cb'
+            'b409d4c96b97f54f2ddc5ccef047a9abb9a077eb4b21554f517bdfc5f4b31768')
+
+prepare() {
+  cd "$pkgbase-$pkgver"
+  patch --forward --fuzz=0 -Np1 < ../0001-about-gunyah-primary-domain.patch
+}
+
+
+build() {
+  local meson_options=(
+    -D documentation=true
+    -D location-services=enabled
+    -D malcontent=true
+  )
+
+  arch-meson "$pkgbase-$pkgver" build "${meson_options[@]}"
+  meson compile -C build
+}
+
+check() {
+  GTK_A11Y=none dbus-run-session xvfb-run -s '-nolisten local +iglx -noreset' \
+    meson test -C build --print-errorlogs
+}
+
+_pick() {
+  local p="$1" f d; shift
+  for f; do
+    d="$srcdir/$p/${f#$pkgdir/}"
+    mkdir -p "$(dirname "$d")"
+    mv "$f" "$d"
+    rmdir -p --ignore-fail-on-non-empty "$(dirname "$f")"
+  done
+}
+
+package_gnome-control-center() {
+  depends+=(gnome-keybindings)
+  optdepends=(
+    'fwupd: device security panel'
+    'gnome-remote-desktop: screen sharing'
+    'gnome-user-share: WebDAV file sharing'
+    'malcontent: application permission control'
+    'networkmanager: network settings'
+    'openssh: remote login'
+    'power-profiles-daemon: power profiles'
+    'rygel: media sharing'
+    'system-config-printer: printer settings'
+  )
+  groups=(gnome)
+
+  meson install -C build --no-rebuild --destdir "$pkgdir"
+
+  cd "$pkgdir"
+  _pick gkb usr/share/gettext/its/gnome-keybindings.*
+  _pick gkb usr/share/gnome-control-center/keybindings
+  _pick gkb usr/share/pkgconfig/gnome-keybindings.pc
+}
+
+package_gnome-keybindings() {
+  pkgdesc="Keybindings configuration for GNOME applications"
+  depends=()
+
+  mv gkb/* "$pkgdir"
+}
+
+# vim:set sw=2 sts=-1 et:

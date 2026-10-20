@@ -55,6 +55,20 @@ PLATFORM_OVERRIDES={key:'n' for key in (
     'CONFIG_IMX_SCMI_LMM_DRV','CONFIG_IMX_SCMI_CPU_DRV','CONFIG_IMX_SCMI_MISC_DRV',
     'CONFIG_IMX_SCMI_LMM_EXT','CONFIG_IMX_SCMI_CPU_EXT','CONFIG_IMX_SCMI_MISC_EXT',
     'CONFIG_IMX_SCMI_BBM_EXT')}
+PLATFORM_OVERRIDES.update({key:'y' for key in (
+    'CONFIG_GUNYAH', 'CONFIG_GUNYAH_QCOM_PLATFORM',
+    'CONFIG_GUNYAH_IRQFD', 'CONFIG_GUNYAH_IOEVENTFD')})
+PLATFORM_OVERRIDES.update({
+    'CONFIG_LOCALVERSION': '"-piano-sunuefi-cachy"',
+    'CONFIG_LOCALVERSION_AUTO': 'n',
+    'CONFIG_SCHED_BORE': 'y',
+    'CONFIG_LRU_GEN': 'y',
+    'CONFIG_LRU_GEN_ENABLED': 'y',
+    'CONFIG_HZ_250': 'n',
+    'CONFIG_HZ_300': 'y',
+    'CONFIG_HZ': '300',
+    'CONFIG_PREEMPT_DYNAMIC': 'y',
+})
 ALLOWED_OVERRIDES={**BLUETOOTH_OVERRIDES,**PEN_DOCK_OVERRIDES,**FLASH_OVERRIDES,**EARLY_CPUCP_OVERRIDES,
                    **USERSPACE_SECURITY_OVERRIDES,**SLEEP_OVERRIDES,**PM_DEBUG_OVERRIDES,**PLATFORM_OVERRIDES}
 
@@ -112,11 +126,18 @@ def verify_source(work=WORK,commit=None):
     commit=COMMIT if commit is None else commit
     if not re.fullmatch(r'[0-9a-f]{40}',commit):raise ValueError('Exact canonical full kernel commit required')
     if text(['git','rev-parse','HEAD'],work)!=commit:raise ValueError('Full candidate source HEAD drifted')
-    if commit!=COMMIT and subprocess.run(['git','merge-base','--is-ancestor',COMMIT,commit],cwd=work,capture_output=True).returncode:
-        raise ValueError('Local full candidate must descend from the frozen public full baseline')
+    policy=json.loads((ROOT/'config/release.json').read_text())['kernel']
+    tree=text(['git','rev-parse','HEAD^{tree}'],work)
+    if tree==policy['target_tree']:
+        base=policy['base_commit']
+    else:
+        base=COMMIT
+    if commit!=base and subprocess.run(['git','merge-base','--is-ancestor',base,commit],cwd=work,capture_output=True).returncode:
+        raise ValueError('Kernel source does not descend from its recorded baseline')
     if text(['git','status','--porcelain=v1','--untracked-files=all'],work):raise ValueError('Full candidate source is dirty')
     for name,pin in SOURCE_PINS.items():
         if sha(work/name)!=pin:raise ValueError('Pinned public full config changed: '+name)
+    return base
 
 
 def compiler_checkout(snapshot,work,commit,tree):
@@ -243,13 +264,13 @@ def main():
         # Stale Image/modules may remain during the build, but no consumer can
         # mistake them for a completed new bundle without its final manifest.
         marker.unlink()
-    verify_source(work,commit)
+    source_base=verify_source(work,commit)
     tree=text(['git','rev-parse','HEAD^{tree}'],work)
     compiler_checkout(work,compiler,commit,tree)
     hashes={str(path.relative_to(ROOT)):sha(path)for path in (fragment,bluetooth,pen_dock,flash,early_cpucp,userspace_security,sleep,ROOT/'linux/configs/piano-platform.config',Path(__file__),ROOT/'tools/build_kernel.py',ROOT/'tools/prepare_linux_modules.py')}
     effective_text=effective_config(root_command,modules)
     effective=out/'piano-full.effective.config';effective.write_text(effective_text)
-    command=['make','-C',compiler,'O='+str(out),'ARCH=arm64','LLVM=1','LLVM_IAS=1']
+    command=['make','-C',compiler,'O='+str(out),'ARCH=arm64','LLVM=1','LLVM_IAS=1','LOCALVERSION=']
     if tools['ccache_enabled']:
         # Kbuild recommends a stable timestamp for useful ccache reuse.
         env.setdefault('KBUILD_BUILD_TIMESTAMP',text(['git','show','-s','--format=%cI',commit],work))
@@ -267,9 +288,9 @@ def main():
         if any(sha(Path(tools['paths'][name]))!=value for name,value in tools['sha256'].items()):raise ValueError('Full candidate build tool changed during compilation')
     fresh();state={'profile':'full-integration','mode':'complete-public-hardware','build_id':str(uuid.uuid4()),'source_commit':commit,'source_tree':tree,'source_worktree':str(compiler),'source_clean':True,
       'prepared_source_worktree':str(work),'compiler_worktree':str(compiler),
-      'source_branch':text(['git','branch','--show-current'],compiler),'base_commit':BASE_COMMIT,
-      'public_full_baseline':COMMIT,'local_patch_commits':text(['git','rev-list','--reverse',COMMIT+'..'+commit],work).splitlines(),
-      'public_patch_commits':text(['git','rev-list','--reverse',BASE_COMMIT+'..'+COMMIT],work).splitlines(),
+      'source_branch':text(['git','branch','--show-current'],compiler),'base_commit':source_base,
+      'public_full_baseline':COMMIT,'local_patch_commits':text(['git','rev-list','--reverse',source_base+'..'+commit],work).splitlines(),
+      'hardware_config_origin':{'commit':COMMIT,'base_commit':BASE_COMMIT},
       'public_config_sha256':SOURCE_PINS,'inputs':hashes,'config_sha256':config_hash,'toolchain':tools,'root_policy':args.root,'command_line':root_command,
       'full_profile_requirements':requirements,'local_module_overrides':modules,'hardware_verified':False,'device_operation_performed':False,'android_userdata_selected':False,
       'safe_pianoinit_external_bundle_required':True,'public_bt_le_enabled':config_values((out/'.config').read_text()).get('CONFIG_BT_LE')=='y',

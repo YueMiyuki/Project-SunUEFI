@@ -121,13 +121,13 @@ def build(args):
             (ROOT / 'config/steam-client.json').read_text()):
         raise ValueError('Cached Steam client differs from config/steam-client.json')
 
-    kernel = ROOT / 'artifacts/kernels/release-7.2.9'
-    kernel_source = Path(json.loads((ROOT / 'build/release-7.2.9/source-manifest.json').read_text())['worktree'])
+    kernel = ROOT / 'artifacts/kernels/release'
+    kernel_source = Path(json.loads((ROOT / 'build/release/source-manifest.json').read_text())['worktree'])
     runtime = output / 'runtime'
     if not (runtime / 'manifest.json').exists():
         run(sys.executable, ROOT / 'tools/build_release_helpers.py',
             '--kernel', kernel, '--source', kernel_source,
-            '--kernel-build', ROOT / 'build/kernels/release-7.2.9',
+            '--kernel-build', ROOT / 'build/kernels/release',
             '--output', runtime, '--sysroot', args.bootstrap_sysroot.resolve())
     # Shared stager installs firmware, matching modules, standard interfaces,
     # input/audio/camera helpers, suspend policy and the LABEL-based initramfs.

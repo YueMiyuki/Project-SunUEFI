@@ -15,219 +15,19 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGETS = {
-    'kernel69': {
-        'base_commit': '352508459733d3e6d349ea5581a8dd2fd8bb4180',
-        'target_tree': '17d484d4771a140e1eeb18eaf0315028adc5a16a',
-        'original_target_commit': 'efe5734c24510c3c194f765511b49be9f13b4aa0',
-        'upstream_base_commit': '500df175a7f9e6bc1a9c328590ca5150f84f9ff0',
-        'source_url': 'https://github.com/blu-sharky/linux-piano.git',
-        'patch_commits': [
-            '1fd91b90a7204c7846f2fc0580cc967a20d692cf',
-            '74c517825a95113f35c121db136e3880d44b9806',
-            'd42158782b81c4aaa47c8643f1400a471785370b',
-            '40bee45195195997dca6603821e27cc233057d4d',
-            '0b04714515a7236aebd0847b9b3806493321151d',
-            'e23f4479f6bd35eec3f1438e8c022e6a27d8fc8f',
-            'd4c8b9fadef5167b68b8aa7160255f62c0c4cb82',
-            'efe5734c24510c3c194f765511b49be9f13b4aa0',
-        ],
-    },
-}
-COMMITTER_NAME = 'SunUEFI source preparation'
-COMMITTER_EMAIL = 'source-preparation@example.invalid'
-DEFAULT_TARGET = 'release-7.2.9'
-TARGETS[DEFAULT_TARGET] = {
-    **TARGETS['kernel69'],
-    'series_target': 'kernel69',
-    'patch_tree': TARGETS['kernel69']['target_tree'],
-    'target_tree': 'a6fc559e769df1823f42af47fb4f77c3330fec3b',
-    'stable_commit': '5fce161649b4d779d1b76d9fcd52dc77779774b8',
-    'stable_tree': 'c278d1443495d2a1a07fff2bcfb286b5c35baaea',
-    'stable_version': '7.2.9',
-    'stable_url': 'https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git',
-    'stable_merged_tree': 'f1bccb0e42a13a6dcf1174cafb5e3253f4b5a22d',
-    'merge_date': '2026-10-08T00:00:00+00:00',
-    'worktree_name': 'release-7.2.9',
-    'manifest_directory': 'release-7.2.9',
-    'conflict_resolution': {
-        'source': 'drivers/i2c/busses/i2c-qcom-cci.c',
-        'file': 'patches/linux/7.2.9/cci-scoped-node-resolution.patch',
-        'sha256': 'c59308c6b186c85e5004e72508c49328d0dacfdcd009709fe993aabcb058b6eb',
-    },
-    'cpu_model_patch': {
-        'file': 'patches/linux/7.2.9/0001-arm64-cpuinfo-read-dt-model.patch',
-        'sha256': 'efc25dfd43e5b32ee3b46176f7ae4716dc94bb6af27f3b064ebbeccc19cfca64',
-    },
-    'fastrpc_dma_patch': {
-        'file': 'patches/linux/7.2.9/0002-fastrpc-sm8750-translated-dma.patch',
-        'sha256': 'e7adb9adda777279c14c7dbc473d86b9c8a240cff27344b237a5368950adafdc',
-    },
-    'panel_depth_patch': {
-        'file': 'patches/linux/7.2.9/0003-panel-nt36532-piano-color-depth.patch',
-        'sha256': '0259986f0d09eb82703bcd4556306e3de4b2b20c217c82965399de28965335b7',
-    },
-    'flash_cleanup_patch': {
-        'file': 'patches/linux/7.2.9/0004-leds-qcom-flash-cleanup-index.patch',
-        'sha256': 'd733ff5eabf62ff970cc0eece7580fe505dabc757b310458fc878adac0303228',
-    },
-    'va_clock_order_patch': {
-        'file': 'patches/linux/7.2.9/0005-asoc-va-dmic-clock-before-filter.patch',
-        'sha256': 'b59ddf79d3c2a7ce06d4759b89aae3bfba111a4cdc8a50a92b4f933bd9f32f6e',
-    },
-    'gcv2_backend_patch': {
-        'file': 'patches/linux/7.2.9/0006-drm-msm-dpu-gcv2-regdma-backend.patch',
-        'sha256': '60768e66de73e32d0f61aad302b01d8111bb10120ca91b435064001b93533587',
-    },
-    'gcv2_catalog_patch': {
-        'file': 'patches/linux/7.2.9/0007-drm-sm8750-gcv2-catalog.patch',
-        'sha256': '38689e09ba31b55b077794e6e7e5b67fa67dee7b9c4c12f996c9bf28eeb441f1',
-    },
-    'dsi_fixed_bpc_patch': {
-        'file': 'patches/linux/7.2.9/0009-drm-msm-dsi-fixed-dsc-bpc.patch',
-        'sha256': 'fe49a73531c9b73b222b65279529bd195d0cfb5065d1f4607acbe76de3c3c4d0',
-    },
-    'flash_torch_rounding_patch': {
-        'file': 'patches/linux/7.2.9/0010-leds-qcom-flash-torch-rounding.patch',
-        'sha256': '39f6e21b562b6c46b42d8be7582f2222a452b2485e01372e5b3302e44e47064e',
-    },
-    'dsi_video_phases_patch': {
-        'file': 'patches/linux/7.2.9/0011-dsi-bridge-video-phases.patch',
-        'sha256': 'd0a4a4c3492b9d9d07202ca926af00c5c9188f30552e5e76b4820430363b4e67',
-    },
-    'dsi_post_hs_sync_patch': {
-        'file': 'patches/linux/7.2.9/0012-dsi-sm8750-post-hs-resync.patch',
-        'sha256': '9866d42e9a767abf64f2ea84e5aa7855100c97b0c4e732d52d02e030a988d7bc',
-    },
-    'va_mono_patch': {
-        'file': 'patches/linux/7.2.9/0013-asoc-piano-va-mono.patch',
-        'sha256': 'a584675049a6677d8f5acc1c0c03dd7d29a5719551f484ff26331aedd6f81edc',
-    },
-    'piano_panel_reset_patch': {
-        'file': 'patches/linux/7.2.9/0014-panel-piano-factory-reset.patch',
-        'sha256': '4b0462125d610ac8d26f9056dfd12caab73426988538100980df3529bb26f04e',
-    },
-    'dsi_post_resync_reset_patch': {
-        'file': 'patches/linux/7.2.9/0015-dsi-sm8750-post-resync-controller-reset.patch',
-        'sha256': '80067cb42d31ef0ca012eb1e1de611b9f348194466448f982e5f1e18c9794caf',
-    },
-    'piano_privacy_led_patch': {
-        'file': 'patches/linux/7.2.9/0016-piano-camera-privacy-led.patch',
-        'sha256': '34419a7bb108d0c73c61cc9f8991a81204f689dadce008d3db4b3b6a9ec842b4',
-    },
-    'nvt_panel_follower_patch': {
-        'file': 'patches/linux/7.2.9/0020-nvt-panel-follower-lifetime.patch',
-        'sha256': '140a47b258b32d2cc8b90b3793fb550bcf179bdac1866b37f4275f4184252623',
-    },
-    'p81c_pressure_hid_patch': {
-        'file': 'patches/linux/7.2.9/0021-hid-xiaomi-p81c-pressure-not-keyboard.patch',
-        'sha256': '6382c56df5ac05c01b8d663abcd01c63ba610313914d3eedaeb184d405304bb1',
-    },
-    'piano_preferred_120hz_patch': {
-        'file': 'patches/linux/7.2.9/0022-panel-piano-prefer-120hz-cold-start.patch',
-        'sha256': '664fde223e7f32a81a9d45331a219becc9b04bb92f8cb284da5bedb2c88b9311',
-    },
-    'piano_function_row_patch': {
-        'file': 'patches/linux/7.2.9/0023-nanosic-piano-right-ctrl-function-row.patch',
-        'sha256': '2ce7e5dfedf1711a835797c694e86374c3483ad790a145e61d87610f63f8feb4',
-    },
-    'dsi_pll_registration_patch': {
-        'file': 'patches/linux/7.2.9/0024-dsi-pll-defer-unprogrammed-clock.patch',
-        'sha256': '669f2257c6a904201ab842788b9b53cfe72b288ad5b9701d9e7175299b171d16',
-    },
-    'dsi_slave_restore_patch': {
-        'file': 'patches/linux/7.2.9/0025-dsi-sm8750-restore-bonded-slave.patch',
-        'sha256': '84b20af17904b785f222f722f5588b5325110beeffc1e370bc045cf43684840a',
-    },
-    'dpu_video_stop_order_patch': {
-        'file': 'patches/linux/7.2.9/0026-dpu-video-stop-order.patch',
-        'sha256': 'edfe4462cc55e16fc72fd057dfd4aeac0b49bc3b340a269407f26c289d6891c0',
-    },
-    'piano_pen_dock_patch': {
-        'file': 'patches/linux/7.2.9/0027-input-piano-pen-dock.patch',
-        'sha256': '78c434c13f745a8e47152d2c550917abf206a2250da49bbc3d7084049e483a4d',
-    },
-    'nvt_system_resume_patch': {
-        'file': 'patches/linux/7.2.9/0028-nvt-ts-system-resume-reenable.patch',
-        'sha256': '0139f2e4280ef7354993b174957c89e8ff3eeac451a526b874a1666c3e6439ca',
-    },
-    'pcie_active_wakeup_patch': {
-        'file': 'patches/linux/7.2.9/0029-sm8750-pcie-active-wakeup.patch',
-        'sha256': '3f8583bc4395b7f7987b71f55265c35b9aafde40cfaae072b0a073a4baec20af',
-    },
-    'smp2p_sleepstate_patch': {
-        'file': 'patches/linux/7.2.9/0030-soc-qcom-smp2p-sleepstate.patch',
-        'sha256': '0025a7f799b13233f3d7bc21fc89bc248fe8ef381954b00d5d4f183602d8d386',
-    },
-    'nanosic_backlight_default_patch': {
-        'file': 'patches/linux/7.2.9/0031-hid-nanosic-piano-backlight-default.patch',
-        'sha256': '8451b3e8f839a9e2574c362e6ef3382ebd470546692d8de22c766f83798d43b2',
-    },
-    'q6apm_global_lifetime_patch': {
-        'file': 'patches/linux/7.2.9/0032-asoc-q6apm-clear-global-on-remove.patch',
-        'sha256': '0478b5ee57f9890112c9bf351a0f015a6b64202de8b08470ed0bc0e730a77827',
-    },
-    'fastrpc_freezable_invoke_patch': {
-        'file': 'patches/linux/7.2.9/0033-fastrpc-freeze-inflight-invoke.patch',
-        'sha256': '74fea53dac6f21f032aef99e795c886480788d3a756e62772ebc3fb2b984c603',
-    },
-    'dsi_phy_runtime_clock_patch': {
-        'file': 'patches/linux/7.2.9/0034-dsi-phy-runtime-interface-clock.patch',
-        'sha256': '51a1e4dcbf6dfdaa828907f3168846f199d8ec012e3fc6ed2d4f040102ccef03',
-    },
-    'backlight_disable_ramp_patch': {
-        'file': 'patches/linux/7.2.9/0036-backlight-ktz8866-wait-disable-ramp.patch',
-        'sha256': 'ca5637c36057a7007c90d23765333839ea194524fe87e9e5cbd39fec4a11d64a',
-    },
-    'mca_hyperos4_pd_patch': {
-        'file': 'patches/linux/7.2.9/0039-power-piano-hyperos4-pd-protocol.patch',
-        'sha256': '9b6d0b7283434b2b0b44b77c0e83d1eeeedaa979f39ae802f0c13e42d95b020f',
-    },
-    'sc96231_pen_charger_patch': {
-        'file': 'patches/linux/7.2.9/0041-power-sc96231-pen-charger.patch',
-        'sha256': 'd68b0b7e61fad4bb695c39add97e7c4ed19789ccda4cdf00661974d02ada0315',
-    },
-    'nvt_deferred_pen_mode_patch': {
-        'file': 'patches/linux/7.2.9/0042-input-nvt-defer-pen-mode-while-asleep.patch',
-        'sha256': '3f259d5b47ea78abc209925befebb29b057f41c2b33ed2a100e1882811dfe93c',
-    },
-    'piano_low_refresh_patch': {
-        'file': 'patches/linux/7.2.9/0035-panel-piano-low-refresh-rates.patch',
-        'sha256': '640cc9d28e4bcca72ee9c0edd74a8ab36d139a88edf1cf288c2f9edfc596ae2b',
-    },
-    'piano_seamless_vfp_patch': {
-        'file': 'patches/linux/7.2.9/0037-drm-piano-seamless-vfp.patch',
-        'sha256': 'e94ba447d18b4812bf6364ae55ba3d8752b6c0d4d5bef4e42bc44f64ef202029',
-    },
-    'piano_panel_vendor_order_patch': {
-        'file': 'patches/linux/7.2.9/0038-panel-piano-vendor-refresh-order.patch',
-        'sha256': 'c486855fa18d59c976c83aa402b34006b736c1342884fbb109e1e72b2f1026d7',
-    },
-    'piano_igcv5_degamma_patch': {
-        'file': 'patches/linux/7.2.9/0044-drm-msm-dpu-igcv5-degamma.patch',
-        'sha256': 'a0ca4c9ff36e70ed7a85ec7b194ac4b2ba5bf1879b3807a8f16c442eb82135c2',
-    },
-    'piano_igcv5_precision_patch': {
-        'file': 'patches/linux/7.2.9/0045-drm-igcv5-high-precision-grid.patch',
-        'sha256': 'cb16a9a824128abda24ee82b768f8e73af58ef644779877257a6ca0d3a5c1243',
-    },
-    'iris_drc_patch': {
-        'file': 'patches/linux/7.2.9/0046-media-iris-psc-last.patch',
-        'sha256': 'bb78efdb9ab3511afa27f1da87d10771655afd972a9521ef70ec2a89a94bd7b7',
-    },
-    'iris_deinit_irq_patch': {
-        'file': 'patches/linux/7.2.9/0047-media-iris-deinit-irq-lock.patch',
-        'sha256': 'c0080c1fa0365c8dbf05c588d5dc288b36d2739c1052e47ef463f27bdabc5095',
-    },
-    'qmp_optional_bridge_patch': {
-        'file': 'patches/linux/7.2.9/0048-phy-qmp-optional-display-bridge.patch',
-        'sha256': '031f45d30ea6417216d795734f3c0a37011a45ff55c4159ec38ebd99ffe24850',
-    },
-    'dsi_stop_order_patch': {
-        'file': 'patches/linux/7.2.9/0008-dsi-bonded-stop-slave-first.patch',
-        'sha256': 'efff8c2a9782bae290697423d071e7d98b60c02c88738421fb9a76b4b3f5c4c4',
-    },
-}
+DEFAULT_TARGET = 'release'
+SERIES_FILE = 'patches/linux/7.3/series.json'
+_release = json.loads((ROOT / SERIES_FILE).read_text())
+TARGETS = {DEFAULT_TARGET: {
+    **{key: _release[key] for key in (
+        'base_commit', 'target_tree', 'original_target_commit', 'source_url')},
+    'series_file': SERIES_FILE,
+    'kernel_version': _release['kernel_version'],
+    'worktree_name': 'release',
+    'manifest_directory': 'release',
+}}
+COMMITTER_NAME = 'slwyts'
+COMMITTER_EMAIL = 'slwyts@foxmail.com'
 
 
 def sha(data):
@@ -254,8 +54,8 @@ def load_series(root, target):
     if target not in TARGETS:
         raise ValueError('Unknown release kernel target: ' + str(target))
     policy = TARGETS[target]
-    folder = root / 'patches/linux'
-    manifest_path = folder / 'series.json'
+    manifest_path = root / policy.get('series_file', 'patches/linux/series.json')
+    folder = manifest_path.parent
     raw = manifest_path.read_bytes()
     series = json.loads(raw)
     if series.get('schema_version') != 1 or series.get('target') != policy.get('series_target', target):
@@ -390,7 +190,7 @@ def write_manifest(path, record):
 
 def update_patches(root, policy):
     result = {}
-    for key in ('conflict_resolution', 'cpu_model_patch', 'fastrpc_dma_patch', 'panel_depth_patch', 'flash_cleanup_patch', 'va_clock_order_patch', 'gcv2_backend_patch', 'gcv2_catalog_patch', 'dsi_stop_order_patch', 'dsi_fixed_bpc_patch', 'flash_torch_rounding_patch', 'va_mono_patch', 'dsi_video_phases_patch', 'dsi_post_hs_sync_patch', 'piano_panel_reset_patch', 'dsi_post_resync_reset_patch', 'piano_privacy_led_patch', 'nvt_panel_follower_patch', 'p81c_pressure_hid_patch', 'piano_preferred_120hz_patch', 'piano_function_row_patch', 'dsi_pll_registration_patch', 'dsi_slave_restore_patch', 'dpu_video_stop_order_patch', 'piano_pen_dock_patch', 'nvt_system_resume_patch', 'pcie_active_wakeup_patch', 'smp2p_sleepstate_patch', 'nanosic_backlight_default_patch', 'q6apm_global_lifetime_patch', 'fastrpc_freezable_invoke_patch', 'dsi_phy_runtime_clock_patch', 'backlight_disable_ramp_patch', 'mca_hyperos4_pd_patch', 'sc96231_pen_charger_patch', 'nvt_deferred_pen_mode_patch', 'piano_low_refresh_patch', 'piano_seamless_vfp_patch', 'piano_panel_vendor_order_patch', 'piano_igcv5_degamma_patch', 'iris_drc_patch', 'iris_deinit_irq_patch', 'qmp_optional_bridge_patch', 'piano_igcv5_precision_patch'):
+    for key in ('conflict_resolution', 'cpu_model_patch', 'fastrpc_dma_patch', 'panel_depth_patch', 'flash_cleanup_patch', 'va_clock_order_patch', 'gcv2_backend_patch', 'gcv2_catalog_patch', 'dsi_stop_order_patch', 'dsi_fixed_bpc_patch', 'flash_torch_rounding_patch', 'va_mono_patch', 'dsi_video_phases_patch', 'dsi_post_hs_sync_patch', 'piano_panel_reset_patch', 'dsi_post_resync_reset_patch', 'piano_privacy_led_patch', 'nvt_panel_follower_patch', 'p81c_pressure_hid_patch', 'piano_preferred_120hz_patch', 'piano_function_row_patch', 'dsi_pll_registration_patch', 'dsi_slave_restore_patch', 'dpu_video_stop_order_patch', 'piano_pen_dock_patch', 'nvt_system_resume_patch', 'pcie_active_wakeup_patch', 'smp2p_sleepstate_patch', 'nanosic_backlight_default_patch', 'q6apm_global_lifetime_patch', 'fastrpc_freezable_invoke_patch', 'dsi_phy_runtime_clock_patch', 'backlight_disable_ramp_patch', 'mca_hyperos4_pd_patch', 'sc96231_pen_charger_patch', 'nvt_deferred_pen_mode_patch', 'piano_low_refresh_patch', 'piano_seamless_vfp_patch', 'piano_panel_vendor_order_patch', 'piano_igcv5_degamma_patch', 'iris_drc_patch', 'iris_deinit_irq_patch', 'qmp_optional_bridge_patch', 'piano_igcv5_precision_patch', 'gunyah_import_patch', 'gunyah_mainline_patch'):
         if key not in policy:
             continue
         row = policy[key]
@@ -475,6 +275,8 @@ def merge_stable(work, policy, paths):
         ('iris_drc_patch', 'fix(media): preserve Iris PSC_LAST drain completion', 'iris_drc_commit'),
         ('iris_deinit_irq_patch', 'fix(media): quiesce Iris IRQ before teardown locking', 'iris_deinit_irq_commit'),
         ('qmp_optional_bridge_patch', 'fix(phy): register QMP display bridge only for a graph', 'qmp_optional_bridge_commit'),
+        ('gunyah_import_patch', 'feat(virt): import Android Gunyah virtualization drivers', 'gunyah_import_commit'),
+        ('gunyah_mainline_patch', 'fix(virt): adapt Gunyah to mainline kernel APIs', 'gunyah_mainline_commit'),
     ):
         if key not in paths:
             continue
@@ -554,6 +356,7 @@ def prepare(root=ROOT, repository=None, worktree=None, source_manifest=None, tar
         'source_url': policy['source_url'], 'public_baseline': policy['base_commit'],
         'base_tree': series['base_tree'], 'original_target_commit': policy['original_target_commit'],
         'expected_tree': policy['target_tree'], 'series_sha256': series_hash,
+        'kernel_version': policy.get('kernel_version'),
         'repository': str(repo), 'worktree': str(work), 'patches': [],
         'tool_sha256': sha(Path(__file__).read_bytes()), 'kernel_built': False,
         'device_operation_performed': False,

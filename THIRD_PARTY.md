@@ -25,6 +25,25 @@ SunUEFI 站在这些项目之上：EDK2 / Mu-Silicium 提供 UEFI 基础和高�
 
 内核 MiPPS [候选补丁](patches/linux/7.2.9/drafts/0040-power-piano-native-mipps.patch)移植了上述 `xiaomi-mipps-auth` 的协议常量、挑战应答顺序和摘要计算，保留 GPL-2.0-only。另查阅 [blu-sharky/piano-mipps-auth](https://github.com/blu-sharky/piano-mipps-auth/tree/ccdc3ce7f5200ef736d7d552eb7b387ea3bb6fd9) 对 Piano 固件漏报充电器身份的处理；该身份恢复逻辑尚未移植。候选的实际支持范围见 [ADSP 配套说明](vendor/firmware/hyperos4-adsp/README.md)。
 
+Gunyah 的 Android 驱动与主线接口适配来自
+[code002-2/librevm](https://github.com/code002-2/librevm/tree/56918558e2c4303cda803a655ea716869c551b71/packaging/gunyah-driver-7.2)
+整理的补丁包，原适配来自
+[SuperTurtleDev/iceland-mainline-kernel-linux](https://github.com/SuperTurtleDev/iceland-mainline-kernel-linux/tree/fd503a492d381687c143b7085ea79ebce58dcdc7)。
+驱动上游为 Android common `android17-6.18-2026-06_r1`，提交
+`30c0eaeef78d5c19f687ad8418c27b76353ab261`。本地
+[`0006-gunyah.patch`](patches/linux/7.3/0006-gunyah.patch)保留原作者、
+版权和 GPL-2.0-only 等逐文件声明；未引入其他平板的设备树或内存预留。
+它们用于接入设备已有的 Gunyah 固件，不替换高通 Hypervisor。
+
+BORE 6.8.0 来自 Masahito Suzuki 的调度器实现，以及
+[CachyOS/kernel-patches](https://github.com/CachyOS/kernel-patches/blob/6266b5f33f4e8caaa452174f0132c8c82f919267/7.3/sched/0001-bore-cachy.patch)
+中 Piotr Gorski 整理的 Linux 7.3 补丁。本地
+[`0007-bore.patch`](patches/linux/7.3/0007-bore.patch)只调整了
+`CONFIG_CACHY` 专用默认值的上下文及空白格式，保留 BORE 算法和运行参数默认值。
+代码沿用 Linux 内核许可；原始补丁校验值和提交记录在
+[`series.json`](patches/linux/7.3/series.json)中。MGLRU、ZRAM、
+`schedutil` 与抢占机制属于 Linux 自身功能，不作为 CachyOS 独有改动介绍。
+
 SteamOS 根系统提取使用 [hashtagbasit/SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1) 的 `scripts/extract_rootfs.py`（GPL-2.0）。提交与文件 SHA256 固定在 `config/steamos.json`，下载时保留源文件通知。该项目提供提取方法和移植参考，SunUEFI 使用自己的启动器、设备内核与 BSP。Valve ARM64 根系统与公开 Steam 客户端分别记录在 `config/steamos.json`、`config/steam-client.json`，继续适用各组件的原有许可，不因提取脚本采用 GPL 而改变。FFmpeg 使用既有 BSP 补丁，构建为匹配 SteamOS 库 ABI 的 pacman 包，保留完整编解码配置与许可文件。
 
 ## 字体、图标与显示资源

@@ -394,7 +394,7 @@ def build(args):
     tracked=capture(['git','ls-files','-z'],args.v4l2_source.resolve()).split('\0')
     for name in filter(None,tracked):
         original=args.v4l2_source.resolve()/name;target=module_source/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(original,target);inputs[str(original)]=sha(original)
-    run(['make','-C',args.kernel_build.resolve(),'M='+str(module_source),'ARCH=arm64','LLVM=1','LLVM_IAS=1','-j4','modules'],env,log)
+    run(['make','-C',args.kernel_build.resolve(),'M='+str(module_source),'ARCH=arm64','LLVM=1','LLVM_IAS=1','LOCALVERSION=','-j4','modules'],env,log)
     module=module_source/'v4l2loopback.ko';run([tools/'llvm-strip','--strip-debug',module],env,log);info=modinfo(module)
     if info.get('name')!='v4l2loopback'or info.get('vermagic','').split()[0]!=args.kernel_release:raise ValueError('External module does not match requested exact kernel')
     files['usr/lib/modules/'+args.kernel_release+'/updates/v4l2loopback.ko']={'file':module.relative_to(output).as_posix(),'bytes':module.stat().st_size,'sha256':sha(module),'mode':0o644,'vermagic':info['vermagic'],'source_commit':LOOP_COMMIT,'strip_debug':True,'loaded':False}

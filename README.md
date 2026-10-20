@@ -58,6 +58,8 @@
 
 首次启动会自动把 root 文件系统扩展到已创建的独立分区容量，无需手动扩容；不会占用额外的 Android 空间。
 
+Root 提供 `debian-gnome`、`debian-kde`、`nyarch-gnome` 和 `steamos` 四种选择；例如 Nyarch 的下载包名为 **`SunUEFI-Root-nyarch-gnome`**。
+
 首次分区尚未完成实机验证，相关限制见[已知问题](docs/user/known-issues.md#首次分区)。详细操作见[安装指南](docs/user/install-from-artifact.md)；[电脑安装](docs/user/install-from-computer.md)与[临时启动](docs/user/temporary-boot.md)作为备用方式保留。Magisk 用户打开助手的方法见[模块说明](docs/devel/android-module.md)。
 
 | 登录平板的 Linux 系统 | 默认账号密码 |
@@ -201,6 +203,8 @@ SunUEFI 不是从零重写所有东西。上游源码保持固定版本放在 `u
 | [Xiaomi Pad 6S Pro Linux](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux) / [debian-sheng](https://github.com/ianchb/debian-sheng) | 小米平板的多发行版适配，以及充电、手写笔和指纹方案 | 参考 MiPPS 认证、磁吸笔连接和 TEE 指纹接入，按 Piano 的实际硬件移植 |
 | [simple-init](https://github.com/BigfootACA/simple-init) | UEFI 里的图形启动菜单 | 平板布局、中文、实体按键，以及和固件后台服务的联动 |
 | [linux-piano](https://github.com/blu-sharky/linux-piano) | SM8750 内核、设备树和板级驱动基线 | 合入稳定版内核，修正内存 / DMA、显示、音频等 |
+| [CachyOS/kernel-patches](https://github.com/CachyOS/kernel-patches) / [BORE](https://github.com/firelzrd/bore-scheduler) | 注重交互响应的 CPU 调度改进 | 将对应内核版本的 BORE 补丁集成到四个发行版共用的 ARM64 内核 |
+| [librevm](https://github.com/code002-2/librevm) | Android Gunyah 驱动的主线接口适配 | 移植到当前内核，由 UEFI 传递每次启动的资源信息；虚拟机运行支持仍在调试 |
 | [BigfootACA/linux](https://github.com/BigfootACA/linux) · Junhao Xie | 高通显示驱动改进 | 采用 DSI PLL 初始化、DPU 视频流水线停止顺序及 DSI PHY 接口时钟管理补丁，改善显示初始化与熄屏恢复；精确来源见 [THIRD_PARTY.md](THIRD_PARTY.md) |
 | [debian-piano](https://github.com/blu-sharky/debian-piano) | Debian 根系统构建、设备服务、相机和输入辅助程序 | 专用 ESP / root、多发行版 BSP（板级配置包）、统一打包 |
 | [piano-firmware](https://github.com/blu-sharky/piano-firmware) | Wi-Fi、蓝牙、DSP、触控等设备固件和功放预设 | 按来源装入系统；设备参数从本机原厂数据读取。它不是整套 HyperOS，也不含原厂相机算法 |

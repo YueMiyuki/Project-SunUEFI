@@ -15,9 +15,15 @@ from prepare_linux_modules import modinfo
 ROOT = Path(__file__).resolve().parents[1]
 STABLE_UAPI_COMMIT = '5fce161649b4d779d1b76d9fcd52dc77779774b8'
 STABLE_UAPI_DIGEST = 'b0effcf9c1b646a06c6839a2b98e1c051a7854f23349f676cfb280d6b749b33e'
+LINUX_73_COMMIT = 'c03c1a14507dfaf8b856c2608f9ac216021fc222'
+LINUX_73_UAPI_DIGEST = '12ed203c6e7e5dd78106fb7a9127dd620a6ae90272a8a627c05cf6ad43750591'
 
 
 def expected_uapi_digest(source, commit):
+    current = subprocess.run(['git', '-C', str(source), 'merge-base', '--is-ancestor',
+                              LINUX_73_COMMIT, commit], capture_output=True)
+    if current.returncode == 0:
+        return LINUX_73_UAPI_DIGEST
     # v7.2.9 changes AMDGPU/RDMA headers and linux/version.h. The helpers'
     # input/media/V4L2 interfaces are unchanged; record the actual header tree.
     stable = subprocess.run(['git', '-C', str(source), 'merge-base', '--is-ancestor',
@@ -107,7 +113,7 @@ def build(kernel, source, kernel_build, output, cc, sysroot, macros, loop):
         target = module_source / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(loop / name, target)
-    run(['make', '-C', kernel_build, 'M=' + str(module_source), 'ARCH=arm64', 'LLVM=1', 'modules'])
+    run(['make', '-C', kernel_build, 'M=' + str(module_source), 'ARCH=arm64', 'LLVM=1', 'LOCALVERSION=', 'modules'])
     module = module_source / 'v4l2loopback.ko'
     item = modinfo(module)
     if not item['vermagic'].startswith(release + ' '):
@@ -140,7 +146,8 @@ def main():
     parser.add_argument('--v4l2-source', type=Path, default=ROOT / 'upstream/v4l2loopback')
     args = parser.parse_args()
     result = build(args.kernel.resolve(), args.source.resolve(), args.kernel_build.resolve(),
-                   args.output.resolve(), args.cc, args.sysroot, args.macros.resolve(), args.v4l2_source.resolve())
+                   args.output.resolve(), args.cc, args.sysroot.resolve() if args.sysroot else None,
+                   args.macros.resolve(), args.v4l2_source.resolve())
     print(json.dumps({'status': result['status'], 'kernel_release': result['kernel']['release']}))
 
 

@@ -14,7 +14,7 @@
 | `SunUEFI-ESP` | `esp.sparse.img` | 启动镜像 |
 | `SunUEFI-Root-发行版` | `root-发行版.sparse.img` | Linux 系统镜像 |
 
-Root 可选择 `debian-gnome`、`debian-kde`、`nyarch` 或 `steamos`。ESP、模块和临时 UEFI 镜像各只有一份；`logs.zip` 用于排查构建问题，普通安装无需下载。
+Root 可选择 `debian-gnome`、`debian-kde`、`nyarch-gnome` 或 `steamos`。ESP、模块和临时 UEFI 镜像各只有一份；`logs.zip` 用于排查构建问题，普通安装无需下载。
 
 使用 0.5.2 或更新的助手刷写稀疏镜像。将模块 ZIP 和两个 `.img` 文件保存在平板上。模块 ZIP 不要再解压；两个镜像可以放在任意方便的位置，之后通过文件选择器选取。手动选择 `uefi` 或 `linux` 的开发构建不包含完整系统。
 

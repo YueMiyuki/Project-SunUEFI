@@ -1,25 +1,61 @@
-# 内核角色与固定来源
+# 内核来源与配置
 
-同一个 `stable` 名称在 RAM 基线、完整集成、EFI 文件组装和真实磁盘部署中有不同用途。**角色不同而提交不同，不等于 pin 漂移。** 下面记录 2026-10-07 的分工；当前运行和验收结论以 [状态](../status.md) 中绑定的镜像/会话为准。
+Debian GNOME、Debian KDE、Nyarch GNOME 和 SteamOS 共用同一套设备内核。
+默认构建使用正式版 Linux 7.3，版本名为 `7.3.0-piano-sunuefi-cachy`。
+桌面名称属于 root 镜像，内核名称不带 `gnome` 或构建目录的 Git 后缀。
 
-| 角色 | 固定 commit | 消费位置/用途 |
-| --- | --- | --- |
-| RAM/救援 Stable 基线 | `7a33c60fd6eda8a9c20dfda636d4e0a4efa4cbb8` | `linux/kernel-profiles.json`、主仓库 Gitlink；`build_kernel.py` 的 stable profile |
-| RAM Next 快照 | `7704c4c5bb127673b4f0ead839919db573559e38` | 同一 JSON 的 next profile；独立 RAM smoke，不代表完整板级功能 |
-| 完整 Stable 公开基线 | `352508459733d3e6d349ea5581a8dd2fd8bb4180` | `build_piano_full_kernel.py` 默认基线；允许明确指定并验证其后代作为本地完整候选 |
-| Stable EFI 文件组装候选 | `d42158782b81c4aaa47c8643f1400a471785370b` | `assemble_piano_linux.py` 的 stable 固定来源；组装检查仍保留运行时 DDR/退休/readback 门槛 |
-| 完整 Next 迁移候选 | `498569101e34cbb6ec9c27ebe609949279a59bce` | `build_piano_next_full.py`；官方 base 为 `67f0943b394d920b6c142aad8c6af94340342ae7` |
-| 当前磁盘 Stable（Kernel69） | `efe5734c24510c3c194f765511b49be9f13b4aa0` | 已部署磁盘版本的身份；不是上述构建工具的默认 pin，配套模块与入口状态见当前记录 |
+## 源码与硬件适配
 
-内核源码由独立仓库维护。当前 `.gitmodules` 的 `../linux-piano` 描述同级仓库安排；相对 URL 在公开托管环境中是否可用，取决于主仓库 remote 所解析的目标以及固定对象能否取得。公开 kernel remote、全部必要 commit 的可获取性和独立克隆验收尚待完成。保留现有 Gitlink/pins；本地 linked-worktree 的绝对 `.git` 指针不能当作可迁移的克隆步骤。
+Linux 基线为上游 `v7.3`，提交
+`c03c1a14507dfaf8b856c2608f9ac216021fc222`。Piano 的公开硬件适配来自
+`blu-sharky/linux-piano`，在新基线上继续保留本项目的显示、音频、输入、
+充电、睡眠和编解码修正。
 
-## 更新一个角色
+补丁按平台、显示、输入与无线、媒体、音频、Gunyah、BORE 分组，
+后续接口修正单独追加。原始来源、补丁摘要、应用顺序与每一步的源码树
+记录在 [`series.json`](../../patches/linux/7.3/series.json)；
+旧版本补丁保留作来源参照，不会再叠加到新版本上。
 
-先明确更新哪个角色、旧产物与恢复基线怎样保留，再更新该角色的消费入口。RAM Stable 涉及 Gitlink 与 JSON 时需保持二者一致；完整候选和组装角色按各自工具校验，不为追求相同版本而连带改变救援 pin。
+`./build.sh linux` 从固定上游提交准备源码，在 `build/kernel-worktrees/`
+中应用补丁，使用独立编译副本生成 `artifacts/kernels/release/`。
+`upstream/` 中的工作区不被改写。本地与 CI 使用同一入口和配置。
 
-候选必须记录实际 source/base、配置片段与最终 config、编译工具、Image、DTB、initramfs/rootfs、kernel release 和对应模块身份。来源验证、配套检查、启动路径和实机结果分别记录。磁盘 raw 启动成功不会自动证明标准 EFI-stub 或 recovery 入口成功。
+7.3 改动了 DRM 原子提交、显存分配、内存反向映射等内部接口，因此升级
+包含实际的驱动移植。保留旧功能代码并不保证运行行为完全相同，升级后
+仍需检查实机显示、输入、无线、音频、相机和电源。更新时必须同时安装
+新内核的模块、`v4l2loopback` 相机模块和 initramfs，不能只替换 `Image`。
 
-补丁缩减沿用 `audit_kernel_upstream.py` 的祖先关系、patch-id、changed-byte fingerprint 和 unknown 区分。缺历史对象或证明不完整时保留 unknown，不能凭名称相似自动删补丁。相关背景见 [Linux 构建记录](../linux-reproducible-builds.md) 与 [完整迁移记录](../piano-next-full-migration.md)。
+## CachyOS 与通用配置
+
+* 引入 CachyOS 为 Linux 7.3 整理的 **BORE 6.8.0**，保留其默认参数。
+  它在公平调度器基础上根据任务的运行特征调整调度，目标是改善负载下的
+  交互响应；具体帧率、功耗和温度收益需要测量，不能仅凭启用选项判断。
+* 启用 **MGLRU**，让内核按多代页面访问情况回收内存。既有 Zstd ZRAM
+  继续保留，这两个功能属于 Linux 本身。
+* 使用 **300 Hz** 定时配置、动态抢占并默认完整抢占，保留空闲时停用
+  周期时钟的 `NO_HZ_IDLE` 和 `schedutil` 动态调频。
+* 不另设 CPU 频率上限，不引入 x86 专用优化或已经不适用于当前 BORE 的
+  sysctl 参数。300 Hz 也不等于屏幕刷新率或输入采样率。
+
+具体配置位于 [`piano-platform.config`](../../linux/configs/piano-platform.config)，
+来源及许可见 [THIRD_PARTY.md](../../THIRD_PARTY.md)。
+
+## Gunyah
+
+原厂启动链已由 Gunyah 占用 EL2。这里接入其资源管理器和虚拟机接口，
+不会替换原厂 Hypervisor，也不等于直接提供 KVM。
+驱动编进内核，以保留借出内存时取消内核直接映射的处理。
+
+原厂设备树中的资源句柄只对本次启动有效。UEFI 在早期保留这些数据，
+在 raw 和 EFI 两条 Linux 交接路径中更新目标设备树。没有取得有效数据
+时只禁用 Gunyah 资源管理器，Linux 仍可正常启动。
+源码位于 `uefi/handoff/early-memory/PianoColdBootObjects.c` 和
+`uefi/core/PianoProductBootObjects.c`。
+
+GNOME 的“关于”页面对高通主系统域省略通用的 `vm-other` 行，
+底层 systemd 检测与 Gunyah 接口保留。桌面补丁与打包状态见
+[系统信息适配](../../linux/desktops/gnome/patches/control-center/README.md)。
+Gunyah 虚拟机运行仍需实机验证，不能以设备节点出现代替。
 
 
 ## Piano 启动配置

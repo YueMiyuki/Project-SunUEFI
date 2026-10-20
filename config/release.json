@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "kernel": {
-    "target": "release-7.2.9",
+    "target": "release",
     "public_baseline": "352508459733d3e6d349ea5581a8dd2fd8bb4180",
-    "patch_series": "patches/linux/series.json",
-    "stable_source": "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
-    "stable_commit": "5fce161649b4d779d1b76d9fcd52dc77779774b8",
-    "stable_version": "7.2.9",
-    "target_tree": "a6fc559e769df1823f42af47fb4f77c3330fec3b",
+    "patch_series": "patches/linux/7.3/series.json",
+    "stable_source": "https://github.com/torvalds/linux.git",
+    "stable_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+    "stable_version": "7.3.0",
+    "target_tree": "bf44482de290f2793bb1c9d22f11eb275d1fee5d",
     "cpu_model_overlay": "linux/dts/piano-cpu-model.dtso",
     "additional_dtb_overlays": [
       "linux/dts/piano-board-identity.dtso",
@@ -25,7 +25,9 @@
       "refresh_hz": 120,
       "preserve_other_modes": true,
       "panel_vendor": "auto"
-    }
+    },
+    "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
+    "localversion": "-piano-sunuefi-cachy"
   },
   "debian": {
     "source": "upstream/debian-piano-current",
@@ -65,7 +67,9 @@
     "source": "upstream/piano-firmware-current",
     "commit": "05fc37c09ca8146eecfc4920f8485479db140ae5",
     "manifest": "firmware/SHA256SUMS",
-    "overlays": ["vendor/firmware/hyperos4-adsp/manifest.json"]
+    "overlays": [
+      "vendor/firmware/hyperos4-adsp/manifest.json"
+    ]
   },
   "mesa": {
     "source": "upstream/piano-mesa-current",

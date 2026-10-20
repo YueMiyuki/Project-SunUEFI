@@ -1,0 +1,51 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] about: distinguish Qualcomm Gunyah hardware domain from guests
+
+Keep low-level virtualization discovery unchanged. The primary Qualcomm
+HLOS domain has VMID 3 and owns the physical tablet. Hide its generic
+vm-other row, retaining the hardware model and firmware details.
+Secondary or unknown domains keep the original virtualization display.
+
+--- a/panels/system/about/cc-about-page.c
++++ b/panels/system/about/cc-about-page.c
+@@ -598,13 +598,39 @@
+                         { "lxc-libvirt", "LXC (libvirt)" },
+                         { "systemd-nspawn", "systemd (nspawn)" } };
+ 
++/* Qualcomm's primary hardware domain runs under firmware Gunyah, but is
++ * the tablet's main OS, not a secondary virtual machine. Keep the kernel
++ * and systemd virtualization information intact; omit only the VM row here.
++ */
++static gboolean
++is_gunyah_primary_domain (void)
++{
++    g_autofree char *compatible = NULL;
++    g_autofree char *vmid_data = NULL;
++    gsize length;
++    guint32 vmid;
++
++    if (!g_file_get_contents ("/proc/device-tree/hypervisor/compatible",
++                              &compatible, NULL, NULL) ||
++        !g_str_has_prefix (compatible, "qcom,gunyah-hypervisor"))
++        return FALSE;
++
++    if (!g_file_get_contents ("/proc/device-tree/hypervisor/qcom,gunyah-vm/qcom,vmid",
++                              &vmid_data, &length, NULL) || length != sizeof vmid)
++        return FALSE;
++
++    memcpy (&vmid, vmid_data, sizeof vmid);
++    return GUINT32_FROM_BE (vmid) == 3; /* Qualcomm HLOS domain */
++}
++
+ static void
+ set_virtualization_label (CcAboutPage *self, const char *virt)
+ {
+     const char *display_name;
+     guint i;
+ 
+-    if (virt == NULL || *virt == '\0') {
++    if (virt == NULL || *virt == '\0' ||
++        (g_strcmp0 (virt, "vm-other") == 0 && is_gunyah_primary_domain ())) {
+         gtk_widget_set_visible (GTK_WIDGET (self->virtualization_row), FALSE);
+ 
+         return;

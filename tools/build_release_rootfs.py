@@ -116,7 +116,7 @@ def plan(kernel, source, output, mesa_dir=None, runtime_dir=None, kernel_build=N
             'ffmpeg_dir': str(ffmpeg) if ffmpeg else None,
             'boot_task_snapshot': boot_task_snapshot,
             'runtime_dir': str(Path(runtime_dir).resolve()) if runtime_dir else None,
-            'kernel_build': str(Path(kernel_build or root / 'build/kernels/release-7.2.9').resolve()),
+            'kernel_build': str(Path(kernel_build or root / 'build/kernels/release').resolve()),
             'public_source': str(public), 'firmware_source': str(firmware), 'config': config, 'missing_inputs': missing,
             'macros': str(macros), 'v4l2_source': str(loop),
             'steps': ['require root + mount/chroot capability; ARM64 or enabled qemu-aarch64 binfmt',
