@@ -3,7 +3,7 @@
 #include "PianoEarlyMemory.h"
 #include "PianoFactoryPanel.h"
 #include <Library/MemoryMapLib.h>
-#define PIANO_COLD_OBJECT_VERSION 3U
+#define PIANO_COLD_OBJECT_VERSION 4U
 #define PIANO_COLD_HANDOFF_ADDRESS 0xa7fff000ULL
 #define PIANO_COLD_HANDOFF_MAGIC 0x534e554546494448ULL
 #define PIANO_COLD_EXTENSION_MAGIC 0x314a424f544f4f42ULL
@@ -24,6 +24,10 @@ typedef struct {
  UINT32 Crc32,Reserved;UINT64 EntryPc;
 } PIANO_COLD_BOOT_HANDOFF;
 typedef struct {UINT64 Pc,Sp,El,Sctlr,Vbar,Daif,SpSel,Ttbr0,Ttbr1,Counter,Frequency;} PIANO_COLD_CPU;
+typedef struct {
+ UINT32 Valid,VmId;
+ UINT8 Resources[16],Interrupts[24]; // exact big-endian firmware DT properties
+} PIANO_GUNYAH_BOOT_INFO;
 typedef struct {PIANO_SEC_READ_STATE Read;UINT64 Words;} PIANO_COLD_BATCH_STATE;
 UINTN EFIAPI PianoColdSecRead256(UINT64 Address,UINT32 *PrivateScratch,PIANO_COLD_BATCH_STATE *,UINTN Bytes);
 typedef enum {
@@ -56,6 +60,7 @@ typedef struct {
  // Optional factory selection, frozen by the same two bounded DTB reads.
  // This is display metadata only; it grants no memory or device authority.
  UINT32 FactoryPanel,FactoryBootargsBytes,FactoryBootargsCrc32,FactoryPanelArguments;
+ PIANO_GUNYAH_BOOT_INFO Gunyah;
  PIANO_SEC_READ_STATE LastRead,LastFault;
  PIANO_COLD_BOOT_OBJECT Objects[PIANO_COLD_OBJECT_MAX];
 } PIANO_COLD_BOOT_OBJECT_REPORT;

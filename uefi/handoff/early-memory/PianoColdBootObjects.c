@@ -136,6 +136,79 @@ STATIC EFI_STATUS ColdParseDtb(COLD_DTB *D){
   else if(Token==4)continue;else if(Token==9)return !Depth&&GotStart&&GotEnd?EFI_SUCCESS:EFI_NOT_FOUND;else return EFI_COMPROMISED_DATA;
  }return EFI_COMPROMISED_DATA;
 }
+
+STATIC BOOLEAN ColdCompatible(CONST CHAR8 *Data,UINT32 Bytes,CONST CHAR8 *Expected){
+ if(!Bytes||Data[Bytes-1])return FALSE;
+ for(UINT32 At=0;At<Bytes;){
+  if(!AsciiStrCmp(Data+At,Expected))return TRUE;
+  while(At<Bytes&&Data[At])++At;
+  ++At;
+ }
+ return FALSE;
+}
+
+// Capture opaque, per-boot Gunyah capabilities before firmware memory is reused.
+// This uses the existing bounded SEC reader, never a later raw physical pointer.
+STATIC EFI_STATUS ColdParseGunyah(CONST COLD_DTB *D,PIANO_GUNYAH_BOOT_INFO *Info){
+ UINT32 At=ColdBe(D->Header+8),Limit=At+ColdBe(D->Header+36);
+ UINT32 Strings=ColdBe(D->Header+12),StringBytes=ColdBe(D->Header+32),Depth=0,Matches=0;
+ BOOLEAN Hypervisor=FALSE,IsGunyah=FALSE,VmNode=FALSE,GotVm=FALSE;
+ BOOLEAN Rm=FALSE,GotReg=FALSE,GotIrq=FALSE;
+ PIANO_GUNYAH_BOOT_INFO Child;
+ ZeroMem(Info,sizeof(*Info));ZeroMem(&Child,sizeof(Child));
+ ZeroMem(&mColdStructCache,sizeof(mColdStructCache));
+ ZeroMem(&mColdStringCache,sizeof(mColdStringCache));
+ while(At<=Limit&&Limit-At>=4){
+  UINT32 Token;EFI_STATUS E=ColdDtbWord(At,&Token);if(E!=EFI_SUCCESS)return E;At+=4;
+  if(Token==1){
+   CHAR8 Name[128];UINT32 Used;
+   E=ColdString(At,Limit,Name,sizeof(Name),&Used);if(E!=EFI_SUCCESS)return E;
+   if(Depth==1)Hypervisor=!AsciiStrCmp(Name,"hypervisor");
+   if(Hypervisor&&Depth==2){
+    ZeroMem(&Child,sizeof(Child));Rm=GotReg=GotIrq=FALSE;
+    VmNode=!AsciiStrCmp(Name,"qcom,gunyah-vm");
+   }
+   if(++Depth>64)return EFI_COMPROMISED_DATA;
+   At=ALIGN_VALUE(At+Used,4);
+  }else if(Token==2){
+   if(!Depth)return EFI_COMPROMISED_DATA;
+   if(Hypervisor&&Depth==3&&Rm&&GotReg&&GotIrq){
+    if(++Matches>1)return EFI_COMPROMISED_DATA;
+    CopyMem(Info->Resources,Child.Resources,sizeof(Info->Resources));
+    CopyMem(Info->Interrupts,Child.Interrupts,sizeof(Info->Interrupts));
+   }
+   if(Hypervisor&&Depth==2)break;
+   --Depth;
+  }else if(Token==3){
+   UINT32 N,Offset;
+   if(!Depth||Limit-At<8)return EFI_COMPROMISED_DATA;
+   E=ColdDtbWord(At,&N);if(E!=EFI_SUCCESS)return E;
+   E=ColdDtbWord(At+4,&Offset);if(E!=EFI_SUCCESS)return E;At+=8;
+   if(N>Limit-At||Offset>=StringBytes)return EFI_COMPROMISED_DATA;
+   if(Hypervisor&&(Depth==2||Depth==3)){
+    CHAR8 Name[128];UINT32 Used;
+    E=ColdString(Strings+Offset,Strings+StringBytes,Name,sizeof(Name),&Used);
+    if(E!=EFI_SUCCESS)return E;
+    if(!AsciiStrCmp(Name,"compatible")&&N<=256){
+     CHAR8 Value[256];E=ColdDtbRead(At,N,Value);if(E!=EFI_SUCCESS)return E;
+     if(Depth==2)IsGunyah=ColdCompatible(Value,N,"qcom,gunyah-hypervisor");
+     else Rm=ColdCompatible(Value,N,"gunyah-resource-manager");
+    }else if(Depth==3&&!AsciiStrCmp(Name,"reg")&&N==sizeof(Child.Resources)){
+     E=ColdDtbRead(At,N,Child.Resources);if(E!=EFI_SUCCESS)return E;GotReg=TRUE;
+    }else if(Depth==3&&!AsciiStrCmp(Name,"interrupts")&&N==sizeof(Child.Interrupts)){
+     E=ColdDtbRead(At,N,Child.Interrupts);if(E!=EFI_SUCCESS)return E;GotIrq=TRUE;
+    }else if(Depth==3&&VmNode&&!AsciiStrCmp(Name,"qcom,vmid")&&N==4){
+     E=ColdDtbWord(At,&Info->VmId);if(E!=EFI_SUCCESS)return E;GotVm=TRUE;
+    }
+   }
+   At=ALIGN_VALUE(At+N,4);if(At>Limit)return EFI_COMPROMISED_DATA;
+  }else if(Token==4)continue;
+  else if(Token==9)break;
+  else return EFI_COMPROMISED_DATA;
+ }
+ if(!IsGunyah||Matches!=1||!GotVm)return EFI_NOT_FOUND;
+ Info->Valid=TRUE;return EFI_SUCCESS;
+}
 STATIC EFI_STATUS ColdLayout(VOID){
  CONST struct {CONST CHAR8 *Name;PIANO_COLD_OBJECT_ROLE Role;} Items[]={{"UEFI_FD",PianoColdObjectFirmware},{"UEFI_Stack",PianoColdObjectStack},{"CPU_Vectors",PianoColdObjectVectorReservation},{"MMU_PageTables",PianoColdObjectMmuReservation},{"SEC_Heap",PianoColdObjectSecHeap},{"Sched_Heap",PianoColdObjectScheduler},{"FV_Region",PianoColdObjectFv},{"BootHandoff",PianoColdObjectHandoff}};
  for(UINTN I=0;I<ARRAY_SIZE(Items);++I){CONST EFI_MEMORY_REGION_DESCRIPTOR *R=ColdNamed(Items[I].Name);if(!R||ColdAdd(Items[I].Role,R->Address,R->Length)!=EFI_SUCCESS)return EFI_COMPROMISED_DATA;}
@@ -172,6 +245,9 @@ EFI_STATUS PianoColdBootObjectsObserve(VOID){
  if(A.End<=A.Start||A.End-A.Start>0x10000000||!ColdInput(A.Start,A.End-A.Start))return ColdFinish(EFI_NOT_READY,PianoColdReasonInitrd);
  CopyMem(mCold.DtbHeader,A.Header,40);mCold.DtbBytes=A.Bytes;mCold.DtbHeaderCrc32=PianoEarlyMemoryBytesCrc32(A.Header,40);mCold.InitrdStart=A.Start;mCold.InitrdEnd=A.End;
  mCold.FactoryPanel=A.Panel;mCold.FactoryBootargsBytes=A.BootargsBytes;mCold.FactoryBootargsCrc32=A.BootargsCrc32;mCold.FactoryPanelArguments=A.PanelArguments;
+ PIANO_GUNYAH_BOOT_INFO Ga,Gb;
+ if(ColdParseGunyah(&A,&Ga)==EFI_SUCCESS&&ColdParseGunyah(&B,&Gb)==EFI_SUCCESS&&
+    !CompareMem(&Ga,&Gb,sizeof(Ga)))CopyMem(&mCold.Gunyah,&Ga,sizeof(Ga));
  ColdAdd(PianoColdObjectFactoryDtb,H->Dtb,A.Bytes);ColdAdd(PianoColdObjectCombinedInitrd,A.Start,A.End-A.Start);
  E=ColdFresh();if(E!=EFI_SUCCESS)return ColdFinish(E,PianoColdReasonCpu);ColdCpu(&mCold.After);mCold.Coherent=TRUE;return ColdFinish(EFI_SUCCESS,PianoColdReasonNone);
 }

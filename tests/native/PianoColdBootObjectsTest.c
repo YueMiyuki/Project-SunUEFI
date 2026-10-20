@@ -61,7 +61,12 @@ static VOID Run(UINTN N){Case=N;MakeDtb();Handoff=(PIANO_COLD_BOOT_HANDOFF){.Mag
    assert(PianoColdBootObjectsPublishHob()!=EFI_SUCCESS&&P->EfiFreeMemoryBottom==Before&&!PianoColdBootObjectsReport()->Published);return;
   }
   assert(PianoColdBootObjectsPublishHob()==EFI_SUCCESS&&PianoColdBootObjectsReport()->Published);if(N!=18&&N!=5)assert(PianoColdBootObjectsReport()->Count==14&&PianoColdBootObjectsValidate(PianoColdBootObjectsReport())==EFI_SUCCESS);
-  if(N==24){assert(R->GuardBatches<100&&R->Loads<4096&&R->CacheHits>100);printf("Actual1.1MiB FDT chosen-only: batches%u words%u fills%u hits%u\n",R->GuardBatches,R->Loads,R->CacheFills,R->CacheHits);fflush(stdout);}
+  if(N==24){
+   const UINT8 Resources[]={0x4f,0x29,0x60,0x27,0xdb,0x60,0x55,0x89,0x4f,0x29,0x60,0x27,0xdb,0x60,0x4c,0x85};
+   assert(R->Gunyah.Valid&&R->Gunyah.VmId==3&&!memcmp(R->Gunyah.Resources,Resources,sizeof(Resources)));
+   assert(R->CacheHits>100);
+   printf("Actual1.1MiB FDT chosen/Gunyah: batches%u words%u fills%u hits%u\n",R->GuardBatches,R->Loads,R->CacheFills,R->CacheHits);fflush(stdout);
+  }
   EFI_HOB_GUID_TYPE *Guid=(VOID*)((UINT8*)HobList+sizeof(EFI_HOB_HANDOFF_INFO_TABLE));assert(Guid->Header.HobType==EFI_HOB_TYPE_GUID_EXTENSION);PIANO_COLD_BOOT_OBJECT_REPORT *Saved=(VOID*)(Guid+1);assert(!memcmp(Saved,PianoColdBootObjectsReport(),sizeof(*Saved)));
   assert(PianoProductBootObjectsReemit(Alive)==E&&PianoProductBootObjectsStatus()==EFI_SUCCESS&&PianoProductBootObjectsSnapshot());assert(ColdLogs>=10&&ColdObjectLogs==Saved->Count);
   UINT32 Count=Saved->Count;memset(Saved,0,sizeof(*Saved));assert(PianoProductBootObjectsReemit(Alive)==E&&ColdObjectLogs==2*Count); // replay frozen cache, no second physical/HOB read

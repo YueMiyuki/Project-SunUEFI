@@ -3,6 +3,8 @@
 #include <Library/HobLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/BaseLib.h>
+#include <Library/FdtLib.h>
 STATIC PIANO_COLD_BOOT_OBJECT_REPORT mObjects,mObjectsScratch;
 STATIC EFI_GUID mObjectsGuid=PIANO_COLD_OBJECT_HOB_GUID;
 STATIC EFI_STATUS mObjectsStatus=EFI_NOT_STARTED,mObjectsValidation=EFI_NOT_STARTED;
@@ -25,6 +27,28 @@ STATIC VOID ObjectsCapture(BOOLEAN(*Alive)(VOID)){
 EFI_STATUS PianoProductBootObjectsStatus(VOID){return mObjectsStatus;}
 CONST PIANO_COLD_BOOT_OBJECT_REPORT *PianoProductBootObjectsSnapshot(VOID){return mObjectsStatus==EFI_SUCCESS?&mObjects:NULL;}
 UINT32 PianoProductBootObjectsFactoryPanel(VOID){return !mObjectsLost&&mObjectsStatus==EFI_SUCCESS&&mObjectsValidation==EFI_SUCCESS&&mObjects.Coherent?mObjects.FactoryPanel:PianoFactoryPanelUnknown;}
+EFI_STATUS PianoProductBootObjectsApplyGunyah(VOID *Tree,UINTN Capacity){
+ if(!Tree||Capacity<40||Capacity>0x210000||FdtCheckHeader(Tree)||FdtTotalSize(Tree)>Capacity)return EFI_INVALID_PARAMETER;
+ INT32 Rm=FdtNodeOffsetByCompatible(Tree,-1,"gunyah-resource-manager");
+ if(Rm<0)return Rm==-1?EFI_SUCCESS:EFI_COMPROMISED_DATA;
+ BOOLEAN Valid=!mObjectsLost&&mObjectsStatus==EFI_SUCCESS&&mObjectsValidation==EFI_SUCCESS&&
+               mObjects.Coherent&&mObjects.Gunyah.Valid;
+ // A captured DT's old capability IDs are not usable in another boot.
+ // Missing current metadata disables only RM, never the Linux boot route.
+ if(!Valid){
+  DEBUG((DEBUG_WARN,"PIANO_GUNYAH_DTB current_boot_resources=missing rm_disabled=1\n"));
+  return FdtSetProp(Tree,Rm,"status","disabled",9)?EFI_COMPROMISED_DATA:EFI_SUCCESS;
+ }
+ CONST PIANO_GUNYAH_BOOT_INFO *G=&mObjects.Gunyah;
+ if(FdtSetProp(Tree,Rm,"reg",G->Resources,sizeof(G->Resources))||
+    FdtSetProp(Tree,Rm,"interrupts",G->Interrupts,sizeof(G->Interrupts))||
+    FdtSetProp(Tree,Rm,"status","okay",5))return EFI_COMPROMISED_DATA;
+ INT32 Vm=FdtNodeOffsetByCompatible(Tree,-1,"qcom,gunyah-vm-id");
+ UINT32 VmId=SwapBytes32(G->VmId);
+ if(Vm>=0&&FdtSetProp(Tree,Vm,"qcom,vmid",&VmId,sizeof(VmId)))return EFI_COMPROMISED_DATA;
+ DEBUG((DEBUG_WARN,"PIANO_GUNYAH_DTB current_boot_resources=applied vmid=%u\n",G->VmId));
+ return EFI_SUCCESS;
+}
 EFI_STATUS PianoProductBootObjectsReemit(BOOLEAN(*Alive)(VOID)){
  if(!Alive)return EFI_NOT_READY;if(!ObjectsAlive(Alive))return EFI_ABORTED;
  if(!mObjectsAttempted)ObjectsCapture(Alive);if(!ObjectsAlive(Alive))return EFI_ABORTED;
