@@ -155,7 +155,9 @@ def build(args):
                      recipe)
         build_arch_package.build(root, recipe, mesa)
     gamescope = output / 'packages/gamescope'
-    if not (gamescope / 'manifest.json').is_file():
+    if not build_steamos_gamescope.is_current(gamescope):
+        if gamescope.exists():
+            shutil.rmtree(gamescope)
         build_steamos_gamescope.build(root, gamescope)
     ffmpeg = output / 'packages/ffmpeg'
     if not (ffmpeg / 'SOURCE.json').is_file():

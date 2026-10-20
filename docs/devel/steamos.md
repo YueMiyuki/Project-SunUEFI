@@ -57,6 +57,13 @@ GPU 节点负责渲染，实际支持 KMS 的 DPU 节点负责输出。实机游
 `gamescope-session.service`，供 SteamOS Manager 识别游戏模式和切换桌面。
 完整的登录后菜单、模式切换和游戏仍需继续验证。
 
+背光沿用 SteamOS 的受限 sysfs 写入接口，会话启动前取得相应权限。
+`patches/gamescope/0002-backlight-avoid-double-dimming.patch` 修正移动版
+Gamescope 的软件亮度回退：设备已有硬件背光时，不能因写权限不足再把
+当前亮度乘进画面。否则移动光标触发 GPU 合成时会变暗，键盘操作恢复
+直接输出后又变亮。没有硬件背光时仍保留软件调暗，并保持合成输出。
+Gamescope 构建缓存同时记录源码、补丁和包配置的摘要，修改后会重新构建。
+
 FFmpeg 的 H.264 8-bit 测试已实际调用 Iris，解码 720p 的 60 帧并正常退出。
 HEVC 10-bit 测试返回格式错误，仍需修复；不能把编码器列表或驱动节点出现
 当作所有视频格式已经可用。

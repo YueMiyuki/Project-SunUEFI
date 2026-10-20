@@ -12,7 +12,26 @@ ROOT = Path(__file__).resolve().parents[1]
 REFERENCE = 'e54dac93afccf76e5fefe998399b6c1b1a23f3a1'
 UPSTREAM = 'ad2763da1c48860f649abfe842a087188dcb6e20'  # Valve 3.16.30
 SUBPROJECTS = ('wlroots', 'libliftoff', 'vkroots', 'libdisplay-info')
-PATCH = ROOT / 'patches/gamescope/0001-drm-separate-render-and-display.patch'
+PATCHES = (
+    ROOT / 'patches/gamescope/0001-drm-separate-render-and-display.patch',
+    ROOT / 'patches/gamescope/0002-backlight-avoid-double-dimming.patch',
+)
+RECIPE = ROOT / 'linux/bsp/steamos/gamescope/PKGBUILD'
+
+
+def source_inputs():
+    return {
+        'mobile_commit': REFERENCE,
+        'valve_commit': UPSTREAM,
+        'patches': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in PATCHES},
+        'recipe_sha256': hashlib.sha256(RECIPE.read_bytes()).hexdigest(),
+    }
+
+
+def is_current(output):
+    record = output / 'SOURCE.json'
+    return (output / 'manifest.json').is_file() and record.is_file() and (
+        json.loads(record.read_text()).get('inputs') == source_inputs())
 
 
 def git(repo, *args):
@@ -49,8 +68,9 @@ def prepare(output):
                     ignore=shutil.ignore_patterns('.git', 'subprojects'))
     shutil.copytree(upstream / 'subprojects', source / 'subprojects',
                     ignore=shutil.ignore_patterns('.git'))
-    subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', '-p1',
-                    '-i', str(PATCH)], cwd=source, check=True)
+    for patch in PATCHES:
+        subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', '-p1',
+                        '-i', str(patch)], cwd=source, check=True)
     provenance = {
         'mobile_source': {'url': 'https://github.com/hashtagbasit/SteamOS-ARM-Port',
                           'commit': REFERENCE},
@@ -58,7 +78,7 @@ def prepare(output):
                         'commit': UPSTREAM},
         'subprojects': {name: git(upstream / 'subprojects' / name, 'rev-parse', 'HEAD')
                         for name in SUBPROJECTS},
-        'patch_sha256': hashlib.sha256(PATCH.read_bytes()).hexdigest(),
+        'inputs': source_inputs(),
     }
     (source / 'SUNUEFI-SOURCE.json').write_text(json.dumps(provenance, indent=2) + '\n')
     archive = output / 'gamescope-piano.tar.xz'
@@ -67,7 +87,7 @@ def prepare(output):
                     'gamescope-source'], check=True)
     with archive.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    recipe = (ROOT / 'linux/bsp/steamos/gamescope/PKGBUILD').read_text()
+    recipe = RECIPE.read_text()
     (output / 'PKGBUILD').write_text(recipe.replace('@SOURCE_SHA256@', digest))
     (output / 'SOURCE.json').write_text(json.dumps(
         {**provenance, 'archive_sha256': digest}, indent=2) + '\n')

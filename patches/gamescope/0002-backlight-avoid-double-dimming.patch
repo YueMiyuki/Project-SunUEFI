@@ -1,0 +1,40 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] backlight: do not dim content when hardware access is denied
+
+A real backlight's current brightness is already applied by the display.
+Failure to open its sysfs control does not mean that brightness needs to be
+emulated again in the color LUT. Steam can still control it through its
+privileged writer.
+
+On MSM, the extra gain only affected Vulkan composition: moving the pointer
+darkened the display, while keyboard navigation restored direct scanout and
+the original brightness. Reserve software dimming for devices without a
+hardware backlight, and keep that fallback on the composition path.
+
+--- a/src/backlight.cpp
++++ b/src/backlight.cpp
+@@ -319,7 +319,11 @@
+ 	float GetSoftwareBacklightGain()
+ 	{
+ 		std::lock_guard<std::mutex> lock( s_Mutex );
+-		if ( s_bHardwareOk )
++		// A detected hardware backlight already applies its current level.
++		// Permission or write failures do not justify multiplying that level
++		// into the pixels again; Steam's privileged writer can own the control.
++		// Software dimming is only a fallback when there is no such device.
++		if ( s_bHardwareOk || s_nMax > 0 )
+ 			return 1.0f;
+ 
+ 		// Perceptual-ish curve so 50% on the slider is not a black image.
+--- a/src/Backends/DRMBackend.cpp
++++ b/src/Backends/DRMBackend.cpp
+@@ -4650,6 +4650,9 @@
+ 			bNeedsFullComposite |= pFrameInfo->bFadingOut;
+ 			bNeedsFullComposite |= !g_reshade_effect.empty();
+ 			bNeedsFullComposite |= steamcompmgr_has_night_rgb_ctm();
++			// Direct scanout cannot apply the software-backlight LUT.
++			bNeedsFullComposite |= pFrameInfo->applyOutputColorMgmt &&
++				g_ColorMgmt.current.flSoftwareBacklightGain != 1.0f;
+ 
+ 			if ( g_bOutputHDREnabled )
+ 			{
