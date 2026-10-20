@@ -1,0 +1,10 @@
+#!/bin/sh
+# SDDM owns the seat; Gamescope owns DRM, input and Steam's Xwayland session.
+set -eu
+export XDG_CURRENT_DESKTOP=gamescope
+export XDG_SESSION_DESKTOP=gamescope
+export SteamDeck=1
+dbus-update-activation-environment --systemd \
+    XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
+exec gamescope --backend drm -e -W 3200 -H 2136 -r 120 -- \
+    steam -steamdeck -steamos3 -gamepadui

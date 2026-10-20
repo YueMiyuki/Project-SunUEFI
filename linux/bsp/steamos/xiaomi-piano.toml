@@ -1,0 +1,9 @@
+[[device]]
+dt.compatible = "xiaomi,piano"
+device = "xiaomi_piano"
+variant = "Piano"
+friendly_name = "Xiaomi Pad 8 Pro"
+
+[gpu_performance]
+driver = "devfreq"
+sysfs_path = "/sys/devices/platform/soc/3d00000.gpu/devfreq/3d00000.gpu"

@@ -2,6 +2,7 @@
 """Replace the Frame device/session policy with Piano's KDE and Gamescope session."""
 import shutil
 import subprocess
+from pathlib import Path
 
 from stage_arch_piano import put
 from prepare_debian_desktop import configure as configure_kde
@@ -28,7 +29,61 @@ FRAME_UNITS = (
     'deckard-audio-setup.service', 'steamos-offload.target', 'etc.mount',
     'steamos-post-update.service', 'holo-post-update-shutdown.service',
     'gpu-trace.service', 'softapmanager.service', 'steam-video-codec-setup.service',
+    'home.mount', 'set-bluetooth-mac-address.service', 'set-wifi-mac-address.service',
 )
+
+
+def platform_units(root):
+    # Merely masking the offload target is insufficient: RequiresMountsFor
+    # can pull individual mounts into login, polkit and temporary-file setup.
+    # Piano keeps these directories on its ordinary writable root filesystem.
+    offload = tuple(
+        path.name for path in sorted((root / 'usr/lib/systemd/system').glob('*.mount'))
+        if any(line.startswith('What=/home/.steamos/offload/')
+               for line in path.read_text().splitlines()))
+    return FRAME_UNITS + offload
+
+
+def configure_platform(root):
+    units = platform_units(root)
+    for unit in units:
+        link = root / 'etc/systemd/system' / unit
+        link.unlink(missing_ok=True)
+        link.symlink_to('/dev/null')
+    # The native DRM/KMS path is Wayland. The Frame root also contains Xorg
+    # policy for its own displays; use KWin for SDDM as well as the session.
+    put(root, 'etc/sddm.conf.d/20-piano-wayland.conf',
+        '[General]\nDisplayServer=wayland\n'
+        'GreeterEnvironment=QT_WAYLAND_SHELL_INTEGRATION=layer-shell\n'
+        '[Wayland]\n'
+        'CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --locale1\n')
+    # Valve's plasma.desktop starts its VR Gamescope target, which then asks
+    # SteamVR to present Plasma inside the headset. Select native Plasma via
+    # SDDM's standard local-session override instead.
+    put(root, 'usr/local/share/wayland-sessions/plasma.desktop',
+        '[Desktop Entry]\nName=Plasma (Wayland)\n'
+        'Exec=/usr/bin/startplasma-wayland\nTryExec=/usr/bin/startplasma-wayland\n'
+        'Type=Application\nDesktopNames=KDE\n')
+    for unit in ('steamvr.service', 'steamvr-logs.service', 'steamvr-plasma.service',
+                 'steamvr-proxmicmute.service', 'steamvr-v4l2cam.service',
+                 'steamvr-nested-desktop.service'):
+        link = root / 'etc/systemd/user' / unit
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.unlink(missing_ok=True)
+        link.symlink_to('/dev/null')
+    autostart = root / 'etc/xdg/autostart/steam.desktop'
+    if autostart.is_file():
+        text = autostart.read_text()
+        autostart.write_text('\n'.join(
+            'Exec=/usr/bin/steam -silent %U' if line.startswith('Exec=') else line
+            for line in text.splitlines()) + '\n')
+    # CPU policy is already configured by Piano. Do not load Valve's LAVD
+    # sched_ext scheduler over the selected BORE/EEVDF kernel scheduler.
+    put(root, 'etc/default/steamos-scheduler', 'GOVERNOR=schedutil\nSCHEDULER=none\n')
+    bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
+    put(root, 'usr/share/steamos-manager/devices/xiaomi-piano.toml',
+        (bsp / 'xiaomi-piano.toml').read_text())
+    return units
 
 
 def configure(root):
@@ -46,10 +101,7 @@ def configure(root):
                  '51-alsa-disable.conf', '60-spatial-audio.conf',
                  '70-spatial-node-config.conf'):
         (root / 'etc/wireplumber/wireplumber.conf.d' / name).unlink(missing_ok=True)
-    for unit in FRAME_UNITS:
-        link = root / 'etc/systemd/system' / unit
-        link.unlink(missing_ok=True)
-        link.symlink_to('/dev/null')
+    units = configure_platform(root)
     offload = root / 'etc/tmpfiles.d/steamos-offload.conf'
     offload.parent.mkdir(parents=True, exist_ok=True)
     offload.unlink(missing_ok=True)
@@ -67,15 +119,18 @@ def configure(root):
     keyutils.symlink_to('libkeyutils.so.1')
     # Keep the native client and translation runtime. Do not reuse Frame's
     # VR session, including its low-space game deletion policy.
+    bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
     put(root, 'usr/local/bin/piano-gamescope-session',
-        '#!/bin/sh\nexec gamescope -e -- steam -steamdeck -gamepadui\n', 0o755)
+        (bsp / 'piano-gamescope-session').read_text(), 0o755)
     put(root, 'usr/share/wayland-sessions/gamescope-wayland.desktop',
         '[Desktop Entry]\nName=Steam Gaming Mode\n'
         'Exec=/usr/local/bin/piano-gamescope-session\n'
         'Type=Application\nDesktopNames=gamescope\n')
-    # KDE is the initial session until the tablet's gaming session is validated.
-    # Users can select Gaming Mode in SDDM without changing the boot firmware.
     configure_kde(root, subprocess.run)
+    # SteamOS Manager writes a later temporary SDDM session override when
+    # switching modes. Relogin lets SDDM follow it after the old session exits.
+    put(root, 'etc/sddm.conf.d/10-sunuefi.conf',
+        '[Autologin]\nUser=piano\nSession=gamescope-wayland.desktop\nRelogin=true\n')
     put(root, 'etc/locale.conf', 'LANG=zh_CN.UTF-8\n')
     put(root, 'etc/hostname', 'piano\n')
     put(root, 'etc/sudoers.d/20-piano', '%wheel ALL=(ALL:ALL) ALL\n', 0o440)
@@ -94,7 +149,8 @@ def configure(root):
                 text = file.read_text(errors='replace')
                 if '/usr/share/deckard/mesavars.sh' in text:
                     file.unlink()
-    return {'initial_session': 'plasma', 'gaming_session': 'gamescope',
-            'frame_units_disabled': list(FRAME_UNITS),
+    return {'initial_session': 'gamescope', 'desktop_session': 'plasma',
+            'gaming_session': 'gamescope',
+            'frame_units_disabled': list(units),
             'steam_first_launch_requires_network': True,
             'gaming_session_device_verified': False}

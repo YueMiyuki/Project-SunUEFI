@@ -18,6 +18,26 @@ keys/buttons, stops the linked session and closes the connection, including on
 error. JSON reports actual PNG dimensions/caps and whether Stop was acknowledged.
 No RDP, Shell Eval, shell execution, password change or touch FIFO is involved.
 
+## KDE screenshot
+
+`piano_kwin_screenshot.cpp` uses KWin's ScreenShot2 interface. Compile on the
+tablet with Qt6 development files:
+
+```sh
+g++ -O2 piano_kwin_screenshot.cpp -o piano-kwin-screenshot \
+  $(pkg-config --cflags --libs Qt6Core Qt6Gui Qt6DBus)
+```
+
+Install the executable and a local desktop entry whose `Exec` is its absolute
+path and whose `X-KDE-DBUS-Restricted-Interfaces` is exactly
+`org.kde.KWin.ScreenShot2` (no trailing semicolon). Refresh the KDE service
+cache with `XDG_MENU_PREFIX=plasma- kbuildsycoca6 --noincremental`, then run
+`piano-kwin-screenshot /tmp/desktop.png` as the active desktop user with its
+session bus. This grants screenshot access to that specific executable;
+it does not disable KWin's permission checks. The helper checks metadata,
+limits reads and closes the D-Bus pipe on completion. It is a manual debug
+tool, not an automatically installed system service.
+
 ## Focus Pen Pro control observation
 
 Run `piano_pen_control.py` on the tablet with Python GI and BlueZ. Supply the

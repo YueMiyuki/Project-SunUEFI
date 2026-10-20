@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
@@ -59,6 +60,32 @@ def sensor_recipes(output, source):
             shutil.copy2(patch, recipe / patch.name)
 
 
+def kde_recipes(output):
+    """Build missing desktop components against Valve's Qt/Plasma ABI."""
+    packages = json.loads((ROOT / 'config/steamos.json').read_text())['kde_packages']
+    for item in packages:
+        folder = output / item['name']
+        folder.mkdir(parents=True, exist_ok=True)
+        q = shlex.quote
+        (folder / 'PKGBUILD').write_text(
+            f"pkgname={q(item['name'])}\npkgver={q(item['version'])}\npkgrel=1.1\n"
+            "pkgdesc='KDE desktop component for SteamOS ARM64'\narch=(aarch64)\n"
+            "url='https://kde.org/'\nlicense=('GPL-2.0-or-later' 'LGPL-2.1-or-later')\n"
+            f"depends=({' '.join(q(p) for p in item['depends'])})\n"
+            "makedepends=(base-devel cmake ninja extra-cmake-modules kdoctools)\n"
+            "options=(!lto !debug)\n"
+            f"source=({q(item['url'])})\nsha256sums=({q(item['sha256'])})\n"
+            'build() {\n  cmake -S "$pkgname-$pkgver" -B build -G Ninja '
+            '-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr '
+            '-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBEXECDIR=lib '
+            '-DBUILD_TESTING=OFF -DBUILD_QCH=OFF\n'
+            '  cmake --build build -j6\n}\n'
+            'package() {\n  DESTDIR="$pkgdir" cmake --install build\n'
+            '  install -d "$pkgdir/usr/share/licenses/$pkgname"\n'
+            '  cp -a "$pkgname-$pkgver/LICENSES/." "$pkgdir/usr/share/licenses/$pkgname/"\n}\n')
+    return [item['name'] for item in packages]
+
+
 def build(args):
     output = args.output.resolve()
     if os.geteuid() or not output.is_relative_to(ROOT / 'build/distros'):
@@ -85,8 +112,8 @@ def build(args):
     if json.loads((output / 'BASE.json').read_text())['base'] != base_record['base']:
         raise ValueError('Existing root belongs to another Valve base image')
 
-    # Preserve the complete Valve Mesa/FEX runtime rather than mixing Debian
-    # shared libraries with Arch packages. Hardware support still needs a boot.
+    # Keep the native pacman ABI and separate FEX guest runtime. Native Mesa
+    # is rebuilt below because the Frame image does not know Piano's A830v1.
     with build_resolver(root), guest_environment(root) as guest:
         guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel',
                'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager',
@@ -101,6 +128,10 @@ def build(args):
         locale = root / 'etc/locale.gen'
         locale.write_text('en_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\n')
         guest(['locale-gen'])
+    for name in kde_recipes(output / 'kde-recipes'):
+        packages = output / 'packages' / name
+        if not (packages / 'manifest.json').is_file():
+            build_arch_package.build(root, output / 'kde-recipes' / name, packages)
     source = output / 'sensor-source'
     if not source.exists():
         sensor_sources(source, cfg['sensors'])
@@ -111,6 +142,13 @@ def build(args):
         packages = output / 'packages' / name
         if not (packages / 'manifest.json').is_file():
             build_arch_package.build(root, recipes / name, packages)
+    mesa = output / 'packages/mesa'
+    if not (mesa / 'manifest.json').is_file():
+        recipe = output / 'mesa-recipe'
+        shutil.copytree(ROOT / 'linux/bsp/steamos/mesa', recipe, dirs_exist_ok=True)
+        shutil.copy2(ROOT / 'upstream/piano-mesa-current/patches/0001-freedreno-Add-chip-id-support-for-A830v1.patch',
+                     recipe)
+        build_arch_package.build(root, recipe, mesa)
     ffmpeg = output / 'packages/ffmpeg'
     if not (ffmpeg / 'SOURCE.json').is_file():
         build_arch_ffmpeg.build(root, ffmpeg, resume=ffmpeg.exists())
@@ -120,6 +158,7 @@ def build(args):
     if json.loads((client / 'SOURCE.json').read_text()) != json.loads(
             (ROOT / 'config/steam-client.json').read_text()):
         raise ValueError('Cached Steam client differs from config/steam-client.json')
+    prepare_steam_client.enable_first_launch(root)
 
     kernel = ROOT / 'artifacts/kernels/release'
     kernel_source = Path(json.loads((ROOT / 'build/release/source-manifest.json').read_text())['worktree'])

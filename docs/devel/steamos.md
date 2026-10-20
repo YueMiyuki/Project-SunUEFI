@@ -2,7 +2,9 @@
 
 这一目标使用 Valve SteamOS ARM64 根系统，沿用 SunUEFI 的合体 BOOT、UEFI、内核、设备树和独立存储分区。无需替换 ABL，也不使用 SteamOS-ARM-Port 的掌机分区安装器。
 
-这是实验构建目标。默认进入 KDE，登录管理器另有 **Steam Gaming Mode** 会话。Steam 登录、Gamescope 的平板显示与输入、Proton/FEX 游戏兼容性需要实机验证；有 ARM64 客户端不代表所有 Windows 游戏都能运行。
+这是实验构建目标。默认启动入口为 **Steam Gaming Mode**，KDE 作为桌面模式。
+游戏模式的完整显示与输入、模式切换、Proton/FEX 游戏兼容性仍在调试；
+有 ARM64 客户端不代表所有 Windows 游戏都能运行。
 
 ## 下载与安装
 
@@ -40,9 +42,38 @@ FFmpeg 默认从源码构建为原生 pacman 包并替换根系统中的版本�
 
 这会覆盖系统 FFmpeg 及使用它的程序。Steam 或 Electron 自带的私有编解码库不属于系统包，不能用不同 ABI 的共享库强行替换；其硬件视频路径需要分别确认。
 
-图形部分保留 Valve 成套的 ARM64 Mesa 和 x86 客体运行时，不向 SteamOS 安装 Debian 的共享库。传感器依赖在 SteamOS 内重编译为原生包。平板硬件是否全部适用于这套 Valve 图形栈仍需实机验证。
+Valve 原生 Mesa 不识别本机的 Adreno 830v1。ARM64 图形包因此使用
+`linux/bsp/steamos/mesa/PKGBUILD` 在 SteamOS 中重编译，加入与 Debian /
+Nyarch 相同的芯片识别补丁，保留标准 Mesa 路径和 Valve 的软件包名称。
+不向 SteamOS 安装 Debian 共享库。x86 客体图形运行库仍保留 Valve 版本，
+游戏翻译路径尚需单独验证。
+
+实机已运行 Plasma Wayland，OpenGL 使用 Freedreno，Vulkan 使用 Turnip；
+这些结果不能替代硬件视频解码或游戏兼容性验证。
 
 Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接安装这里的 7.1 包。
+
+## 与掌机体验对齐
+
+基础镜像是 Valve `VARIANT_ID=vr`，不是 Steam Deck 的桌面镜像。对照
+[Steam Deck 3.9.3 官方包清单](https://steamdeck-images.steamos.cloud/steamdeck/20261015.100/steamdeck-20261015.100-3.9.3.manifest.pacman)，
+补充 Bluetooth、NetworkManager 的 KDE 界面、显示设置和系统信息。
+ARM64 使用 Plasma 6.2.5 / Frameworks 6.14 的兼容组件，源码及摘要固定在
+`config/steamos.json`，全部构建为 pacman 包，不直接混装更新的 x86 库。
+
+`stage_steamos_desktop.py` 禁用头显专用服务、原设备 MAC 地址设置、
+`by-partsets/shared/home` 和 offload 挂载，桌面入口改为原生 Plasma Wayland。
+只禁用 offload target 不够：用户登录和临时文件依赖仍可能启动它下面的
+挂载任务，导致反复等待不存在的分区。
+
+`prepare_steam_client.py` 处理首次登录时的客户端解包，直接启动 ARM64
+程序，保留退出码 42 的正常重启行为。预装文件附带客户端安装清单，
+避免首次启动仅因清单缺失而重下整套客户端。在线更新与登录仍由 Steam 负责。
+
+2026-10-21 实机记录：清理原设备服务后，Linux 7.3 的内核和系统服务启动
+约 18 秒，不含 UEFI；Steam 登录界面已显示。完整游戏模式、模式切换、
+硬件视频解码与 7.3 的 ADSP 稳定性仍在调试。对照同一 SteamOS 根系统，
+7.2.9 的 ADSP 和传感器正常，7.3 存在 DSP 崩溃，尚未发布本轮升级。
 
 ## 来源
 

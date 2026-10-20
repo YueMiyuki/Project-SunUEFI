@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Build the native ARM64 Steam bootstrap from pinned public CDN packages."""
 import concurrent.futures
+import calendar
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -11,6 +13,30 @@ import zipfile
 from prepare_steamos_rootfs import download
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def enable_first_launch(root):
+    launcher = root / 'usr/lib/steam/bin_steam.sh'
+    text = launcher.read_text()
+    old = 'exec "$LAUNCHSTEAMDIR/$LAUNCHSTEAMPLATFORM/steam" "$@"'
+    new = '''# SunUEFI: Frame assumes its client has already been installed by SteamVR.
+# Use the launcher's own bootstrap functions for an ordinary first login.
+if ! check_bootstrap "$LAUNCHSTEAMDIR" "$*"; then
+    install_bootstrap "$DEFAULTSTEAMDIR"
+fi
+ln -fns "$LAUNCHSTEAMDIR" "$STEAMCONFIG/root"
+export LD_LIBRARY_PATH="$LAUNCHSTEAMDIR/$LAUNCHSTEAMPLATFORM${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+cd "$LAUNCHSTEAMDIR"
+while :; do
+    status=0
+    "$LAUNCHSTEAMDIR/$LAUNCHSTEAMPLATFORM/steam" "$@" || status=$?
+    [ "$status" = 42 ] || exit "$status"
+done'''
+    if new in text:
+        return
+    if text.count(old) != 1:
+        raise ValueError('Steam launcher first-run entry changed')
+    launcher.write_text(text.replace(old, new))
 
 
 def prepare(root, output):
@@ -31,6 +57,7 @@ def prepare(root, output):
         return path
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
         archives = list(pool.map(fetch, cfg['packages'].items()))
+    installed = {}
     for archive in archives:
         with zipfile.ZipFile(archive) as source:
             for entry in source.infolist():
@@ -39,7 +66,12 @@ def prepare(root, output):
                 if name.is_absolute() or '..' in name.parts:
                     raise ValueError('Invalid Steam archive path')
                 target = tree / name
-                if entry.is_dir() or entry.filename.endswith('\\'):
+                directory = entry.is_dir() or entry.filename.endswith('\\')
+                manifest_name = name.as_posix() + ('/' if directory else '')
+                timestamp = calendar.timegm((*entry.date_time, 0, 0, 0))
+                installed[manifest_name] = (
+                    -1 if directory else entry.file_size, timestamp, entry.CRC)
+                if directory:
                     target.mkdir(parents=True, exist_ok=True)
                     continue
                 # Do not let an earlier archive's symlink redirect extraction.
@@ -64,11 +96,24 @@ def prepare(root, output):
             raise ValueError('Native client is incomplete: ' + required)
     (tree / 'package').mkdir(exist_ok=True)
     (tree / 'package/beta').write_text(cfg['channel'] + '\n')
+    # Steam's .installed file is a per-file size/time/ZIP-CRC inventory, not
+    # the download VDF. Without it the first run downloads the entire client
+    # again despite all signed-source archives already having been extracted.
+    inventory = 'steam_client_' + cfg['channel'] + '_' + cfg['platform'] + '.installed'
+    inventory_text = ''.join(
+        f'{name},{size};{timestamp};{crc}\n'
+        for name, (size, timestamp, crc) in sorted(installed.items()))
+    # Native linuxarm64 client inventory format, as emitted by this pinned
+    # client. SHA1 covers every preceding byte including OSVER and VERSION.
+    inventory_text += 'OSVER=-183\nVERSION=3\n'
+    inventory_text += 'SHA1=' + hashlib.sha1(inventory_text.encode()).hexdigest().upper() + '\n'
+    (tree / 'package' / inventory).write_text(inventory_text)
     destination = root / 'usr/lib/steam/bootstraplinux_steamrtarm64.tar.xz'
     subprocess.run(['tar', '--sort=name', '--mtime=@0', '--owner=0', '--group=0',
                     '-I', 'xz -T4 -1', '-cf', str(destination), '-C', str(tree), '.'], check=True)
     # The Frame tarball is superseded by this complete handheld bootstrap.
     (root / 'usr/lib/steam/steam.tar.zst').unlink(missing_ok=True)
+    enable_first_launch(root)
     shutil.rmtree(tree)
     (output / 'SOURCE.json').write_text(json.dumps(cfg, indent=2) + '\n')
     return cfg
