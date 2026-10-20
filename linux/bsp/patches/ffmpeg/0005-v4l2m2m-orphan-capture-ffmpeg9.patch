@@ -5,7 +5,8 @@ Use V4L2 orphaned buffers where advertised, keeping old mappings until the
 last AVBufferRef is released. Stop old-generation QBUF at DRC LAST and
 resume available buffers only after the decoder resumes.
 
-Device validation of DRC is pending the companion Iris PSC_LAST fix.
+Verified on Iris with 640x480 -> 1280x720 -> 640x480 (36 frames),
+with the companion kernel PSC_LAST fix. H.264 encoding also remains functional.
 
 --- a/libavcodec/v4l2_buffers.c
 +++ b/libavcodec/v4l2_buffers.c

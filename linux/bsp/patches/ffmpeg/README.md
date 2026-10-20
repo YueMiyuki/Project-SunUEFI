@@ -17,6 +17,8 @@ add `--series linux/bsp/patches/ffmpeg/series-9.json` for FFmpeg 9.
 
 Real Iris hardware has decoded and encoded the 12-frame H.264 sample with
 both versions. The full FFmpeg 9 package was built and installed on Nyarch.
-Resolution-change playback still needs the capture-pool lifetime patches in
-`drafts/` and the companion Iris kernel fixes; these are not enabled by either
-series yet. See [the codec development notes](../../../../docs/devel/piano-video-codec.md).
+Both default patch series now include capture-pool lifetime handling. With
+the default Iris kernel fix, FFmpeg 7 and 9 both decode all 36 frames across
+640x480 -> 1280x720 -> 640x480 and encode 12 H.264 frames. Other codecs and
+player-specific hardware selection need separate checks. See
+[the codec development notes](../../../../docs/devel/piano-video-codec.md).

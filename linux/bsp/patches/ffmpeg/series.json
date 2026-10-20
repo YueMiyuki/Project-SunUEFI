@@ -2,8 +2,7 @@
   "schema_version": 1,
   "component": "ffmpeg-v4l2m2m",
   "upstream_version": "7.1.5",
-  "local_revision": "sunuefi3",
-  "status": "DEVICE_SYNTHETIC_H264_DECODER_ENCODER_VERIFIED",
+  "local_revision": "sunuefi4",
   "source": {
     "source": "https://ffmpeg.org",
     "upstream_version": "7.1.5",
@@ -44,12 +43,17 @@
       "path": "0003-v4l2m2m-preserve-encoder-drain-poll.patch",
       "sha256": "c7906fee1aa8ce5ce3bc36eadc42df56cb714d08bdbc5623ddd06460d863c200",
       "license": "LGPL-2.1-or-later; retain upstream file notices"
+    },
+    {
+      "path": "0005-v4l2m2m-orphan-capture-ffmpeg7.patch",
+      "sha256": "c74f3b275e01cbade1d54fc3c09038d2858e133b5c67546b260c6e8ee2766b7e",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
     }
   ],
   "distribution_independent": true,
   "debian_reference": {
     "source_version": "7:7.1.5-0+deb13u1",
-    "planned_binary_version": "7:7.1.5-0+deb13u1+sunuefi3",
+    "planned_binary_version": "7:7.1.5-0+deb13u1+sunuefi4",
     "binary_packages_built": false
   },
   "scope": [
@@ -60,47 +64,26 @@
     "AVBufferRef accounting required for capture remapping",
     "input EOF without initial metadata reports driver error or exhausted invalid input"
   ],
-  "device_operation_performed": true,
-  "mock_tests_performed": false,
   "verification": {
-    "status": "REAL_SYNTHETIC_H264_DECODER_ENCODER_VERIFIED_ON_G086",
-    "source_inputs": {
-      "libavcodec/v4l2_context.c": "4a9acb801050ccdda9302aa7268536c514ddc58555146c5311942fc092d0fe7a",
-      "libavcodec/v4l2_context.h": "2a0988b6247550316ae6fc0a6daae5da984660b5df0e4abcf25da259ec314146",
-      "libavcodec/v4l2_m2m.c": "f4e06377dff2fc913c7db0a906ab6ce45d65cccf89dc150096c79b74745294af",
-      "libavcodec/v4l2_m2m.h": "0ce53e32f79bbc34120bd4e36652e65356b2de62b61705cf9d868657f07b6cfe",
-      "libavcodec/v4l2_m2m_dec.c": "a323735725bdfe6b65d369924b56ea3d153839ce0755b9d5ab7c1bcd0ed70afe",
-      "libavcodec/v4l2_buffers.c": "69cdb7681030e3b9e3f6ada0adef8d7f9cbcbeb879ad3acb8e234a74c68afeb7"
-    },
-    "context_object_sha256": "a2aa8a42092a7311f1ac408580a17d2569f391617a2cb07163846bad3958965c",
-    "fresh_archive_patch_application_matches_workspace": true,
-    "device_result_sha256": "23a1ccafa3ac4aa34b5469db645e6dec25fa3491b206c2b752c84c2f6e455b6e",
-    "synthetic_decoder_frames": 12,
-    "synthetic_encoder_frames": 12,
-    "encoder_output_matches_baseline_bytes": true,
-    "mock_tests_run": false,
-    "full_debian_packages_built": false,
-    "DRC_reallocation_device_verified": false,
-    "playback_timing_verified": false
-  },
-  "runtime_pending": [
-    "Real DRC and capture reallocation with old frame references retained",
-    "Actual invalid input that exhausts OUTPUT without initial source-change",
-    "Container playback timing and complete standard distro package integration"
-  ],
-  "reference_lifetime_limit": "Capture reallocation still waits for caller AVBufferRefs, as upstream; retained same-thread frames can block. No forced unref.",
-  "previous_prototype": {
-    "path": "build/ffmpeg-prototype/7.1.5-sunuefi1/ffmpeg-stateful-prototype",
-    "sha256": "30b4016433f59fcf364cb1eb343b45890060690f233105a9b4d6191147f5ba76",
-    "size": 1904112,
-    "manifest": "build/ffmpeg-prototype/7.1.5-sunuefi1/BUILD.json",
-    "status": "REAL_AARCH64_FFMPEG_PROTOTYPE_NOT_DEVICE_VERIFIED"
-  },
-  "prototype": {
-    "path": "build/ffmpeg-prototype/7.1.5-sunuefi3/ffmpeg-stateful-prototype",
-    "sha256": "af8a5d012fcca1867d76516fbb974c1632a9f39d9b80053b6e768f697e88bd43",
-    "size": 1904112,
-    "manifest": "build/ffmpeg-prototype/7.1.5-sunuefi3/BUILD.json",
-    "status": "REAL_SYNTHETIC_H264_DECODER_ENCODER_VERIFIED_ON_G086"
+    "kernel_release": "7.2.9-piano-gnome-gbfc12c0e2c84",
+    "h264_resolution_changes": [
+      [
+        640,
+        480
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        640,
+        480
+      ]
+    ],
+    "decoded_frames": 36,
+    "decode_errors": 0,
+    "encoded_frames": 12,
+    "full_native_package_installed": false,
+    "other_codecs_validated": false
   }
 }

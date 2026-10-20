@@ -2,7 +2,7 @@
   "schema_version": 1,
   "component": "ffmpeg-v4l2m2m",
   "upstream_version": "9.0.2",
-  "local_revision": "sunuefi1",
+  "local_revision": "sunuefi2",
   "source": {
     "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
     "filename": "ffmpeg-9.0.2.tar.xz",
@@ -14,6 +14,33 @@
       "path": "0004-v4l2m2m-ffmpeg9-stateful.patch",
       "sha256": "ad7b86872378f38fbbdf8a24e31726f62a765869b6f910322be6a8d8695b1a3c",
       "license": "LGPL-2.1-or-later; retain upstream file notices"
+    },
+    {
+      "path": "0005-v4l2m2m-orphan-capture-ffmpeg9.patch",
+      "sha256": "b35c619d8467a15144db5ba58b4015884de71167f32b0c31fdb6f3b834e29bb3",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
     }
-  ]
+  ],
+  "verification": {
+    "kernel_release": "7.2.9-piano-gnome-gbfc12c0e2c84",
+    "h264_resolution_changes": [
+      [
+        640,
+        480
+      ],
+      [
+        1280,
+        720
+      ],
+      [
+        640,
+        480
+      ]
+    ],
+    "decoded_frames": 36,
+    "decode_errors": 0,
+    "encoded_frames": 12,
+    "full_native_package_installed": true,
+    "other_codecs_validated": false
+  }
 }
