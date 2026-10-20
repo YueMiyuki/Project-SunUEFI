@@ -12,7 +12,7 @@ from compose_piano_dtb import read_fdt
 import build_piano_runtime_helpers as runtime
 import build_release_helpers as helpers
 
-MODEL = 'Qualcomm Snapdragon 8 Elite Mobile Platform (SM8750)'
+MODEL = 'Qualcomm Snapdragon 8 Elite Mobile Platform'
 PATCH = ROOT / 'patches/linux/7.2.9/0001-arm64-cpuinfo-read-dt-model.patch'
 SOURCE = ROOT / 'upstream/linux-piano/arch/arm64/kernel/cpuinfo.c'
 DTC = ROOT / 'build/kernel-topics/piano-panel/scripts/dtc/dtc'
