@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "bf44482de290f2793bb1c9d22f11eb275d1fee5d",
-  "original_target_commit": "95f8b55c62eb2cac8f331913aced9f8e5d849f70",
+  "target_tree": "89d2aad905c7e14699f641ac3394e0a7cccc862b",
+  "original_target_commit": "21a155746e066cf1c6f69ab879ca971a3124e7f2",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -79,6 +79,14 @@
       "original_parent": "948540b67ca51994ff799d02592856aa1e0c17a6",
       "committer_date": "2026-10-20T14:10:00+00:00",
       "tree": "bf44482de290f2793bb1c9d22f11eb275d1fee5d"
+    },
+    {
+      "file": "0010-gunyah-dt-availability.patch",
+      "sha256": "0534e6d384d57257b8ba67a0ac6003fdecce8328a36b28e12413c828d5c199af",
+      "original_commit": "21a155746e066cf1c6f69ab879ca971a3124e7f2",
+      "original_parent": "95f8b55c62eb2cac8f331913aced9f8e5d849f70",
+      "committer_date": "2026-10-20T15:50:00+00:00",
+      "tree": "89d2aad905c7e14699f641ac3394e0a7cccc862b"
     }
   ],
   "provenance": {
