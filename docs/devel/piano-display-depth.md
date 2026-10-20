@@ -24,7 +24,7 @@ GNOME 51 的显示设置有 HDR 开关，但没有单独的 8／10／12 位色�
 - 原厂 SDR／P3 模式使用 IGCv5、GCv2 和 Gamut v4。IGC 开启高精度扩展与内部 dither，GC 开启高精度扩展。
 - IGC 的高精度格式是 257 个普通点加 128 个暗部扩展点，不能按均匀 385 点解释。原厂 QDCM 的 sRGB 表与普通步长 `1/256`、暗部步长 `1/1024` 精确对应；独立的 Gamma 2.2 表误差不超过一个十六位码值。默认后端向用户空间提供均匀 1025 点接口，再选取硬件所需的两组采样点。
 - 原厂 DSI 的 `hdr_properties` 描述静态原色和亮度能力；它不等于 HDMI／DP 的动态 `HDR_OUTPUT_METADATA`，也不证明 DDIC 直接接收 PQ 像素。
-- 尚需取得真实 HDR 图层播放时的曲线、色域和亮度处理，对照 SDR 确认原厂在哪一层进行转换和色调映射。
+- 同机 HyperOS 4 播放 HDR10 视频时，视频图层为 `BT2020_ITU_PQ`，显示输出仍为 `DISPLAY_P3`，HDR 的 render intent 为 `0x113`。两路视频平面使用 Gamut v6 三维查找表，整屏继续使用 IGCv5、GCv2 和 Gamut v4。移植时需要处理视频内容到面板输出的转换，不能把 PQ 数据直接送往现有面板链路。
 
 参考源码：[`reg_dmav2_setup_dspp_igcv5`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_hw_reg_dma_v1_color_proc.c#L5366)、[`dsi_panel_parse_hdr_config`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/dsi/dsi_panel.c#L4061)。
 
@@ -34,11 +34,25 @@ HyperOS 4 的实际配置位于 `/odm/etc/display/qdcm_calib_data_xiaomi_p81_35_
 - HDR 模式配置了 LUMA dither，但 `temporalEnable=0`；配置内容不能代替实际播放时的寄存器状态，也不能单凭该字段认定面板 FRC。
 - [`0045` 高精度后端](../../patches/linux/7.2.9/0045-drm-igcv5-high-precision-grid.patch)暴露均匀 1025 项 `DEGAMMA_LUT`，由驱动选取两组硬件采样点，仍不启用 dither。组合 DMA 扩大到 16 KiB；实机恒等、非线性和旁路恢复已完成，提交 2142 个 word，两路 DSPP 均返回完成状态。已加入默认序列；这只扩展曲线采样精度，不代表 HDR 或面板 FRC 已验证。
 
+### HDR 亮度与背光
+
+原厂使用两颗 KTZ8866 背光芯片。系统的 `0..4095` 请求先经过普通亮度／高亮度区间映射，再经过 `mi_bl_level_remap` 曲线，最后写入两颗芯片的 11 位亮度寄存器。不能把系统请求值直接当作芯片码值或实际亮度。
+
+2026-10-20 的 HDR10 播放对照中，最低亮度时系统请求为 17，两颗芯片均读回 374；最高亮度时请求为 4095，芯片均读回 2047。保持最低亮度后，物理屏幕的变暗得到目视确认。原厂 `actual_brightness` 回调固定返回 0，不能用于判断屏幕是否熄灭；寄存器读回也不是亮度计测得的 nit。
+
+这组低／高亮度快照中，整屏 IGC、GC、PCC、Gamut 表保持一致，视频层 Gamut v6 表发生变化。采集时视频仍在播放，尚不能把该变化单独归因于亮度；需要固定画面对照，才能还原亮度与色调映射之间的关系。
+
+播放器可以通过窗口亮度覆盖系统设置。调试时先检查 `mWindowManagerBrightnessOverride`，再判断系统调光命令是否适用；目视测试保持一个档位等待观察，避免自动恢复后才询问结果。
+
+相关实现：[`dsi_panel_set_backlight`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/dsi/dsi_panel.c)、[`mi_backlight_ktz8866.c`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/mi_disp/mi_backlight_ktz8866.c)、[`sde_backlight_device_get_brightness`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_connector.c)。
+
 ## 12-bit 与抖动
 
 [小米官方规格](https://www.mi.com/global/product/xiaomi-pad-8-pro/)宣称支持 12-bit 色深。当前可确认的原厂链路是十位传输；额外两位是否来自面板内部 FRC、显示处理或组合机制，仍需确认具体实现。
 
 不能直接打开高通普通 pingpong dither 来代替。原厂 [`_sde_encoder_setup_dither`](https://github.com/MiCode/vendor_opensource_display-drivers/blob/aa06fd1757c28dce96fbe4e04d4530ec21b52aac/msm/sde/sde_encoder.c#L4002)在 DSC10／30bpp 配置下关闭该模块，其位深表只覆盖 6／7／8 位输出。IGC 的 16 位 LUT、内部 dither 和面板 12-bit FRC 也不是同一个概念。
+
+实际 HDR10 播放时，虽然 DRM 的 `SDE_PP_DITHER_V2` 属性包含配置，PP0／PP1 的 dither 使能寄存器（SDE 偏移 `0x6a0e0`／`0x6b0e0`）均读回 0，与原厂驱动的关闭路径一致。不能仅凭属性 blob 非空认定硬件已经启用抖动。
 
 ## HDR 接入要求
 
