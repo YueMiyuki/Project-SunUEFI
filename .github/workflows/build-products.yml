@@ -85,7 +85,9 @@ jobs:
       - name: Build selected product
         run: |
           set -o pipefail
-          mkdir -p build/logs build/ccache
+          # The container writes as root; keep the host-side download staging
+          # directory owned by the runner for the upload steps below.
+          mkdir -p build/logs build/ccache artifacts/downloads
           docker run --rm --privileged \
             -v "$PWD:/workspace" -w /workspace \
             -e CCACHE_DIR=/workspace/build/ccache -e CCACHE_MAXSIZE=3G \
