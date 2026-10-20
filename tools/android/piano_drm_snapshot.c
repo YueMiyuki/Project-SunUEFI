@@ -155,6 +155,54 @@ static void property(int fd, uint32_t id, uint64_t value) {
   putchar('}');
 }
 
+static void plane_framebuffer(int fd, uint32_t id) {
+  struct drm_mode_get_plane plane = {.plane_id = id};
+  if (query(fd, DRM_IOCTL_MODE_GETPLANE, &plane) < 0) {
+    fputs(",\"scanout\":{", stdout);
+    error();
+    putchar('}');
+    return;
+  }
+  printf(",\"scanout\":{\"crtc_id\":%u,\"fb_id\":%u",
+         plane.crtc_id, plane.fb_id);
+  if (plane.fb_id) {
+    struct drm_mode_fb_cmd2 fb = {.fb_id = plane.fb_id};
+    if (query(fd, DRM_IOCTL_MODE_GETFB2, &fb) < 0) {
+      putchar(',');
+      error();
+    } else {
+      char fourcc[5] = {fb.pixel_format, fb.pixel_format >> 8,
+                        fb.pixel_format >> 16, fb.pixel_format >> 24, 0};
+      printf(",\"width\":%u,\"height\":%u,\"format\":%u,\"fourcc\":",
+             fb.width, fb.height, fb.pixel_format);
+      string(fourcc, 4);
+      printf(",\"flags\":%u,\"planes\":[", fb.flags);
+      for (unsigned i = 0; i < 4; i++)
+        printf("%s{\"pitch\":%u,\"offset\":%u,\"modifier\":%" PRIu64 "}",
+               i ? "," : "", fb.pitches[i], fb.offsets[i],
+               (uint64_t)fb.modifier[i]);
+      putchar(']');
+      /* GETFB2 may create handles on this fd for a privileged caller.
+       * Release each distinct handle; never map or read framebuffer pixels.
+       */
+      for (unsigned i = 0; i < 4; i++) {
+        if (!fb.handles[i])
+          continue;
+        unsigned j;
+        for (j = 0; j < i; j++)
+          if (fb.handles[j] == fb.handles[i])
+            break;
+        if (j == i) {
+          struct drm_gem_close close_handle = {.handle = fb.handles[i]};
+          if (query(fd, DRM_IOCTL_GEM_CLOSE, &close_handle) < 0)
+            ++errors;
+        }
+      }
+    }
+  }
+  putchar('}');
+}
+
 static void object(int fd, uint32_t id, uint32_t type, const char *kind) {
   struct drm_mode_obj_get_properties p = {.obj_id = id, .obj_type = type};
   printf("{\"id\":%u,\"kind\":", id);
@@ -201,6 +249,8 @@ static void object(int fd, uint32_t id, uint32_t type, const char *kind) {
   }
   free(ids);
   free(values);
+  if (type == DRM_MODE_OBJECT_PLANE)
+    plane_framebuffer(fd, id);
   putchar('}');
 }
 
