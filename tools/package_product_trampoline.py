@@ -77,12 +77,20 @@ def build_selector(output):
     subprocess.run([str(objcopy), '-O', 'binary', str(elf), str(binary)], check=True, env=environment)
     text = subprocess.check_output([str(nm), '-n', str(elf)], text=True, env=environment)
     labels = {row.split()[2]: int(row.split()[0], 16) for row in text.splitlines() if len(row.split()) == 3}
+    # objcopy ends at the last file-backed data byte, which need not be an
+    # instruction boundary (e.g. a compiler-emitted string). Include the
+    # alignment gap before the private stack in the raw payload.
+    data = binary.read_bytes()
+    data += bytes(align(len(data), 16) - len(data))
     require(labels.get('_start') == 0 and labels['__image_end'] == labels['__stack_end'] and
-            8192 < labels['__image_end'] < 65536 and labels['bootselect_metadata'] + 128 <= binary.stat().st_size,
+            8192 < labels['__image_end'] < 65536 and len(data) <= labels['__stack_start'] and
+            labels['bootselect_metadata'] % 16 == 0 and labels['bootselect_metadata'] + 128 <= len(data) and
+            data[labels['bootselect_metadata']:labels['bootselect_metadata'] + 128] == bytes(128),
             'Selector entry/metadata/private-stack layout changed')
+    binary.write_bytes(data)
     related = [*sources, ROOT / 'uefi/handoff/bootselect/BootSelect.h', ROOT / 'uefi/handoff/bootselect/BootRequest.h', ROOT / 'uefi/handoff/bootselect/EarlyTrace.h', ROOT / 'uefi/handoff/bootselect/EarlyKeys.h', ROOT / 'uefi/handoff/bootselect/BootSelect.ld',
                ROOT / 'uefi/components/product-support/Library/ProductBootManagerLib/ProductSplashAssets.h']
-    return binary.read_bytes(), labels, {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in related}
+    return data, labels, {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in related}
 
 
 def selector_only(output):

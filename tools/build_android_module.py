@@ -104,6 +104,14 @@ def product_payload(folder):
             'product_header_version': version, 'fd': record(fd), 'app': record(app), 'shim': record(shim)}
 
 
+def check_selector_layout(data, memory, offset):
+    require(len(data) >= 4 and len(data) % 4 == 0,
+            'Selector file must end on a 4-byte boundary; rebuild with aligned padding')
+    require(type(memory) is int and type(offset) is int and 8192 < memory < 65536 and
+            len(data) <= memory and offset >= 0 and offset % 16 == 0 and offset + 128 <= len(data) and
+            data[offset:offset + 128] == bytes(128), 'Selector memory/metadata layout differs')
+
+
 def selector_payload(path, manifest, payloads):
     data, meta = read_file(path, 1024 * 1024), read_json(manifest)
     require(meta.get('schema_version') == 1 and meta.get('interface_version') == 1,
@@ -118,11 +126,8 @@ def selector_payload(path, manifest, payloads):
     require(meta.get('entry_policy') == 'explicit-request-only' and
             meta.get('request_bootarg') == 'sunuefi.boot=uefi', 'Selector must preserve ordinary Android/Recovery entry')
     require(meta.get('persistent_uefi_request') is False, 'A diagnostic persistent UEFI request must not ship in a module')
-    require(len(data) >= 4 and len(data) % 4 == 0, 'Selector must contain aligned ARM64 instructions')
     memory, offset = meta.get('selector_memory_bytes'), meta.get('metadata_offset')
-    require(type(memory) is int and type(offset) is int and 8192 < memory < 65536 and
-            len(data) <= memory and offset >= 0 and offset % 16 == 0 and offset + 128 <= len(data) and
-            data[offset:offset + 128] == bytes(128), 'Selector memory/metadata layout differs')
+    check_selector_layout(data, memory, offset)
     return data, {'memory_bytes': memory, 'metadata_offset': offset}
 
 
@@ -227,6 +232,11 @@ def package_installed(args):
         data = read_file(folder / name)
         checked(data, policy['payloads'][name], name)
         entries['payload/' + name] = data
+    require(descriptor.get('selector') == policy.get('selector'),
+            'Selector descriptor differs from the native repacker policy')
+    check_selector_layout(entries['payload/selector.bin'],
+                          policy['selector']['memory_bytes'],
+                          policy['selector']['metadata_offset'])
     entries['bin/piano-boot-repack'] = native
     entries['bin/piano-boot-request'] = request
     for option, name in (('storage_tool', 'piano-storage'), ('resize_tool', 'piano-resize-f2fs')):
