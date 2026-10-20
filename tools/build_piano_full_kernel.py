@@ -51,8 +51,12 @@ PEN_DOCK_OVERRIDES={'CONFIG_INPUT_XIAOMI_PIANO_PEN_DOCK':'m', 'CONFIG_CHARGER_SC
 USERSPACE_SECURITY_OVERRIDES={'CONFIG_SECURITY_LANDLOCK':'y'}
 SLEEP_OVERRIDES={'CONFIG_QCOM_SMP2P_SLEEPSTATE':'y'}
 PM_DEBUG_OVERRIDES={'CONFIG_PM_DEBUG':'y','CONFIG_PM_SLEEP_DEBUG':'y'}
+PLATFORM_OVERRIDES={key:'n' for key in (
+    'CONFIG_IMX_SCMI_LMM_DRV','CONFIG_IMX_SCMI_CPU_DRV','CONFIG_IMX_SCMI_MISC_DRV',
+    'CONFIG_IMX_SCMI_LMM_EXT','CONFIG_IMX_SCMI_CPU_EXT','CONFIG_IMX_SCMI_MISC_EXT',
+    'CONFIG_IMX_SCMI_BBM_EXT')}
 ALLOWED_OVERRIDES={**BLUETOOTH_OVERRIDES,**PEN_DOCK_OVERRIDES,**FLASH_OVERRIDES,**EARLY_CPUCP_OVERRIDES,
-                   **USERSPACE_SECURITY_OVERRIDES,**SLEEP_OVERRIDES,**PM_DEBUG_OVERRIDES}
+                   **USERSPACE_SECURITY_OVERRIDES,**SLEEP_OVERRIDES,**PM_DEBUG_OVERRIDES,**PLATFORM_OVERRIDES}
 
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -87,7 +91,7 @@ def command_line(fragment,public,root_policy):
 
 def module_overrides(fragment,kind='bluetooth'):
     lines=[line.strip()for line in fragment.splitlines()if line.strip()and not line.lstrip().startswith('#')]
-    expected=BLUETOOTH_OVERRIDES if kind=='bluetooth'else PEN_DOCK_OVERRIDES if kind=='pen-dock'else FLASH_OVERRIDES if kind=='flash'else EARLY_CPUCP_OVERRIDES if kind=='early-cpucp'else USERSPACE_SECURITY_OVERRIDES if kind=='userspace-security'else SLEEP_OVERRIDES if kind=='sleep'else None
+    expected=BLUETOOTH_OVERRIDES if kind=='bluetooth'else PEN_DOCK_OVERRIDES if kind=='pen-dock'else FLASH_OVERRIDES if kind=='flash'else EARLY_CPUCP_OVERRIDES if kind=='early-cpucp'else USERSPACE_SECURITY_OVERRIDES if kind=='userspace-security'else SLEEP_OVERRIDES if kind=='sleep'else PLATFORM_OVERRIDES if kind=='platform'else None
     if expected is None or lines!=[key+'='+value for key,value in expected.items()]:raise ValueError('Unexpected '+kind+' configuration fragment')
     return dict(expected)
 
@@ -149,7 +153,7 @@ def validate_config(config,public,expected_command,modules=None):
     for key,value in config_values(public).items():
         if key!='CONFIG_CMDLINE'and values.get(key)!=modules.get(key,value):raise ValueError('Public full profile option lost: '+key)
     for key,value in modules.items():
-        if values.get(key)!=value:raise ValueError('Local module requirement lost: '+key)
+        if values.get(key,'n')!=value:raise ValueError('Local module requirement lost: '+key)
     for key,value in REQUIRED.items():
         if values.get('CONFIG_'+key)!=value:raise ValueError('Full driver/userspace requirement lost: CONFIG_'+key)
     return {**{key:values['CONFIG_'+key]for key in REQUIRED},**{key.removeprefix('CONFIG_'):value for key,value in modules.items()}}
@@ -221,7 +225,8 @@ def main():
              **module_overrides(flash.read_text(),'flash'),
              **module_overrides(early_cpucp.read_text(),'early-cpucp'),
              **module_overrides(userspace_security.read_text(),'userspace-security'),
-             **module_overrides(sleep.read_text(),'sleep')}
+             **module_overrides(sleep.read_text(),'sleep'),
+             **module_overrides((ROOT/'linux/configs/piano-platform.config').read_text(),'platform')}
     if args.pm_debug:
         modules.update(PM_DEBUG_OVERRIDES)
     env,tools=toolchain();out.mkdir(parents=True,exist_ok=True);artifacts.mkdir(parents=True,exist_ok=True)
@@ -241,7 +246,7 @@ def main():
     verify_source(work,commit)
     tree=text(['git','rev-parse','HEAD^{tree}'],work)
     compiler_checkout(work,compiler,commit,tree)
-    hashes={str(path.relative_to(ROOT)):sha(path)for path in (fragment,bluetooth,pen_dock,flash,early_cpucp,userspace_security,sleep,Path(__file__),ROOT/'tools/build_kernel.py',ROOT/'tools/prepare_linux_modules.py')}
+    hashes={str(path.relative_to(ROOT)):sha(path)for path in (fragment,bluetooth,pen_dock,flash,early_cpucp,userspace_security,sleep,ROOT/'linux/configs/piano-platform.config',Path(__file__),ROOT/'tools/build_kernel.py',ROOT/'tools/prepare_linux_modules.py')}
     effective_text=effective_config(root_command,modules)
     effective=out/'piano-full.effective.config';effective.write_text(effective_text)
     command=['make','-C',compiler,'O='+str(out),'ARCH=arm64','LLVM=1','LLVM_IAS=1']

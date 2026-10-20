@@ -20,3 +20,23 @@
 候选必须记录实际 source/base、配置片段与最终 config、编译工具、Image、DTB、initramfs/rootfs、kernel release 和对应模块身份。来源验证、配套检查、启动路径和实机结果分别记录。磁盘 raw 启动成功不会自动证明标准 EFI-stub 或 recovery 入口成功。
 
 补丁缩减沿用 `audit_kernel_upstream.py` 的祖先关系、patch-id、changed-byte fingerprint 和 unknown 区分。缺历史对象或证明不完整时保留 unknown，不能凭名称相似自动删补丁。相关背景见 [Linux 构建记录](../linux-reproducible-builds.md) 与 [完整迁移记录](../piano-next-full-migration.md)。
+
+
+## Piano 启动配置
+
+打包时由 `tools/package_release.py` 将折叠后的原厂 DT 转成主线使用的最终设备树。
+旧 SDE／CPAS／VIDC／SPF 节点由主线显示、CAMSS、Iris 和音频节点接管；旧 ICC
+参数和被误识别为 GPIO 的厂商标志不再作为标准绑定传给内核。ADSP 的固件、
+内存和电源资源保留，只删除主线 PAS 驱动不使用的旧 ICC 属性。
+
+原厂在本板同样无法探测的四个可选 PMIC，以及不属于 AP 的两个硬件投票 RSC
+节点，在最终树中禁用；AP 的 `rsc@16500000` 和实际外设供电保持启用。
+`piano-platform.config` 排除 NXP 的 SCMI 扩展，保留 Qualcomm 使用的标准协议。
+USB PHY 没有连接显示拓扑时不创建空的 DRM 桥，USB PHY 本身照常工作。
+
+这套配置已从正常启动的内核日志核对：上述引用、SPMI、SCMI、DRM 桥及 RSC
+报错消失，ADSP、音频、键盘、蓝牙和 USB 调试连接保持工作。
+
+磁盘启动统一使用 `linux/userspace/disk-bootstrap`，支持发布镜像的 LABEL 和
+开发镜像的 PARTUUID。ext4 先正常回放日志，再转为读写；救援环境包含磁吸键盘
+所需的 GENI I²C、GPI、Nanosic 驱动和 MCU RAM 固件。

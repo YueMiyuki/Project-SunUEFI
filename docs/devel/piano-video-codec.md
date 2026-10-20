@@ -57,11 +57,12 @@ FFmpeg 7 的适配和 Nyarch 完整 FFmpeg 9 软件包，均已在实际 Iris �
    ERROR 时跳过 LAST 状态更新。随后新队列又收到一次 LAST，使播放器提前结束。
    内核候选修正了空 PSC_LAST 的判断，并让带错误的最后一帧也正确结束旧队列。
 
-候选位于 `linux/bsp/patches/ffmpeg/drafts/` 和
-`patches/linux/7.2.9/drafts/0046-media-iris-psc-last.patch`，尚未纳入默认构建。
-另外，实机卸载驱动时发现 IRQ 线程与核心锁互相等待，
-`0047-media-iris-deinit-irq-lock.patch` 在取得核心锁之前先等待中断线程结束；
-该修正已编译，仍需设备恢复后的验证。
+FFmpeg 缓冲区候选位于 `linux/bsp/patches/ffmpeg/drafts/`。配合内核
+`0046-media-iris-psc-last.patch`，FFmpeg 9 已在实机完整解码上述切换样本的 24 帧，零解码错误。
+内核修正已纳入默认构建。
+
+`0047-media-iris-deinit-irq-lock.patch` 在取得核心锁之前先等待中断线程结束，
+修复实机发现的驱动退出死锁。设备已完成模块卸载、重新加载和正常重启。
 
 后续验证必须确认完整输出切换前后的全部帧，不能仅看进程退出码。其他编码格式、
 容器播放时序以及播放器自动选择硬解的行为，也需要分别检查。

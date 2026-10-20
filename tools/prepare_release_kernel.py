@@ -41,7 +41,7 @@ TARGETS[DEFAULT_TARGET] = {
     **TARGETS['kernel69'],
     'series_target': 'kernel69',
     'patch_tree': TARGETS['kernel69']['target_tree'],
-    'target_tree': '37822f558e1a8d1f2f0868262030be470fcbda7a',
+    'target_tree': 'be9b0947a6a6ec14414f7ae14552dc936b712ee0',
     'stable_commit': '5fce161649b4d779d1b76d9fcd52dc77779774b8',
     'stable_tree': 'c278d1443495d2a1a07fff2bcfb286b5c35baaea',
     'stable_version': '7.2.9',
@@ -206,6 +206,18 @@ TARGETS[DEFAULT_TARGET] = {
     'piano_igcv5_degamma_patch': {
         'file': 'patches/linux/7.2.9/0044-drm-msm-dpu-igcv5-degamma.patch',
         'sha256': 'a0ca4c9ff36e70ed7a85ec7b194ac4b2ba5bf1879b3807a8f16c442eb82135c2',
+    },
+    'iris_drc_patch': {
+        'file': 'patches/linux/7.2.9/0046-media-iris-psc-last.patch',
+        'sha256': 'bb78efdb9ab3511afa27f1da87d10771655afd972a9521ef70ec2a89a94bd7b7',
+    },
+    'iris_deinit_irq_patch': {
+        'file': 'patches/linux/7.2.9/0047-media-iris-deinit-irq-lock.patch',
+        'sha256': 'c0080c1fa0365c8dbf05c588d5dc288b36d2739c1052e47ef463f27bdabc5095',
+    },
+    'qmp_optional_bridge_patch': {
+        'file': 'patches/linux/7.2.9/0048-phy-qmp-optional-display-bridge.patch',
+        'sha256': '031f45d30ea6417216d795734f3c0a37011a45ff55c4159ec38ebd99ffe24850',
     },
     'dsi_stop_order_patch': {
         'file': 'patches/linux/7.2.9/0008-dsi-bonded-stop-slave-first.patch',
@@ -374,7 +386,7 @@ def write_manifest(path, record):
 
 def update_patches(root, policy):
     result = {}
-    for key in ('conflict_resolution', 'cpu_model_patch', 'fastrpc_dma_patch', 'panel_depth_patch', 'flash_cleanup_patch', 'va_clock_order_patch', 'gcv2_backend_patch', 'gcv2_catalog_patch', 'dsi_stop_order_patch', 'dsi_fixed_bpc_patch', 'flash_torch_rounding_patch', 'va_mono_patch', 'dsi_video_phases_patch', 'dsi_post_hs_sync_patch', 'piano_panel_reset_patch', 'dsi_post_resync_reset_patch', 'piano_privacy_led_patch', 'nvt_panel_follower_patch', 'p81c_pressure_hid_patch', 'piano_preferred_120hz_patch', 'piano_function_row_patch', 'dsi_pll_registration_patch', 'dsi_slave_restore_patch', 'dpu_video_stop_order_patch', 'piano_pen_dock_patch', 'nvt_system_resume_patch', 'pcie_active_wakeup_patch', 'smp2p_sleepstate_patch', 'nanosic_backlight_default_patch', 'q6apm_global_lifetime_patch', 'fastrpc_freezable_invoke_patch', 'dsi_phy_runtime_clock_patch', 'backlight_disable_ramp_patch', 'mca_hyperos4_pd_patch', 'sc96231_pen_charger_patch', 'nvt_deferred_pen_mode_patch', 'piano_low_refresh_patch', 'piano_seamless_vfp_patch', 'piano_panel_vendor_order_patch', 'piano_igcv5_degamma_patch'):
+    for key in ('conflict_resolution', 'cpu_model_patch', 'fastrpc_dma_patch', 'panel_depth_patch', 'flash_cleanup_patch', 'va_clock_order_patch', 'gcv2_backend_patch', 'gcv2_catalog_patch', 'dsi_stop_order_patch', 'dsi_fixed_bpc_patch', 'flash_torch_rounding_patch', 'va_mono_patch', 'dsi_video_phases_patch', 'dsi_post_hs_sync_patch', 'piano_panel_reset_patch', 'dsi_post_resync_reset_patch', 'piano_privacy_led_patch', 'nvt_panel_follower_patch', 'p81c_pressure_hid_patch', 'piano_preferred_120hz_patch', 'piano_function_row_patch', 'dsi_pll_registration_patch', 'dsi_slave_restore_patch', 'dpu_video_stop_order_patch', 'piano_pen_dock_patch', 'nvt_system_resume_patch', 'pcie_active_wakeup_patch', 'smp2p_sleepstate_patch', 'nanosic_backlight_default_patch', 'q6apm_global_lifetime_patch', 'fastrpc_freezable_invoke_patch', 'dsi_phy_runtime_clock_patch', 'backlight_disable_ramp_patch', 'mca_hyperos4_pd_patch', 'sc96231_pen_charger_patch', 'nvt_deferred_pen_mode_patch', 'piano_low_refresh_patch', 'piano_seamless_vfp_patch', 'piano_panel_vendor_order_patch', 'piano_igcv5_degamma_patch', 'iris_drc_patch', 'iris_deinit_irq_patch', 'qmp_optional_bridge_patch'):
         if key not in policy:
             continue
         row = policy[key]
@@ -455,6 +467,9 @@ def merge_stable(work, policy, paths):
         ('piano_seamless_vfp_patch', 'feat(drm): update Piano vertical blanking without a modeset', 'piano_seamless_vfp_commit'),
         ('piano_panel_vendor_order_patch', 'fix(drm): preserve each panel vendor command order', 'piano_panel_vendor_order_commit'),
         ('piano_igcv5_degamma_patch', 'feat(drm): expose IGCv5 through standard degamma', 'piano_igcv5_degamma_commit'),
+        ('iris_drc_patch', 'fix(media): preserve Iris PSC_LAST drain completion', 'iris_drc_commit'),
+        ('iris_deinit_irq_patch', 'fix(media): quiesce Iris IRQ before teardown locking', 'iris_deinit_irq_commit'),
+        ('qmp_optional_bridge_patch', 'fix(phy): register QMP display bridge only for a graph', 'qmp_optional_bridge_commit'),
     ):
         if key not in paths:
             continue

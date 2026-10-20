@@ -25,6 +25,61 @@ MIB = 1024 * 1024
 CLOCK_EPOCH = 'usr/lib/clock-epoch'
 
 
+def normalize_mainline_bindings(board):
+    """Remove downstream-only bindings retained by the folded Android DT."""
+    parsed = read_fdt(board.read_bytes())
+    tree, changes = parsed['tree'], []
+    legacy = (
+        '/soc/qcom,sde_cesta@0x0af30000',
+        '/soc/qcom,mdss_mdp@ae00000',
+        '/soc/qcom,cam-cpas@ac13000',
+        '/soc/qcom,cvp@ab00000',
+        '/soc/qcom,vidc@aa00000',
+        '/soc/spf_core_platform',
+    )
+    for path, props in tree.items():
+        downstream = any(path == root or path.startswith(root + '/') for root in legacy)
+        # qcom_q6v5_pas does not consume the downstream ICC property. Its
+        # firmware/power-domain resources remain intact. QTB nodes belong to
+        # the old qsmmuv500 binding, not the active ARM SMMU translation.
+        old_icc = downstream or path in (
+            '/soc/remoteproc-adsp@03000000', '/soc/remoteproc-cdsp@32300000'
+        ) or (path.startswith('/soc/apps-smmu@15000000/') and '_qtb@' in path)
+        if old_icc:
+            for key in ('interconnects', 'interconnect-names'):
+                if key in props:
+                    del props[key]
+                    changes.append(path + ':' + key)
+        if path == '/soc/spf_core_platform/lpass-cdc/va-macro@7660000':
+            # These are an Android flag and pinctrl handle, not GPIO
+            # specifiers. The active codec@7660000 uses its own binding.
+            for key in ('qcom,is-used-swr-gpio', 'qcom,va-swr-gpios'):
+                if key in props:
+                    del props[key]
+                    changes.append(path + ':' + key)
+        if path in legacy and props.get('status') != b'disabled\0':
+            props['status'] = b'disabled\0'
+            changes.append(path + ':status')
+    disabled = (
+        # Display/camera hardware voters are not the AP's RPMh controller.
+        # The actual AP supplier is rsc@16500000.
+        '/soc/rsc@adc8000', '/soc/rsc@af20000',
+        # These optional PMICs also fail probe on this board's stock
+        # HyperOS 4. None supplies the active Piano mainline peripherals.
+        '/soc/qcom,spmi@c42d000/qcom,pmr735d@a',
+        '/soc/qcom,spmi@c42d000/qcom,pmd802x@4',
+        '/soc/qcom,spmi@c42d000/qcom,pm8010@c',
+        '/soc/qcom,spmi@c42d000/qcom,pm8010@d',
+    )
+    for path in disabled:
+        if path in tree and tree[path].get('status') != b'disabled\0':
+            tree[path]['status'] = b'disabled\0'
+            changes.append(path + ':status')
+    if changes:
+        board.write_bytes(write_fdt(parsed))
+    return {'changes': changes, 'sha256': sha(board)}
+
+
 def require(ok, message):
     if not ok:
         raise ValueError(message)
@@ -406,6 +461,7 @@ def package(args):
     extra_dtb_overlays = []
     for overlay in args.dtb_overlay:
         extra_dtb_overlays.append(apply_cpu_model_overlay(work / 'board.dtb', overlay, work, cpu_only=False))
+    mainline_bindings = normalize_mainline_bindings(work / 'board.dtb')
     panel_selection = None
     if args.panel_vendor:
         panel_selection = select_panel_vendor(work / 'board.dtb', args.panel_vendor)
@@ -449,6 +505,7 @@ def package(args):
         result['clock_epoch'] = {'path': '/' + CLOCK_EPOCH,
                                  'mtime': inode_mtime(CLOCK_EPOCH, rows[CLOCK_EPOCH], args.epoch)}
     if dtb_derivation: result['dtb_derivation'] = dtb_derivation
+    result['mainline_bindings'] = mainline_bindings
     if extra_dtb_overlays: result['additional_dtb_overlays'] = extra_dtb_overlays
     if panel_selection: result['panel_selection'] = panel_selection
     shutil.rmtree(work)
