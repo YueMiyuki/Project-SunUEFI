@@ -119,7 +119,7 @@ def stage(args):
     # Shared static bootstrap is built from a signed Debian busybox input,
     # separately from the Arch root. It switches into Arch /sbin/init.
     boot = release.bootstrap(args.bootstrap_sysroot.resolve(), args.kernel.resolve(),
-                             output, kernel['kernel_release'])
+                             output, kernel['kernel_release'], firmware_root=root)
     release.sanitize(root, output)
     # These rolling packages moved their dist-info license directory without
     # updating the /usr/share/licenses symlink. Preserve the actual licenses.

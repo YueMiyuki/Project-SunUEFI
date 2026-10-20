@@ -1,5 +1,5 @@
 #!/bin/sh
-# Mount only the new, explicitly selected Linux partition; never an Android root.
+# Shared disk root: explicit PIANOROOT label or project PARTUUID, plus sunuefi_root and ext4.
 export PATH=/usr/sbin:/usr/bin:/bin:/sbin
 log() {
     printf 'piano: %s\n' "$*"
@@ -13,8 +13,23 @@ fail() {
     log "DISK_ROOT_REFUSED: $*; remaining in initramfs rescue"
     # The shared gadget helper needs all virtual mounts at their original paths.
     # Rescue never returns, so no gadget handoff to the disk root is needed.
+    # A late failure can occur after some or all mounts moved below /sysroot.
+    # Move those same mounts back; do not create a second gadget or hide logs.
+    for virtual in dev proc sys run; do
+        if ! mountpoint -q "/$virtual" && mountpoint -q "/sysroot/$virtual"; then
+            if ! mount --move "/sysroot/$virtual" "/$virtual"; then
+                log "Cannot return $virtual to initramfs rescue"
+            fi
+        fi
+    done
     if mountpoint -q /dev && mountpoint -q /proc &&
        mountpoint -q /sys && mountpoint -q /run; then
+        if [ -r /etc/piano/modules-rescue-order ]; then
+            while read -r name module; do
+                [ -d "/sys/module/$name" ] || insmod "$module" ||
+                    log "Rescue module $name could not load"
+            done </etc/piano/modules-rescue-order
+        fi
         if /usr/local/sbin/piano-debug-bootstrap start; then
             (
                 while :; do
@@ -27,9 +42,10 @@ fail() {
         fi
     fi
     console=/dev/console
+    [ -c /dev/tty1 ] && console=/dev/tty1
     [ -c "$console" ] || console=/sysroot/dev/console
     while :; do
-        /bin/sh <"$console" >"$console" 2>&1
+        setsid /bin/sh -c 'exec /bin/sh <"$1" >"$1" 2>&1' -- "$console"
         sleep 5
     done
 }
@@ -38,22 +54,36 @@ mountpoint -q /dev || mount -t devtmpfs devtmpfs /dev || fail 'devtmpfs failed'
 mountpoint -q /proc || mount -t proc proc /proc || fail 'proc failed'
 mountpoint -q /sys || mount -t sysfs sysfs /sys || fail 'sysfs failed'
 mountpoint -q /run || mount -t tmpfs -o mode=0755 tmpfs /run || fail 'run failed'
-expected=$(cat /etc/piano/root-partuuid) || fail 'Missing root identity'
+if [ -r /etc/piano/root-label ]; then
+    expected=$(cat /etc/piano/root-label) || fail 'Missing root label'
+    [ "$expected" = PIANOROOT ] || fail 'Unexpected root label'
+    [ "$(cat /etc/piano/root-partname)" = sunuefi_root ] || fail 'Unexpected root partition name'
+    selector=LABEL
+    probe=LABEL
+elif [ -r /etc/piano/root-partuuid ]; then
+    expected=$(cat /etc/piano/root-partuuid) || fail 'Missing root identity'
+    [ -n "$expected" ] || fail 'Empty root identity'
+    selector=PARTUUID
+    probe=PART_ENTRY_UUID
+else
+    fail 'Missing Linux root configuration'
+fi
+root_identity="$selector=$expected"
 release=$(cat /etc/piano/kernel-release) || fail 'Missing kernel identity'
 [ "$(uname -r)" = "$release" ] || fail 'Kernel/module release mismatch'
-log "DISK_INIT_BEGIN: kernel=$release root=PARTUUID=$expected"
+log "DISK_INIT_BEGIN: kernel=$release root=$root_identity"
 selected=0
 dma_log=0
 for arg in $(cat /proc/cmdline); do
     case "$arg" in
         piano.boot-dma-log=1) dma_log=1 ;;
         piano.root=*)
-            [ "$arg" = "piano.root=PARTUUID=$expected" ] || fail 'Unexpected piano.root'
+            [ "$arg" = "piano.root=$root_identity" ] || fail 'Unexpected piano.root'
             selected=$((selected + 1)) ;;
-        root=*) [ "$arg" = "root=PARTUUID=$expected" ] || fail 'Other block roots are forbidden' ;;
+        root=*) [ "$arg" = "root=$root_identity" ] || fail 'Other block roots are forbidden' ;;
     esac
 done
-[ "$selected" -eq 1 ] || fail 'Exactly one explicit piano.root=PARTUUID is required'
+[ "$selected" -eq 1 ] || fail 'Exactly one matching piano.root is required'
 dma_routes() {
     # Full routing dumps are diagnostic, not a condition for loading modules.
     [ "$dma_log" -eq 1 ] || return 0
@@ -76,7 +106,7 @@ while read -r name module; do
 done </etc/piano/modules-load-order
 
 # sysfs identifies partition nodes; blkid low-level probing bypasses all caches.
-# The label alone never authorizes a mount. No filesystem repair is attempted.
+# Both the filesystem label and GPT partition name must match. Journal recovery is left to ext4.
 rootdev=
 attempt=0
 while [ "$attempt" -lt 30 ]; do
@@ -85,9 +115,9 @@ while [ "$attempt" -lt 30 ]; do
         grep -qx 'PARTNAME=sunuefi_root' "$part/uevent" || continue
         candidate=/dev/${part##*/}
         [ -b "$candidate" ] || continue
-        uuid=$(blkid -p -s PART_ENTRY_UUID -o value "$candidate" 2>/dev/null) || continue
-        [ "$uuid" = "$expected" ] || continue
-        [ -z "$rootdev" ] || fail 'Duplicate root PARTUUID'
+        label=$(blkid -p -s "$probe" -o value "$candidate" 2>/dev/null) || continue
+        [ "$label" = "$expected" ] || continue
+        [ -z "$rootdev" ] || fail 'Duplicate Linux root identity'
         rootdev=$candidate
     done
     [ -z "$rootdev" ] || break
@@ -96,29 +126,41 @@ while [ "$attempt" -lt 30 ]; do
 done
 [ -n "$rootdev" ] || fail 'Selected Linux partition did not appear'
 verify_device() {
-    [ "$(blkid -p -s PART_ENTRY_UUID -o value "$rootdev")" = "$expected" ] &&
+    [ "$(blkid -p -s "$probe" -o value "$rootdev")" = "$expected" ] &&
     [ "$(blkid -p -s PART_ENTRY_NAME -o value "$rootdev")" = sunuefi_root ] &&
     [ "$(blkid -p -s TYPE -o value "$rootdev")" = ext4 ]
 }
-verify_device || fail 'PARTUUID/PARTLABEL/TYPE mismatch'
-# noload prevents even journal replay during the first read-only inspection.
-mount -t ext4 -o ro,noload "$rootdev" /sysroot || fail 'Read-only Linux mount failed'
+verify_device || fail 'Root identity/PARTNAME/TYPE mismatch'
+# Let ext4 recover its journal before inspecting files after an unclean stop.
+# noload would expose stale metadata and orphan lists to that inspection.
+mount -t ext4 -o ro "$rootdev" /sysroot || fail 'Read-only Linux mount failed'
 [ -x /sysroot/usr/lib/systemd/systemd ] || fail 'Real systemd is missing'
 [ -d "/sysroot/usr/lib/modules/$release" ] || fail 'Matching distro modules are missing'
 [ ! -f /sysroot/etc/initrd-release ] || fail 'Root is initrd-only'
 [ -x /sysroot/usr/lib/piano/piano-disk-hardware-prepare ] || fail 'Hardware preparation is missing'
-umount /sysroot || fail 'Cannot finish read-only inspection'
 verify_device || fail 'Root identity changed before writable mount'
-# A fresh mount allows normal ext4 journal recovery on this verified partition.
-mount -t ext4 -o rw "$rootdev" /sysroot || fail 'Writable Linux mount failed'
+mount -o remount,rw /sysroot || fail 'Writable Linux mount failed'
 mkdir -p /sysroot/dev /sysroot/proc /sysroot/sys /sysroot/run /sysroot/tmp || fail 'Root mountpoints failed'
 chmod 1777 /sysroot/tmp || fail 'Root tmp permissions failed'
-printf 'PARTUUID=%s\n' "$expected" >/run/piano-root-mode || fail 'Cannot record root mode'
+printf '%s\n' "$root_identity" >/run/piano-root-mode || fail 'Cannot record root mode'
 printf '%s\n' "$rootdev" >/run/piano-root-device || fail 'Cannot record root device'
 for virtual in dev proc sys run; do
     mount --move "/$virtual" "/sysroot/$virtual" || fail "Cannot move $virtual"
 done
 chroot /sysroot /usr/lib/piano/piano-disk-hardware-prepare || fail 'Hardware preparation failed'
-log "DISK_ROOT_READY: starting Debian systemd on PARTUUID=$expected"
-exec switch_root -c /dev/console /sysroot /usr/lib/systemd/systemd >/sysroot/dev/kmsg 2>&1
+log "DISK_ROOT_READY: starting systemd on $root_identity"
+if [ -f /etc/piano/boot-task-snapshot ]; then
+    # Run from the real root, so this process survives the initramfs removal.
+    rm -f /sysroot/run/piano-boot-task-snapshot.ready
+    chroot /sysroot /bin/sh /usr/lib/piano/piano-boot-task-snapshot \
+        </sysroot/dev/null >/sysroot/dev/null 2>&1 &
+    diagnostic_wait=0
+    while [ ! -f /sysroot/run/piano-boot-task-snapshot.ready ] && [ "$diagnostic_wait" -lt 3 ]; do
+        sleep 1
+        diagnostic_wait=$((diagnostic_wait + 1))
+    done
+    [ -f /sysroot/run/piano-boot-task-snapshot.ready ] || log 'Diagnostic task snapshot could not be armed'
+fi
+exec switch_root -c /dev/console /sysroot /usr/lib/systemd/systemd \
+    --log-target=kmsg --log-level=info >/sysroot/dev/kmsg 2>&1
 fail 'switch_root failed'

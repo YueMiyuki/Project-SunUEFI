@@ -17,11 +17,12 @@ from package_piano_ram_root import sha_file
 
 APPLETS = ('sh', 'cat', 'mkdir', 'mount', 'mountpoint', 'chmod', 'uname', 'chroot',
            'switch_root', 'sleep', 'insmod', 'umount', 'grep', 'tr', 'id', 'awk',
-           'readlink', 'rm', 'rmdir', 'ln')
+           'readlink', 'rm', 'rmdir', 'ln', 'setsid')
 # SCMI/cpufreq is built in, but its CPUCP mailbox provider is a module.
 # Load it before storage/root discovery instead of waiting for systemd.
 SEEDS = ('arm_smmu', 'pinctrl_sm8750', 'qcom_cpucp_mbox',
          'phy_qcom_qmp_ufs', 'ufs_qcom')
+RESCUE_SEEDS = ('gpi', 'i2c_qcom_geni', 'hid_nanosic_wn8030')
 
 
 def runtime_files(root, programs=('/usr/sbin/blkid',)):
@@ -47,7 +48,7 @@ def module_name(path):
     return Path(path).name.removesuffix('.ko').replace('-', '_')
 
 
-def module_closure(directory):
+def module_closure(directory, seeds=SEEDS):
     deps = dict(line.split(':', 1) for line in (directory / 'modules.dep').read_text().splitlines())
     names = {module_name(path): path for path in deps}
     builtin = {module_name(path) for path in (directory / 'modules.builtin').read_text().splitlines()}
@@ -78,7 +79,7 @@ def module_closure(directory):
         seen.add(name)
         ordered.append(path)
 
-    for seed in SEEDS:
+    for seed in seeds:
         visit(seed)
     return ordered, sorted(used_builtin)
 
@@ -102,8 +103,9 @@ def build(root, kernel, busybox, output, root_partuuid):
     files = runtime_files(root)
     directory = kernel / 'modules/lib/modules' / release
     ordered, builtin = module_closure(directory)
+    rescue, _ = module_closure(directory, SEEDS + RESCUE_SEEDS)
     module_records = {row['path']: row for row in record['modules']}
-    for path in ordered:
+    for path in rescue:
         name = f'lib/modules/{release}/{path}'
         source = directory / path
         expected = module_records[name]
@@ -113,6 +115,7 @@ def build(root, kernel, busybox, output, root_partuuid):
             raise ValueError('Distro module differs from selected kernel: ' + path)
         files[name] = source
     files['bin/busybox'] = busybox
+    files['lib/firmware/nanosic/MCU_Upgrade.bin'] = guest_resolve(root, '/lib/firmware/nanosic/MCU_Upgrade.bin')
     files['pianoinit'] = ROOT / 'linux/userspace/disk-bootstrap'
     # BusyBox switch_root checks for a regular /init in the old initramfs.
     # The forced kernel command line still selects /pianoinit explicitly.
@@ -125,6 +128,7 @@ def build(root, kernel, busybox, output, root_partuuid):
         'etc/piano/kernel-release': release + '\n',
         'etc/piano/linux-debug.conf': 'usb=acm-ncm\nshell=1\nrecovery_seconds=0\n',
         'etc/piano/modules-load-order': ''.join(f'{module_name(path)} /lib/modules/{release}/{path}\n' for path in ordered),
+        'etc/piano/modules-rescue-order': ''.join(f'{module_name(path)} /lib/modules/{release}/{path}\n' for path in rescue),
         f'lib/modules/{release}/modules.dep': ''.join(line + '\n' for line in (directory / 'modules.dep').read_text().splitlines()
                                                      if line.split(':', 1)[0] in ordered),
     }

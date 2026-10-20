@@ -487,7 +487,7 @@ def mutter_packages(folder):
             'packages': rows, 'device_verified': False}
 
 
-def bootstrap(rootfs, kernel, output, release, boot_task_snapshot=False):
+def bootstrap(rootfs, kernel, output, release, boot_task_snapshot=False, firmware_root=None):
     # Use the same authenticated distro input on fresh CI and local builds.
     # The early diagnostic BusyBox capture is not a release dependency.
     busybox = disk.guest_resolve(rootfs, '/usr/bin/busybox')
@@ -511,15 +511,19 @@ def bootstrap(rootfs, kernel, output, release, boot_task_snapshot=False):
     files = disk.runtime_files(rootfs, ('/usr/sbin/blkid', '/usr/bin/mountpoint'))
     directory = Path(kernel) / 'modules/lib/modules' / release
     ordered, _ = disk.module_closure(directory)
-    files.update({'bin/busybox': busybox, 'pianoinit': ROOT / 'linux/userspace/release-disk-bootstrap',
+    rescue, _ = disk.module_closure(directory, disk.SEEDS + disk.RESCUE_SEEDS)
+    files.update({'bin/busybox': busybox, 'pianoinit': ROOT / 'linux/userspace/disk-bootstrap',
                   'usr/local/sbin/piano-debug-bootstrap': ROOT / 'linux/userspace/piano-debug-bootstrap'})
     files['init'] = files['pianoinit']
-    for name in ordered: files[f'lib/modules/{release}/{name}'] = directory / name
+    for name in rescue: files[f'lib/modules/{release}/{name}'] = directory / name
+    files['lib/firmware/nanosic/MCU_Upgrade.bin'] = disk.guest_resolve(
+        Path(firmware_root or rootfs), '/lib/firmware/nanosic/MCU_Upgrade.bin')
     generated = {'etc/piano/root-label': 'PIANOROOT\n', 'etc/piano/root-partname': 'sunuefi_root\n',
                  'etc/piano/busybox-source.json': busybox_source.read_text(),
                  'etc/piano/kernel-release': release + '\n',
                  'etc/piano/linux-debug.conf': 'usb=acm-ncm\nshell=1\nrecovery_seconds=0\n',
-                 'etc/piano/modules-load-order': ''.join(f'{disk.module_name(p)} /lib/modules/{release}/{p}\n' for p in ordered)}
+                 'etc/piano/modules-load-order': ''.join(f'{disk.module_name(p)} /lib/modules/{release}/{p}\n' for p in ordered),
+                 'etc/piano/modules-rescue-order': ''.join(f'{disk.module_name(p)} /lib/modules/{release}/{p}\n' for p in rescue)}
     if boot_task_snapshot:
         generated['etc/piano/boot-task-snapshot'] = 'once\n'
     dirs = {'dev', 'proc', 'sys', 'run', 'tmp', 'sysroot'}

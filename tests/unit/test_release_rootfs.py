@@ -18,7 +18,7 @@ sys.path.insert(0, str(PROJECT / 'tools'))
 SPEC = importlib.util.spec_from_file_location('release_rootfs', PROJECT / 'tools/build_release_rootfs.py')
 builder = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(builder)
 CONFIG = json.loads((PROJECT / 'config/release.json').read_text())
-BOOT = (PROJECT / 'linux/userspace/release-disk-bootstrap').read_text()
+BOOT = (PROJECT / 'linux/userspace/disk-bootstrap').read_text()
 LOADER = SourceFileLoader('canonical_label_adapter', str(PROJECT / 'linux/userspace/piano-ram-hardware-prepare'))
 ADAPTER_SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
 adapter = importlib.util.module_from_spec(ADAPTER_SPEC); LOADER.exec_module(adapter)
@@ -142,14 +142,14 @@ class ReleaseRootTests(unittest.TestCase):
 
     def test_real_shell_selector_rejects_android_uuid_and_duplicates(self):
         guard = BOOT[BOOT.index('selected=0'):BOOT.index('dma_routes() {')]
-        harness = 'expected=PIANOROOT\nfail() { exit 7; }\ncat() { printf "%s\\n" "$TEST_CMDLINE"; }\n'
+        harness = 'root_identity=LABEL=PIANOROOT\nfail() { exit 7; }\ncat() { printf "%s\\n" "$TEST_CMDLINE"; }\n'
         for command, code in (('piano.root=LABEL=PIANOROOT', 0), ('piano.root=PARTUUID=old', 7),
                               ('piano.root=LABEL=PIANOROOT root=PARTLABEL=userdata', 7),
                               ('piano.root=LABEL=PIANOROOT piano.root=LABEL=PIANOROOT', 7)):
             result = subprocess.run(['sh', '-c', harness + guard], env={**os.environ, 'TEST_CMDLINE': command}, capture_output=True)
             self.assertEqual(result.returncode, code, command)
         self.assertIn('PARTNAME=sunuefi_root', BOOT)
-        self.assertLess(BOOT.index("verify_device || fail 'LABEL/PARTNAME/TYPE mismatch'"), BOOT.index('mount -t ext4'))
+        self.assertLess(BOOT.index("verify_device || fail 'Root identity/PARTNAME/TYPE mismatch'"), BOOT.index('mount -t ext4'))
 
     def canonical_label(self, answers):
         proc, run = self.root / 'proc-fixture', self.root / 'run-fixture'
