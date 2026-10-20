@@ -72,3 +72,13 @@ FAT 驱动返回 Unsupported，不发布 SimpleFileSystem。
 服务 DMA 缓冲区尚未分配，回滚成功。对照原厂配置，在复位前禁用时钟门控、
 清除 USB2 的 SUSPHY／ENBLSLPM 后仍超时；原值在回滚时恢复，该无效改动已撤回。
 USB 根因仍未解决，不将菜单可操作或 Linux 文件发现修正当作 Fastboot 可用。
+
+对照 SM8750 原厂配置后，初始化与退出流程已补齐 USB2／USB3 的 TCSR 参考时钟
+和独立 USB3 PHY 电源域；实机仍有复位超时。接下来需要核对 M31 eUSB2 PHY、
+外部 repeater 的供电与复位状态。`mu_wide_platforms` 的 Piano 平台采用原厂
+UsbInit／UsbConfig／Usbfn 驱动，可用于对照，不能直接把其 USB 可用结论套用到本项目。
+
+正常文件读取不再逐块写入默认 RAM 日志：`BLOCKIO_READ` 的成功提交、完成和
+协议内容改为 `DEBUG_VERBOSE`，需要逐次 DMA 记录时可在调试构建中开启。
+分配、映射、退出和错误记录继续保留，失败请求与响应仍会输出。
+这样可以避免读取 Linux 文件时覆盖前面的 USB 初始化现场。

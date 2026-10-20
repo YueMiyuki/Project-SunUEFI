@@ -164,9 +164,9 @@ STATIC UINT32 Read(UINT32 Offset){return MmioRead32(HCI+Offset);}
 STATIC VOID Write(UINT32 Offset,UINT32 Value){MmioWrite32(HCI+Offset,Value);MemoryFence();}
 STATIC UINT32 EngineLe32(CONST UINT8 *P){return P[0]|((UINT32)P[1]<<8)|((UINT32)P[2]<<16)|((UINT32)P[3]<<24);}
 STATIC UINT32 EngineBe32(CONST UINT8 *P){return ((UINT32)P[0]<<24)|((UINT32)P[1]<<16)|((UINT32)P[2]<<8)|P[3];}
-STATIC VOID LogUpiu(CONST CHAR8 *Name,CONST CHAR8 *Kind,CONST UINT8 *P) {
+STATIC VOID LogUpiu(UINTN Level,CONST CHAR8 *Name,CONST CHAR8 *Kind,CONST UINT8 *P) {
   for(UINTN I=0;I<32;I+=8)
-    DEBUG((DEBUG_WARN,"SUNUEFI_UFS_UPIU command=%a kind=%a offset=%u bytes=%02x %02x %02x %02x %02x %02x %02x %02x\n",
+    DEBUG((Level,"SUNUEFI_UFS_UPIU command=%a kind=%a offset=%u bytes=%02x %02x %02x %02x %02x %02x %02x %02x\n",
       Name,Kind,(UINT32)I,P[I],P[I+1],P[I+2],P[I+3],P[I+4],P[I+5],P[I+6],P[I+7]));
 }
 STATIC EFI_STATUS LinkReady(VOID) {
@@ -221,7 +221,8 @@ STATIC EFI_STATUS Quiesce(VOID) {
 }
 STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
   if(Read(0x58) || Read(0x78) || !(Read(0x34)&1) || (Read(0x30)&0xF)!=0xF)return EFI_NOT_READY;
-  LogUpiu(Name,"request",mUcd.Cpu);
+  UINTN TraceLevel=AsciiStrCmp(Name,"BLOCKIO_READ")?DEBUG_WARN:DEBUG_VERBOSE;
+  LogUpiu(TraceLevel,Name,"request",mUcd.Cpu);
   UINT8 *Request=mUcd.Cpu;
   if(!(Request[0]==0 || Request[0]==1 || Request[0]==0x16))return EFI_ACCESS_DENIED;
   if(Request[0]==1 && !(Request[16]==0xA0 || Request[16]==0x9E || Request[16]==0x28 || Request[16]==0x5A ||
@@ -272,7 +273,7 @@ STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
   EFI_STATUS Status;
   if(HasData) {
     if(!mData.Mapped || Requested>mData.Bytes)return EFI_BAD_BUFFER_SIZE;
-    DEBUG((DEBUG_WARN,"SUNUEFI_UFS_DATA_DMA command=%a dev=ufs pa=%lx iova=%lx transfer_bytes=%u buffer_bytes=%lu direction=%a alignment=%lu\n",
+    DEBUG((TraceLevel,"SUNUEFI_UFS_DATA_DMA command=%a dev=ufs pa=%lx iova=%lx transfer_bytes=%u buffer_bytes=%lu direction=%a alignment=%lu\n",
       Name,mData.Physical,mData.DeviceAddress,Requested,(UINT64)mData.Bytes,Out?"to-device":"from-device",(UINT64)mData.Alignment));
     Status=PianoDmaBegin(&mData,Name);if(EFI_ERROR(Status))return Status;
   }
@@ -293,7 +294,7 @@ STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
   if(Mutation){if(Out)++mProductWriteDoorbells;else ++mProductSyncDoorbells;}
 #endif
   Write(0x58,1);
-  DEBUG((DEBUG_WARN,"SUNUEFI_UFS_DMA_DOORBELL command=%a tag=%u trl_iova=%lx ucd_iova=%lx\n",Name,Tag,mTrl.DeviceAddress,mUcd.DeviceAddress));
+  DEBUG((TraceLevel,"SUNUEFI_UFS_DMA_DOORBELL command=%a tag=%u trl_iova=%lx ucd_iova=%lx\n",Name,Tag,mTrl.DeviceAddress,mUcd.DeviceAddress));
   BOOLEAN Done=FALSE;
   UINTN Polls=(Request[0]==1 && Request[16]==0x1B)?100000:20000;
   for(UINTN I=0;I<Polls;++I){if(!(Read(0x58)&1)){Done=TRUE;break;}gBS->Stall(100);}
@@ -326,20 +327,26 @@ STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
   }
   UINT8 *T=mTrl.Cpu,*R=(UINT8 *)mUcd.Cpu+PIANO_UFS_RESPONSE_OFFSET;
   UINT32 Ocs=EngineLe32(T+8)&0xFF;
-  DEBUG((DEBUG_WARN,"SUNUEFI_UFS_DMA_COMPLETE command=%a status=%r ocs=%02x response_type=%02x tag=%u response=%02x is=%08x hcs=%08x\n",
-    Name,Status,Ocs,R[0],R[3],R[6],Read(0x20),Read(0x30)));
-  LogUpiu(Name,"response",R);
-  if(EFI_ERROR(Status))return Status;
-  if(Nop)return PianoUfsCheckNop(T,mUcd.Cpu,Tag);
-  if(Request[0]==1) {
-    DEBUG((DEBUG_WARN,"SUNUEFI_UFS_SCSI_RESPONSE command=%a lun=%u status=%02x flags=%02x residual=%u sense_length=%u key=%02x asc=%02x ascq=%02x\n",
-      Name,R[2],R[7],R[1],EngineBe32(R+12),((UINT16)R[32]<<8)|R[33],R[36]&15,R[46],R[47]));
-    EFI_STATUS S=PianoUfsCheckReadResponse(T,mUcd.Cpu,Tag,Requested,&mTransferred);
+  if(!EFI_ERROR(Status) && Request[0]==1) {
+    Status=PianoUfsCheckReadResponse(T,mUcd.Cpu,Tag,Requested,&mTransferred);
     // READ diagnostics allow legal underflow; fixed WRITE and SYNC require
     // GOOD, correct tag/LUN, no sense/residual/overflow/underflow and exact count.
-    if(Mutation && (!EFI_ERROR(S) && ((R[1]&0x60) || EngineBe32(R+12)!=0 || R[2]!=4 || R[10] || R[11] || R[32] || R[33] || mTransferred!=Requested)))S=EFI_DEVICE_ERROR;
-    return S;
+    if(Mutation && (!EFI_ERROR(Status) && ((R[1]&0x60) || EngineBe32(R+12)!=0 || R[2]!=4 || R[10] || R[11] || R[32] || R[33] || mTransferred!=Requested)))Status=EFI_DEVICE_ERROR;
   }
+  if(EFI_ERROR(Status)) {
+    TraceLevel=DEBUG_WARN;
+    LogUpiu(TraceLevel,Name,"failed-request",Request);
+  }
+  DEBUG((TraceLevel,"SUNUEFI_UFS_DMA_COMPLETE command=%a status=%r ocs=%02x response_type=%02x tag=%u response=%02x is=%08x hcs=%08x\n",
+    Name,Status,Ocs,R[0],R[3],R[6],Read(0x20),Read(0x30)));
+  LogUpiu(TraceLevel,Name,"response",R);
+  if(Request[0]==1) {
+    DEBUG((TraceLevel,"SUNUEFI_UFS_SCSI_RESPONSE command=%a lun=%u status=%02x flags=%02x residual=%u sense_length=%u key=%02x asc=%02x ascq=%02x\n",
+      Name,R[2],R[7],R[1],EngineBe32(R+12),((UINT16)R[32]<<8)|R[33],R[36]&15,R[46],R[47]));
+    return Status;
+  }
+  if(EFI_ERROR(Status))return Status;
+  if(Nop)return PianoUfsCheckNop(T,mUcd.Cpu,Tag);
   if(Ocs!=0 || (R[0]&0x3F)!=0x36 || R[3]!=Tag || R[6]!=0)return EFI_DEVICE_ERROR;
   if(Request[12]==5) {
     if(R[12]!=5 || R[13]!=Request[13] || R[14]!=0 || R[15]!=0 || R[10]!=0 || R[11]!=0)return EFI_COMPROMISED_DATA;

@@ -62,16 +62,22 @@ STATIC UINT32 RecordCrc(CONST VOID *Data,UINTN Bytes) {
   return ~C;
 }
 STATIC VOID Log(PIANO_DMA_BUFFER *B,CONST CHAR8 *Phase,CONST CHAR8 *Cache,EFI_STATUS Status) {
-  if(!DebugPrintEnabled() || !DebugPrintLevelEnabled(DEBUG_WARN))return;
+  UINTN Level=DEBUG_WARN;
+  // Ordinary file reads reuse these buffers thousands of times. Keep their
+  // transfer trace opt-in so it cannot evict startup failures from RAM log.
+  // Allocation, mapping, retirement and every failure remain visible.
+  if(Status==EFI_SUCCESS && B->Command!=NULL && !AsciiStrCmp(B->Command,"BLOCKIO_READ") &&
+     (!AsciiStrCmp(Phase,"submit") || !AsciiStrCmp(Phase,"complete")))Level=DEBUG_VERBOSE;
+  if(!DebugPrintEnabled() || !DebugPrintLevelEnabled(Level))return;
   CHAR8 Body[384];UINTN Bytes=AsciiSPrint(Body,sizeof(Body),
     "phase=%a seq=%u dev=%a sid=%x pa=%lx iova=%lx bytes=%lu reserved=%lu dir=%a align=%lu attrs=%lx cache=%a status=%r cmd=%a",
     Phase,mRecordSequence++,B->Device->Name,B->Device->StreamId,B->Physical,B->DeviceAddress,(UINT64)B->Bytes,
     (UINT64)B->ReservedBytes,Direction(B->Direction),(UINT64)B->Alignment,B->MemoryAttributes,Cache,Status,
     B->Command==NULL?"-":B->Command);
-  DEBUG((DEBUG_WARN,"SUNUEFI_DMA %a crc32=%08x\n",Body,RecordCrc(Body,Bytes)));
+  DEBUG((Level,"SUNUEFI_DMA %a crc32=%08x\n",Body,RecordCrc(Body,Bytes)));
   // Preserve an independently checksummed mirror. The collector selects an
   // intact sequence record; it never edits a damaged pstore capture.
-  DEBUG((DEBUG_WARN,"SUNUEFI_DMA_COPY %a crc32=%08x\n",Body,RecordCrc(Body,Bytes)));
+  DEBUG((Level,"SUNUEFI_DMA_COPY %a crc32=%08x\n",Body,RecordCrc(Body,Bytes)));
 }
 EFI_STATUS PianoDmaAllocate(PIANO_DMA_DEVICE *D,UINTN Bytes,UINTN Align,UINT8 Bits,
                            PIANO_DMA_DIRECTION Dir,PIANO_DMA_BUFFER *B) {
