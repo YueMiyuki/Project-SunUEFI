@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-在 GitHub Actions 的 **Build products → Run workflow** 中选择 `steamos`。构建完成后下载 Android Module、ESP-steamos 和 Root-steamos。助手里的安装顺序与 Debian 相同：创建独立存储分区，选择 ESP 和 root 镜像，刷写并启动。
+在 GitHub Actions 的 **Build products → Run workflow** 中选择 `steamos`。构建完成后下载 `SunUEFI-Module`、`SunUEFI-ESP` 和 `SunUEFI-Root-steamos`。ESP 与其他发行版共用。助手里的安装顺序与 Debian 相同：创建独立存储分区，选择 ESP 和 root 镜像，刷写并启动。
 
 root 镜像容量为 16 GiB，独立 root 分区至少需要相同容量。账户为 `piano`，密码为 `piano123456`。首次启动 Steam 需要联网检查客户端更新并登录。
 
@@ -27,7 +27,7 @@ root 镜像容量为 16 GiB，独立 root 分区至少需要相同容量。账�
   --rootfs-manifest build/distros/steamos-piano/manifest.json \
   --initramfs build/distros/steamos-piano/initramfs/initramfs.cpio.gz \
   --root-size-mib 16384
-./build.sh installer --bundle artifacts/release-7.2.9
+./build.sh installer --bundle artifacts/release
 ```
 
 `config/steamos.json` 固定 Valve 镜像、casync 数据源、完整镜像 SHA256 和提取器提交。`config/steam-client.json` 固定公开 ARM64 handheld 客户端各个包的地址、大小和 SHA256。构建不会读取电脑上已登录的 Steam 目录。
@@ -42,7 +42,7 @@ FFmpeg 默认从源码构建为原生 pacman 包并替换根系统中的版本�
 
 图形部分保留 Valve 成套的 ARM64 Mesa 和 x86 客体运行时，不向 SteamOS 安装 Debian 的共享库。传感器依赖在 SteamOS 内重编译为原生包。平板硬件是否全部适用于这套 Valve 图形栈仍需实机验证。
 
-Nyarch 的 FFmpeg 已进入不同 ABI 代际，不能直接安装这里的 7.1 包；本次 SteamOS 默认配置不代表 Nyarch 已经完成对应移植。
+Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接安装这里的 7.1 包。
 
 ## 来源
 
