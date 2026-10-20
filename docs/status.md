@@ -1,12 +1,12 @@
 # 项目状态
 
-更新日期：2026-10-12。本页按功能列出当前状态。首页的表格是它的简化版；各项的技术细节在 `docs/devel/` 的对应页面中。
+更新日期：2026-10-20。本页按功能列出当前状态。首页的表格是它的简化版；各项的技术细节在 `docs/devel/` 的对应页面中。
 
 ## 测试设备
 
 所有结果来自同一台小米平板 8 Pro（`piano`，型号 `25091RP04C`，SM8750P，16 GB 内存），原厂已更新到 Android 17／HyperOS 4（`OS4.0.4.0.XPYCNXM`，vendor `OS4.0.2.1.XPYCN`），Bootloader 已解锁，当前运行使用 CSOT 面板配置（由原厂引导程序传来的标识选择，不等同于对物理供应商的识别）。Linux 对面板的选择见[面板选择](devel/panel-selection.md)；其他面板、内存容量和 ROM 版本没有测试过。
 
-这台机器划出了 `sunuefi_esp`（512 MiB FAT32，4 KiB 扇区，与 UFS 逻辑扇区一致）和 `sunuefi_root`（63.5 GiB ext4），安装了 Debian 13 / GNOME。当前 Linux 内核为 `7.2.9-piano-gnome-gd33a42990baf`，从合体 BOOT 经 UEFI 启动，已实际来回切换 Android 与 Linux。
+这台机器划出了 `sunuefi_esp`（512 MiB FAT32，4 KiB 扇区，与 UFS 逻辑扇区一致）和 `sunuefi_root`（63.5 GiB ext4），已运行 Debian 13 / GNOME 与 Nyarch / GNOME。默认内核基于 Linux 7.2.9，从合体 BOOT 经 UEFI 启动，支持来回切换 Android 与 Linux。四个发行版共用 HyperOS 4 的 ADSP 固件及配套 ADSP-DTB。
 
 ## 启动与安装
 
@@ -68,7 +68,7 @@
 
 ### 其他发行版
 
-`linux/bsp/`、`linux/desktops/` 和 `linux/rootfs/` 为 Debian、Ubuntu、Deepin、Arch 以及 GNOME、KDE 提供配置，但目前只有 Debian / GNOME 完整构建并在设备上运行过。
+CI 提供 Debian / GNOME、Debian / KDE、Nyarch / GNOME 和 SteamOS，四个目标已完成一轮完整构建，生成模块、ESP、root、稀疏刷写镜像和临时启动 UEFI。Debian / GNOME 与 Nyarch / GNOME 已在设备上运行；其他桌面的完整实机体验仍需验证。各发行版使用同一套内核和 BSP。
 
 ## 接下来的适配
 
@@ -76,8 +76,8 @@
 
 | 项目 | 要完成的内容 |
 | --- | --- |
-| 系统镜像 | 提供 Debian / GNOME、Debian / KDE、Nyarch / GNOME。Nyarch 基于 ARM64 滚动软件包和当前上游源码装配，不使用旧 ISO；保留默认中文、账号密码、动画和硬件自动配置 |
-| FFmpeg | 将完整的、带设备补丁的 FFmpeg 及配套库纳入本地和 CI 构建，并更新平板上安装的版本 |
+| 系统镜像 | 完善四个发行版的首次启动和日常使用体验。Nyarch 基于 ARM64 滚动软件包和当前上游源码装配；默认中文、账号密码、动画和硬件自动配置由构建导入 |
+| FFmpeg | 四个发行版已默认接入完整补丁软件包，Nyarch 保留 FFmpeg 9 接口；继续修复视频中途改变分辨率时的缓冲区等待和 Iris 结束标记问题 |
 | 显示与手写笔 | 保留默认 120 Hz，完善 144 Hz 下笔输入及跨系统切换后的笔唤醒。通过真实 DRM/KMS 能力接入 HDR 和色彩控制，对照原厂确认 10-bit + FRC 的实现 |
 | 电源 | 对照 Android 优化待机耗电、性能和唤醒体验；现阶段优先挂起，休眠暂不作为移动平台目标 |
 | 相机 | 对照原厂 ISP、曝光和对焦流程，改善首帧和专业控制；减少帧复制，目标为后置 4K60、前置 1080p30，并接通手电筒及随摄像头工作启停的实体隐私灯 |
@@ -87,7 +87,7 @@
 [`0022-panel-piano-prefer-120hz-cold-start.patch`](../patches/linux/7.2.9/0022-panel-piano-prefer-120hz-cold-start.patch)
 提供，并在 `config/release.json` 中记录；不是登录桌面后才切换刷新率。
 BOE／CSOT 仍按设备标识选择，不固定面板供应商，也不移除其他显示模式。
-当前合盖可关闭背光、开盖可恢复；完整睡眠与休眠目标仍被禁用，需要完成恢复验证后再启用。
+挂起已通过标准 systemd／logind 接口启用，GNOME 可按上述空闲时间触发。休眠、混合睡眠和先挂起后休眠保持关闭；待机耗电及各外设恢复仍需完善。
 
 ## 文档记录约定
 
