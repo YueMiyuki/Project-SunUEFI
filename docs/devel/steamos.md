@@ -51,6 +51,16 @@ Nyarch 相同的芯片识别补丁，保留标准 Mesa 路径和 Valve 的软件
 实机已运行 Plasma Wayland，OpenGL 使用 Freedreno，Vulkan 使用 Turnip；
 这些结果不能替代硬件视频解码或游戏兼容性验证。
 
+Gamescope 使用参考项目的移动设备适配，并增加分离 DRM 节点的处理：
+GPU 节点负责渲染，实际支持 KMS 的 DPU 节点负责输出。实机游戏模式已
+显示 Steam 的全屏设置界面，输出为 3200×2136 / 120 Hz。会话使用
+`gamescope-session.service`，供 SteamOS Manager 识别游戏模式和切换桌面。
+完整的登录后菜单、模式切换和游戏仍需继续验证。
+
+FFmpeg 的 H.264 8-bit 测试已实际调用 Iris，解码 720p 的 60 帧并正常退出。
+HEVC 10-bit 测试返回格式错误，仍需修复；不能把编码器列表或驱动节点出现
+当作所有视频格式已经可用。
+
 Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接安装这里的 7.1 包。
 
 ## 与掌机体验对齐

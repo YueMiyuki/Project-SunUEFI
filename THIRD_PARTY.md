@@ -46,6 +46,19 @@ BORE 6.8.0 来自 Masahito Suzuki 的调度器实现，以及
 
 SteamOS 根系统提取使用 [hashtagbasit/SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1) 的 `scripts/extract_rootfs.py`（GPL-2.0）。提交与文件 SHA256 固定在 `config/steamos.json`，下载时保留源文件通知。该项目提供提取方法和移植参考，SunUEFI 使用自己的启动器、设备内核与 BSP。Valve ARM64 根系统与公开 Steam 客户端分别记录在 `config/steamos.json`、`config/steam-client.json`，继续适用各组件的原有许可，不因提取脚本采用 GPL 而改变。FFmpeg 使用既有 BSP 补丁，构建为匹配 SteamOS 库 ABI 的 pacman 包，保留完整编解码配置与许可文件。
 
+SteamOS 的 Gamescope 采用同一固定 `SteamOS-ARM-Port` 提交中
+`external-and-mods/gamescope` 的移动设备适配源码，保留其逐文件版权及
+Gamescope 的 BSD-2-Clause 许可。依赖子项目取自 Valve Gamescope 3.16.30
+（`ad2763da1c48860f649abfe842a087188dcb6e20`），保留各自许可；
+原参考脚本指定的 `6edb42b...` 对象无法取得，因此不依赖该对象。
+本项目增加[渲染与显示节点分离修正](patches/gamescope/0001-drm-separate-render-and-display.patch)，
+使 Adreno 渲染设备与独立 DPU 显示控制器可以一起工作。
+构建来源记录在 `tools/build_steamos_gamescope.py` 和生成的 `SOURCE.json`。
+
+SteamOS 缺少的 KDE 组件取自 [KDE 官方发行归档](https://download.kde.org/stable/)。
+版本、URL、SHA-256 和依赖写在 `config/steamos.json` 的 `kde_packages` 中，
+按 Valve ARM64 系统现有 ABI 构建，保留每个组件的 `LICENSES/`。
+
 ## 字体、图标与显示资源
 
 | 资源 | 身份与使用 | 通知 / 尚需核对 |

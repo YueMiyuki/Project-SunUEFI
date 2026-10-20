@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+export SteamDeck=1
+export XDG_CURRENT_DESKTOP=gamescope
+export STEAM_DISPLAY_REFRESH_LIMITS=30,120
+for brightness in /sys/class/backlight/*/brightness; do
+    [ ! -e "$brightness" ] ||
+        /usr/bin/steamos-polkit-helpers/steamos-priv-write "$brightness" "" ||
+        printf '%s\n' 'Backlight access is unavailable for this session.' >&2
+done
+exec gamescope --backend drm -e -W 3200 -H 2136 -r 120 -- \
+    /usr/local/bin/piano-gamescope-steam

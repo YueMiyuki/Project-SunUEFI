@@ -1,0 +1,31 @@
+pkgname=gamescope
+pkgver=3.16.30
+pkgrel=3.1
+pkgdesc='Steam gaming compositor with mobile DRM display support'
+arch=(aarch64)
+url='https://github.com/ValveSoftware/gamescope'
+license=(BSD-2-Clause)
+depends=(gcc-libs libcap libdisplay-info libdrm libei libinput libpipewire
+         libx11 libxcb libxcomposite libxcursor libxdamage libxext libxfixes
+         libxkbcommon libxmu libxrender libxres libxtst libxxf86vm
+         lcms2 lua pixman sdl2 seatd vulkan-icd-loader wayland xorg-xwayland)
+makedepends=(base-devel cmake git meson ninja glslang hwdata libavif
+             python-jinja python-markupsafe wayland-protocols vulkan-headers)
+options=(!lto !debug)
+source=('gamescope-piano.tar.xz')
+sha256sums=('@SOURCE_SHA256@')
+
+build() {
+  arch-meson gamescope-source build -Dpipewire=enabled \
+    -Denable_openvr_support=false -Dinput_emulation=enabled \
+    -Dbenchmark=disabled -Denable_tests=false \
+    --force-fallback-for=wlroots,libliftoff,vkroots
+  meson compile -C build -j6
+}
+
+package() {
+  DESTDIR="$pkgdir" meson install -C build --skip-subprojects --no-rebuild
+  install -Dm644 gamescope-source/LICENSE "$pkgdir/usr/share/licenses/gamescope/LICENSE"
+  install -d "$pkgdir/usr/share/gamescope"
+  cp -a gamescope-source/scripts "$pkgdir/usr/share/gamescope/"
+}

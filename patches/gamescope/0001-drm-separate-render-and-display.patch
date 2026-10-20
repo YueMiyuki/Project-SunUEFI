@@ -1,0 +1,25 @@
+--- a/src/Backends/DRMBackend.cpp
++++ b/src/Backends/DRMBackend.cpp
+@@ -2103,9 +2103,20 @@
+ 
+ 	if ( !drmIsKMS( drm->fd ) )
+ 	{
+-		drm_log.errorf( "'%s' is not a KMS device", drm->device_name );
++		// SoCs can expose rendering and display as separate DRM devices.
++		// Let the session enumerate KMS devices while retaining the selected
++		// Vulkan renderer; wlroots also honors WLR_DRM_DEVICES here.
++		drm_log.infof( "'%s' is render-only; selecting a separate KMS device", drm->device_name );
+ 		wlsession_close_kms();
+-		return -1;
++		free( drm->device_name );
++		drm->device_name = nullptr;
++		drm->fd = wlsession_open_kms( nullptr );
++		if ( drm->fd < 0 || !drmIsKMS( drm->fd ) )
++		{
++			drm_log.errorf( "No KMS device available for the Vulkan renderer" );
++			wlsession_close_kms();
++			return false;
++		}
+ 	}
+ 
+ 	if (drmSetClientCap(drm->fd, DRM_CLIENT_CAP_ATOMIC, 1) != 0) {

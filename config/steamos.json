@@ -6,7 +6,8 @@
     "commit": "e54dac93afccf76e5fefe998399b6c1b1a23f3a1",
     "extractor": "scripts/extract_rootfs.py",
     "extractor_sha256": "f6e5840a6d14b08b026e20442ab4597af1d780bb779fea91cdd8c11fe2ffb378",
-    "license": "GPL-2.0"
+    "license": "GPL-2.0",
+    "desktop_package_list": "https://steamdeck-images.steamos.cloud/steamdeck/20261015.100/steamdeck-20261015.100-3.9.3.manifest.pacman"
   },
   "base": {
     "build": "20261002.6232440",

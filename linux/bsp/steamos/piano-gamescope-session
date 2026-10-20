@@ -1,10 +1,16 @@
 #!/bin/sh
-# SDDM owns the seat; Gamescope owns DRM, input and Steam's Xwayland session.
+# SDDM owns the seat. SteamOS Manager follows this standard user unit when
+# selecting Game Mode and stops graphical-session.target to switch desktops.
 set -eu
 export XDG_CURRENT_DESKTOP=gamescope
 export XDG_SESSION_DESKTOP=gamescope
 export SteamDeck=1
+unset XDG_SESSION_TYPE
+systemctl --user unset-environment DISPLAY WAYLAND_DISPLAY XAUTHORITY QT_QPA_PLATFORM XDG_SESSION_TYPE
 dbus-update-activation-environment --systemd \
-    XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SESSION_TYPE
-exec gamescope --backend drm -e -W 3200 -H 2136 -r 120 -- \
-    steam -steamdeck -steamos3 -gamepadui
+    XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_RUNTIME_DIR SteamDeck
+trap 'systemctl --user stop gamescope-session.target' HUP INT TERM
+systemctl --user --wait start gamescope-session.target &
+wait
+systemctl --user stop graphical-session-pre.target
+systemctl --user unset-environment GAMESCOPE_WAYLAND_DISPLAY XDG_SESSION_TYPE QT_QPA_PLATFORM

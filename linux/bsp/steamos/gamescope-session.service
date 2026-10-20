@@ -1,0 +1,15 @@
+[Unit]
+Description=Steam Gaming Mode compositor
+PartOf=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target
+Before=graphical-session.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+ExecStart=/usr/local/bin/piano-gamescope-run
+TimeoutStartSec=45
+TimeoutStopSec=10
+KillMode=mixed
+Slice=session.slice

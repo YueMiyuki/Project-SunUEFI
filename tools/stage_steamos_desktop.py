@@ -2,6 +2,9 @@
 """Replace the Frame device/session policy with Piano's KDE and Gamescope session."""
 import shutil
 import subprocess
+import json
+import shlex
+from datetime import datetime, timezone
 from pathlib import Path
 
 from stage_arch_piano import put
@@ -31,6 +34,34 @@ FRAME_UNITS = (
     'gpu-trace.service', 'softapmanager.service', 'steam-video-codec-setup.service',
     'home.mount', 'set-bluetooth-mac-address.service', 'set-wifi-mac-address.service',
 )
+
+
+def configure_identity(root, base, build_id):
+    # /etc/os-release in the Frame image links to this vendor file.
+    # Keep Valve's actual source version separately from the derivative.
+    path = root / 'usr/lib/os-release'
+    fields = {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        values = shlex.split(value)
+        fields[key] = values[0] if values else ''
+    fields.update(
+        NAME='SteamOS', PRETTY_NAME='SteamOS',
+        VERSION_CODENAME='piano', VARIANT='Tablet',
+        VARIANT_ID='tablet', VERSION_ID=base['version'] + '.sunuefi',
+        BUILD_ID=build_id, SUNUEFI_BASE_VERSION_ID=base['version'],
+        SUNUEFI_BASE_BUILD_ID=base['build'], SUNUEFI_BASE_VARIANT_ID='vr',
+        SUNUEFI_BASE_CODENAME='holo',
+        HOME_URL='https://github.com/slwyts/Project-SunUEFI',
+        DOCUMENTATION_URL='https://github.com/slwyts/Project-SunUEFI/tree/main/docs',
+        BUG_REPORT_URL='https://github.com/slwyts/Project-SunUEFI/issues')
+    path.write_text(''.join(key + '=' + json.dumps(value, ensure_ascii=False) + '\n'
+                            for key, value in fields.items()))
+    return {key: fields[key] for key in (
+        'PRETTY_NAME', 'VERSION_ID', 'VERSION_CODENAME', 'VARIANT_ID', 'BUILD_ID',
+        'SUNUEFI_BASE_VERSION_ID', 'SUNUEFI_BASE_BUILD_ID')}
 
 
 def platform_units(root):
@@ -80,6 +111,9 @@ def configure_platform(root):
     # CPU policy is already configured by Piano. Do not load Valve's LAVD
     # sched_ext scheduler over the selected BORE/EEVDF kernel scheduler.
     put(root, 'etc/default/steamos-scheduler', 'GOVERNOR=schedutil\nSCHEDULER=none\n')
+    (root / 'etc/NetworkManager/conf.d/90-piano-wifi.conf').unlink(missing_ok=True)
+    put(root, 'etc/NetworkManager/conf.d/99-valve-wifi-backend.conf',
+        '[device]\nwifi.backend=wpa_supplicant\n')
     bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
     put(root, 'usr/share/steamos-manager/devices/xiaomi-piano.toml',
         (bsp / 'xiaomi-piano.toml').read_text())
@@ -120,13 +154,25 @@ def configure(root):
     # Keep the native client and translation runtime. Do not reuse Frame's
     # VR session, including its low-space game deletion policy.
     bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
-    put(root, 'usr/local/bin/piano-gamescope-session',
-        (bsp / 'piano-gamescope-session').read_text(), 0o755)
+    for name in ('piano-gamescope-session', 'piano-gamescope-run', 'piano-gamescope-steam'):
+        put(root, 'usr/local/bin/' + name, (bsp / name).read_text(), 0o755)
+    for name in ('gamescope-session.service', 'gamescope-session.target'):
+        put(root, 'etc/systemd/user/' + name, (bsp / name).read_text())
     put(root, 'usr/share/wayland-sessions/gamescope-wayland.desktop',
         '[Desktop Entry]\nName=Steam Gaming Mode\n'
         'Exec=/usr/local/bin/piano-gamescope-session\n'
         'Type=Application\nDesktopNames=gamescope\n')
     configure_kde(root, subprocess.run)
+    project = Path(__file__).resolve().parents[1]
+    base = json.loads((project / 'config/steamos.json').read_text())['base']
+    commit = subprocess.check_output(
+        ['git', '-C', project, 'rev-parse', '--short=12', 'HEAD'], text=True).strip()
+    dirty = subprocess.check_output(
+        ['git', '-C', project, 'status', '--porcelain', '--untracked-files=no'], text=True)
+    build_id = 'sunuefi-' + datetime.now(timezone.utc).strftime('%Y%m%d') + '-' + commit
+    if dirty:
+        build_id += '-dirty'
+    identity = configure_identity(root, base, build_id)
     # SteamOS Manager writes a later temporary SDDM session override when
     # switching modes. Relogin lets SDDM follow it after the old session exits.
     put(root, 'etc/sddm.conf.d/10-sunuefi.conf',
@@ -151,6 +197,7 @@ def configure(root):
                     file.unlink()
     return {'initial_session': 'gamescope', 'desktop_session': 'plasma',
             'gaming_session': 'gamescope',
+            'os_release': identity,
             'frame_units_disabled': list(units),
             'steam_first_launch_requires_network': True,
             'gaming_session_device_verified': False}

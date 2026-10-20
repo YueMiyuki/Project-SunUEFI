@@ -1,0 +1,7 @@
+[Unit]
+Description=Steam Gaming Mode
+Requires=graphical-session.target gamescope-session.service
+BindsTo=graphical-session.target gamescope-session.service
+After=graphical-session.target
+PropagatesStopTo=graphical-session.target
+Wants=pipewire.service pipewire-pulse.service wireplumber.service

@@ -16,6 +16,7 @@ import build_arch_package
 import build_arch_ffmpeg
 import stage_arch_piano
 import prepare_steam_client
+import build_steamos_gamescope
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -116,7 +117,7 @@ def build(args):
     # is rebuilt below because the Frame image does not know Piano's A830v1.
     with build_resolver(root), guest_environment(root) as guest:
         guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel',
-               'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager',
+               'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager', 'wpa_supplicant',
                'alsa-utils', 'pipewire', 'pipewire-pulse', 'wireplumber',
                'python', 'python-gobject', 'polkit', 'erofs-utils', 'rsync', 'chromium'])
         if subprocess.run(['chroot', root, 'id', 'piano'], capture_output=True).returncode:
@@ -125,6 +126,10 @@ def build(args):
         # Keep Arch's standard account policy; the password is documented in
         # README and shared with the other images.
         guest(['usermod', '-aG', 'wheel', 'piano'])
+        # Valve's standard restricted sysfs writer grants the deck group
+        # access to backlight controls after its polkit check.
+        guest(['groupadd', '-r', '-f', 'deck'])
+        guest(['usermod', '-aG', 'deck', 'piano'])
         locale = root / 'etc/locale.gen'
         locale.write_text('en_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\n')
         guest(['locale-gen'])
@@ -149,6 +154,9 @@ def build(args):
         shutil.copy2(ROOT / 'upstream/piano-mesa-current/patches/0001-freedreno-Add-chip-id-support-for-A830v1.patch',
                      recipe)
         build_arch_package.build(root, recipe, mesa)
+    gamescope = output / 'packages/gamescope'
+    if not (gamescope / 'manifest.json').is_file():
+        build_steamos_gamescope.build(root, gamescope)
     ffmpeg = output / 'packages/ffmpeg'
     if not (ffmpeg / 'SOURCE.json').is_file():
         build_arch_ffmpeg.build(root, ffmpeg, resume=ffmpeg.exists())
