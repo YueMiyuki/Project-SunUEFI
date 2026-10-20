@@ -75,7 +75,30 @@ def platform_units(root):
     return FRAME_UNITS + offload
 
 
+def configure_cpu_and_recovery(root):
+    # Frame reserves CPUs for its VR pipeline. Let Linux schedule the tablet's
+    # services and applications across all CPUs; an empty list resets affinity.
+    for manager in ('system', 'user'):
+        put(root, f'etc/systemd/{manager}.conf.d/90-piano-cpu.conf',
+            '[Manager]\nCPUAffinity=\n')
+    # Advertise only the installed platform's capabilities through Manager.
+    # Valve's reset assumes its A/B layout; its BIOS/dock/fan tools target Deck.
+    path = root / 'usr/share/steamos-manager/platform.toml'
+    if path.is_file():
+        unsupported = {'factory_reset', 'update_bios', 'update_dock', 'fan_control'}
+        lines, omit = [], False
+        for line in path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped.startswith('['):
+                section = stripped.strip('[]').split('.', 1)[0]
+                omit = section in unsupported
+            if not omit:
+                lines.append(line)
+        path.write_text('\n'.join(lines).strip() + '\n')
+
+
 def configure_platform(root):
+    configure_cpu_and_recovery(root)
     units = platform_units(root)
     for unit in units:
         link = root / 'etc/systemd/system' / unit

@@ -83,6 +83,12 @@ ARM64 使用 Plasma 6.2.5 / Frameworks 6.14 的兼容组件，源码及摘要固
 只禁用 offload target 不够：用户登录和临时文件依赖仍可能启动它下面的
 挂载任务，导致反复等待不存在的分区。
 
+移除 Frame 留下的系统服务与用户会话 CPU 绑核限制，让应用可使用全部八核。
+SteamOS Manager 不提供依赖 Valve A/B 分区的出厂恢复，也不提供 Steam Deck
+专用 BIOS、底座和风扇操作。重装系统仍通过 SunUEFI 助手刷写 root 镜像。
+ARM64 Steam 客户端当前把 CPU 名称报告为 `Unknown`，频率取 CPU0 的最高频率；
+内核 `/proc/cpuinfo` 已提供完整 SoC 名称，八个核心和两组频率也正常暴露。
+
 `prepare_steam_client.py` 处理首次登录时的客户端解包，直接启动 ARM64
 程序，保留退出码 42 的正常重启行为。预装文件附带客户端安装清单，
 避免首次启动仅因清单缺失而重下整套客户端。在线更新与登录仍由 Steam 负责。
