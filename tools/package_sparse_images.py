@@ -84,7 +84,7 @@ def package(bundle, output):
         'Android sparse images for factory Fastboot. Do not write with dd.\n'
         'fastboot -s SERIAL -S 128M flash sunuefi_root root.ext4.img\n'
         'fastboot -s SERIAL -S 128M flash sunuefi_esp esp.img\n'
-        'Use the raw ESP/Root artifacts with assistant versions that lack sparse support.\n')
+        'SunUEFI assistant 0.5.2 and newer also accept these images directly.\n')
     return result
 
 

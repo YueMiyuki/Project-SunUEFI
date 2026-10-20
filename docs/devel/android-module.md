@@ -6,7 +6,7 @@ SunUEFI 引导助手在 Android 中安装和维护合体 BOOT，提供 Android�
 
 ## 使用
 
-1. 从 **Build products** 的 `SunUEFI-Android-Module-提交号` 下载并解压模块包，将里面的 `SunUEFI-Piano-版本.zip` 传到平板。
+1. 从 **Build products** 的 `SunUEFI-Module` 下载并解压模块包，将里面的 `SunUEFI-Piano-版本.zip` 传到平板。
 2. 在正常运行的 Android 中，用 SukiSU 的模块页面安装 ZIP。相同核心只读取、不重写 BOOT；其余情况提示音量＋安装或更新引导，音量－只安装助手。30 秒未选择时只安装助手，可稍后在维护页安装引导。
 3. 正常重启，点击模块卡片上的 **打开 WebUI**。
 
@@ -14,7 +14,7 @@ SunUEFI 引导助手在 Android 中安装和维护合体 BOOT，提供 Android�
 
 新合体 BOOT 在开机时显示 Android／UEFI 选择页，倒计时约三秒后沿用保存的路线。音量上选择 Android，音量下选择 UEFI 并直接启动 Linux，短按并松开电源键确认；这次临时选择不改变模块中保存的路线。画面、音量键的选中反馈、默认 Android 启动，以及临时选择 UEFI 后从 ESP 启动 Linux 均已在设备上使用。原厂 `reboot recovery` 的优先规则保留，固件设置的独立入口尚未开放。
 
-存储页显示独立存储分区的容量，并通过 Android 的本地文件选择器选择 ESP／root 镜像，不要求把文件放进固定目录。分区的实际名称仍为 `sunuefi_esp` 和 `sunuefi_root`。页面提供镜像安装、创建分区、调整 root 容量和删除并归还 Android 空间的操作入口；执行前展示计划。新模块中的这些写入流程尚未完成实机验证，不能作为新设备的一键首次分区方案。删除后需正常重启，由原厂系统扩大 Android 文件系统，模块再检查实际容量；具体机制见 [Android 存储扩容](android-storage.md)。
+存储页显示独立存储分区的容量，并通过 Android 的本地文件选择器选择 ESP／root 镜像，不要求把文件放进固定目录。0.5.2 起同时接受原始镜像与 Android 稀疏镜像，按展开后的大小检查容量，流式写入并读回校验。分区的实际名称仍为 `sunuefi_esp` 和 `sunuefi_root`。页面提供镜像安装、创建分区、调整 root 容量和删除并归还 Android 空间的操作入口；执行前展示计划。新模块中的这些写入流程尚未完成实机验证，不能作为新设备的一键首次分区方案。删除后需正常重启，由原厂系统扩大 Android 文件系统，模块再检查实际容量；具体机制见 [Android 存储扩容](android-storage.md)。
 
 页面支持中文和英文。打开页面只读取轻量状态，通常约 0.2 秒；维护页的 **检查引导** 才进行完整的只读 BOOT 检查，当前设备约两秒。管理器的 **执行** 按钮只显示当前选择和使用提示，不重启，也不输出原生工具的 JSON。
 

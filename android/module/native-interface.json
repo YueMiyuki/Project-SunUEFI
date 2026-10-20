@@ -17,7 +17,7 @@
     "adopt": "Read-only recognition of an already wrapped active BOOT with exactly matching selector/BootShim/FD/APP. Validate lossless stock reconstruction and normalized wrapper identity, recheck active-slot Android identity, then save installation state. Reject --execute; no BOOT write.",
     "upgrade": "Restore and validate the actual old SPLITv1+RSTRv1 carrier, rebuild its canonical bytes, repack the current original GKI with the new module core, preserve the valid NEXT target with a new generation/CRC, then recheck live source/slot/ROM/device and write/read back only active BOOT. Optional old installed-state must match when supplied."
   },
-  "entry_policy": "A valid owned persistent request selects Android, UEFI menu or the installed Stable Linux entry; ordinary boots reuse that selection until another explicit change. Standard Recovery takes priority and passes through to the current ROM GKI. The early selector does not yet provide a volume-key override of the saved Android route. Setup target 3 exists in the native format but is not exposed by the helper.",
+  "entry_policy": "A valid owned persistent request selects Android, UEFI menu or the installed Stable Linux entry; ordinary boots reuse that selection until another explicit change. Standard Recovery takes priority and passes through to the current ROM GKI. The early selector offers a three-second Android/UEFI choice with volume keys; a temporary choice does not change the saved route. Setup target 3 exists in the native format but is not exposed by the helper.",
   "webui": "Installed-core helper provides Android/UEFI radio selection and one save-and-reboot action, with Chinese and English text. It uses the official KernelSU WebUI exec bridge through bounded action.sh operations. Opening the page uses quick-status; Check boot requests a complete read-only native status. UEFI entries are returned by the backend: menu plus Linux only when the matching Stable Linux boot file and ESP/root pair exist. Arbitrary ESP entries are not selectable yet. The manager Action button without arguments prints a plain-language summary and never reboots.",
   "reconstruction": {
     "wrapper_magic": "SUNUEFI-SPLITv1",
@@ -56,7 +56,7 @@
   },
   "fresh_partition_install": {
     "automatic_partition_operations": false,
-    "new_layout_installation": "Not provided by this module. No userdata resize, GPT or filesystem write.",
+    "new_layout_installation": "Explicit storage-page plans support project partition creation, resizing and removal; installing the module itself never repartitions the device. Fresh-layout writes still need device validation.",
     "existing_linux": "A Linux request requires an existing sunuefi_esp + sunuefi_root pair and their installed boot files."
   },
   "file_tool": {
@@ -80,7 +80,7 @@
   "root_preservation": "Dynamic repack retains the current raw ARM64 GKI bytes, including compatible KernelSU code, and leaves init_boot/vendor_boot/REC/vbmeta untouched. Unsupported current-BOOT layout or AVB metadata is refused; this is not a replacement CI kernel.",
   "qualification_scope": "Top-level qualification flags describe the legacy optional --require-ready interface; generic installation uses live layout, identity, source recheck and complete write/readback checks instead.",
   "installed_core_helper": {
-    "version": "0.5.0",
+    "version": "0.5.2",
     "installation": "Use supported current stock BOOT for first installation; adopt identical core; upgrade known validated previous core. Keep current GKI and Android data.",
     "verified_manager": "SukiSU",
     "webui_bridge_verified": true,
@@ -109,7 +109,7 @@
         "maintenance"
       ],
       "status": "Actual named partitions and filesystem signatures",
-      "images": "Native Android local-file picker; two selected raw sources; bounded write to ESP/root with SHA readback.",
+      "images": "Native Android local-file picker; raw or Android sparse sources; check expanded bounds, stream RAW/FILL/DONT_CARE with CRC validation, and verify expanded SHA readback on ESP/root.",
       "root_resize": "Bundled static e2fsprogs; keep start, shrink filesystem before GPT, grow GPT before filesystem.",
       "create": "Free extent or native online F2FS shrink before GPT changes.",
       "delete_return": "Remove contiguous project partitions, extend userdata end, verify OEM F2FS grow after normal Android boot.",

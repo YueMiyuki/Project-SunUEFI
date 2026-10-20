@@ -251,6 +251,150 @@ static uint64_t part_bytes(const struct gpt *g, unsigned i) {
   const unsigned char *e = centry(g, i);
   return (u64(e + 40) - u64(e + 32) + 1) * g->sector;
 }
+struct sparse_image {
+  uint64_t expanded, file_bytes;
+  uint32_t block, chunks, checksum;
+  unsigned file_header, chunk_header;
+  int has_crc;
+};
+static unsigned u16(const unsigned char *p) {
+  return p[0] | (unsigned)p[1] << 8;
+}
+/* Validate every chunk before either target partition is opened for writing.
+ * Keep the selection/plan identity tied to the downloaded file, not its
+ * expanded size. DONT_CARE is materialized as zero for exact readback.
+ */
+static int sparse_scan(int fd, uint64_t bytes, uint64_t capacity,
+                       struct sparse_image *s, unsigned char prefix[4096]) {
+  unsigned char h[28], c[12], fill[4];
+  io(fd, h, sizeof(h), 0, 0);
+  memset(s, 0, sizeof(*s));
+  if (u32(h) != 0xed26ff3a)
+    return 0;
+  s->file_header = u16(h + 8);
+  s->file_bytes = bytes;
+  s->chunk_header = u16(h + 10);
+  s->block = u32(h + 12);
+  s->chunks = u32(h + 20);
+  s->checksum = u32(h + 24);
+  s->expanded = (uint64_t)s->block * u32(h + 16);
+  need(u16(h + 4) == 1 && s->file_header >= sizeof(h) &&
+           s->file_header <= bytes && s->chunk_header >= sizeof(c) &&
+           s->block >= 4 && !(s->block & 3) && s->expanded >= 8192 &&
+           s->expanded <= capacity && s->chunks &&
+           s->chunks <= (bytes - s->file_header) / s->chunk_header,
+       "稀疏镜像头无效，或展开后大于目标分区。");
+  uint64_t at = s->file_header, expanded = 0;
+  memset(prefix, 0, 4096);
+  for (uint32_t i = 0; i < s->chunks; i++) {
+    need(at <= bytes && bytes - at >= s->chunk_header, "稀疏镜像块头不完整。");
+    io(fd, c, sizeof(c), at, 0);
+    unsigned type = u16(c);
+    uint64_t n = (uint64_t)u32(c + 4) * s->block;
+    uint64_t stored = u32(c + 8);
+    need(stored >= s->chunk_header && stored <= bytes - at &&
+             n <= s->expanded - expanded,
+         "稀疏镜像块越界。");
+    uint64_t payload = stored - s->chunk_header;
+    need((type == 0xcac1 && n && payload == n) ||
+             (type == 0xcac2 && n && payload == 4) ||
+             (type == 0xcac3 && n && !payload) ||
+             (type == 0xcac4 && !n && payload == 4),
+         "稀疏镜像块类型或长度无效。");
+    if (type == 0xcac4)
+      s->has_crc = 1;
+    if (n && expanded < 4096) {
+      size_t take = n < 4096 - expanded ? (size_t)n : (size_t)(4096 - expanded);
+      if (type == 0xcac1)
+        io(fd, prefix + expanded, take, at + s->chunk_header, 0);
+      else if (type == 0xcac2) {
+        io(fd, fill, sizeof(fill), at + s->chunk_header, 0);
+        for (size_t j = 0; j < take; j++)
+          prefix[expanded + j] = fill[j & 3];
+      }
+    }
+    expanded += n;
+    at += stored;
+  }
+  need(at == bytes && expanded == s->expanded,
+       "稀疏镜像总长度或展开长度不一致。");
+  return 1;
+}
+static void sparse_stream(int src, int dst, const struct sparse_image *s,
+                          const char *kind, unsigned char digest[32]) {
+  unsigned char *buf = malloc(4 * MIB), c[12], fill[4];
+  uint32_t table[256], state = ~0u;
+  int check_crc = s->has_crc || s->checksum;
+  need(buf != NULL, "分配稀疏镜像缓冲区失败。");
+  if (check_crc) {
+    for (unsigned i = 0; i < 256; i++) {
+      uint32_t v = i;
+      for (unsigned bit = 0; bit < 8; bit++)
+        v = (v >> 1) ^ (0xedb88320u & -(v & 1));
+      table[i] = v;
+    }
+  }
+  SHA2_CTX ctx;
+  if (digest)
+    SHA256Init(&ctx);
+  uint64_t at = s->file_header, done = 0;
+  for (uint32_t i = 0; i < s->chunks; i++) {
+    need(at <= s->file_bytes && s->file_bytes - at >= s->chunk_header,
+         "稀疏镜像块头在读取时发生变化。");
+    io(src, c, sizeof(c), at, 0);
+    unsigned type = u16(c);
+    uint64_t n = (uint64_t)u32(c + 4) * s->block;
+    uint64_t payload = at + s->chunk_header;
+    uint64_t stored = u32(c + 8);
+    need(stored >= s->chunk_header && stored <= s->file_bytes - at &&
+             done <= s->expanded && n <= s->expanded - done,
+         "稀疏镜像块在读取时越界。");
+    uint64_t data_bytes = stored - s->chunk_header;
+    need((type == 0xcac1 && n && data_bytes == n) ||
+             (type == 0xcac2 && n && data_bytes == 4) ||
+             (type == 0xcac3 && n && !data_bytes) ||
+             (type == 0xcac4 && !n && data_bytes == 4),
+         "稀疏镜像块在读取时发生变化。");
+    if (type == 0xcac4) {
+      io(src, fill, sizeof(fill), payload, 0);
+      need(u32(fill) == ~state, "稀疏镜像 CRC 校验失败。");
+    } else {
+      if (type != 0xcac1) {
+        memset(fill, 0, sizeof(fill));
+        if (type == 0xcac2)
+          io(src, fill, sizeof(fill), payload, 0);
+        for (size_t j = 0; j < 4 * MIB; j += 4)
+          memcpy(buf + j, fill, 4);
+      }
+      for (uint64_t pos = 0; pos < n;) {
+        size_t take = n - pos > 4 * MIB ? 4 * MIB : (size_t)(n - pos);
+        if (type == 0xcac1)
+          io(src, buf, take, payload + pos, 0);
+        if (check_crc)
+          for (size_t j = 0; j < take; j++)
+            state = table[(state ^ buf[j]) & 255] ^ (state >> 8);
+        if (digest)
+          SHA256Update(&ctx, buf, take);
+        if (dst >= 0) {
+          need(take <= s->expanded - done, "稀疏镜像在刷写时发生变化。");
+          io(dst, buf, take, done, 1);
+        }
+        done += take;
+        pos += take;
+        if (dst >= 0)
+          fprintf(stderr, "progress:%s:%" PRIu64 ":%" PRIu64 "\n",
+                  kind, done, s->expanded);
+      }
+    }
+    at += u32(c + 8);
+  }
+  need(at == s->file_bytes && done == s->expanded &&
+           (!s->checksum || s->checksum == ~state),
+       "稀疏镜像展开校验失败。");
+  if (digest)
+    SHA256Final(digest, &ctx);
+  free(buf);
+}
 static int image_open(const char *path, struct image *out, const char *kind,
                       uint64_t capacity) {
   char resolved[PATH_MAX];
@@ -258,7 +402,7 @@ static int image_open(const char *path, struct image *out, const char *kind,
   need(realpath(path, resolved) != NULL, "所选镜像不存在，请重新选择文件。");
   int fd = open(resolved, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
   struct stat st;
-  need(fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size >= 8192,
+  need(fd >= 0 && !fstat(fd, &st) && S_ISREG(st.st_mode) && st.st_size >= 28,
        "镜像不是有效的普通文件。");
   out->bytes = (uint64_t)st.st_size;
   snprintf(out->path, sizeof(out->path), "%s", resolved);
@@ -268,18 +412,22 @@ static int image_open(const char *path, struct image *out, const char *kind,
   out->mtime_nsec = st.st_mtim.tv_nsec;
   out->ctime_sec = st.st_ctim.tv_sec;
   out->ctime_nsec = st.st_ctim.tv_nsec;
-  need(out->bytes <= capacity, "镜像大于目标分区。");
   unsigned char b[4096];
-  io(fd, b, sizeof(b), 0, 0);
-  need(u32(b) != 0xed26ff3a,
-       "请使用原始镜像，不能直接刷写 Android sparse 文件。");
+  struct sparse_image sparse;
+  int compressed = sparse_scan(fd, out->bytes, capacity, &sparse, b);
+  uint64_t expanded = compressed ? sparse.expanded : out->bytes;
+  need(expanded >= 8192 && expanded <= capacity, "镜像大于目标分区或长度无效。");
+  if (!compressed)
+    io(fd, b, sizeof(b), 0, 0);
+  else if (sparse.has_crc || sparse.checksum)
+    sparse_stream(fd, -1, &sparse, NULL, NULL);
   if (!strcmp(kind, "esp")) {
     unsigned sector = (unsigned)b[11] | (unsigned)b[12] << 8;
     uint64_t sectors = u32(b + 32);
     need((sector == 512 || sector == 4096) && b[510] == 0x55 &&
              b[511] == 0xaa && !memcmp(b + 82, "FAT32   ", 8) &&
              !memcmp(b + 71, "SUNUEFI_ESP", 11) && sectors > 0 &&
-             sectors * sector <= out->bytes,
+             sectors * sector <= expanded,
          "ESP 镜像必须是 SUNUEFI_ESP 标签的 FAT32。");
   } else {
     const unsigned char *s = b + 1024;
@@ -289,7 +437,7 @@ static int image_open(const char *path, struct image *out, const char *kind,
       blocks |= (uint64_t)u32(s + 336) << 32;
     need(s[56] == 0x53 && s[57] == 0xef && log <= 6 && blocks > 0 &&
              !memcmp(s + 120, "PIANOROOT\0", 10) &&
-             blocks <= out->bytes / (1024ull << log),
+             blocks <= expanded / (1024ull << log),
          "root 镜像必须是 PIANOROOT 标签的 ext4。");
   }
   hash(fd, out->bytes, 0, out->sha);
@@ -933,8 +1081,16 @@ static void flash(const struct plan *p) {
   unsigned char *buf = malloc(4 * MIB);
   need(buf != NULL, "分配刷写缓冲区失败。");
   for (unsigned i = 0; i < 2; i++) {
+    struct sparse_image sparse;
+    unsigned char prefix[4096], expanded_sha[32];
+    int compressed = sparse_scan(src[i], info[i].bytes,
+                                  part_bytes(&p->before, indexes[i]),
+                                  &sparse, prefix);
+    uint64_t expanded = compressed ? sparse.expanded : info[i].bytes;
     uint64_t done = 0;
-    while (done < info[i].bytes) {
+    if (compressed)
+      sparse_stream(src[i], dst[i], &sparse, kinds[i], expanded_sha);
+    while (!compressed && done < info[i].bytes) {
       size_t n = info[i].bytes - done > 4 * MIB
                      ? 4 * MIB
                      : (size_t)(info[i].bytes - done);
@@ -946,8 +1102,9 @@ static void flash(const struct plan *p) {
     }
     need(!fsync(dst[i]), "镜像写入同步失败。");
     unsigned char got[32];
-    hash(dst[i], info[i].bytes, 0, got);
-    need(!memcmp(got, wanted[i]->sha, 32), "镜像读回校验失败，请重新刷写。");
+    hash(dst[i], expanded, 0, got);
+    need(!memcmp(got, compressed ? expanded_sha : wanted[i]->sha, 32),
+         "镜像读回校验失败，请重新刷写。");
     hash(src[i], info[i].bytes, 0, got);
     need(!memcmp(got, wanted[i]->sha, 32),
          "刷写过程中源镜像发生变化，请重新刷写。");
