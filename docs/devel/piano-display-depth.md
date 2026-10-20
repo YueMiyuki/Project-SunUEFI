@@ -10,7 +10,7 @@ Piano 的默认内核使用 RGB101010 和 DSC 1.1：输入是 **10 bpc**，压�
 | --- | --- |
 | `max bpc` | 固定 10..10，与当前面板和 DSC 配置一致 |
 | `GAMMA_LUT` | 1024 项，GCv2 硬件输出曲线；GNOME 夜灯使用此接口 |
-| `DEGAMMA_LUT` | 257 项、每色 16 位，IGCv5 输入曲线 |
+| `DEGAMMA_LUT` | 1025 项均匀采样、每色 16 位，映射到 IGCv5 高精度曲线 |
 | `CTM` | 现有 PCC 色彩矩阵 |
 
 GC 和 IGC 在同一 REGDMA 缓冲区提交到实际使用的两路 DSPP，完成后一起生效。设备已完成恒等、非线性、恢复旁路的标准 LUT 更新，传输完成状态正常。实现及资源管理见 [GCv2／IGCv5 后端](piano-gcv2-night-light.md)。
@@ -22,7 +22,7 @@ GNOME 51 的显示设置有 HDR 开关，但没有单独的 8／10／12 位色�
 固定的 [MiCode 显示驱动](https://github.com/MiCode/vendor_opensource_display-drivers/tree/aa06fd1757c28dce96fbe4e04d4530ec21b52aac)及同机 Android DRM 状态表明：
 
 - 原厂 SDR／P3 模式使用 IGCv5、GCv2 和 Gamut v4。IGC 开启高精度扩展与内部 dither，GC 开启高精度扩展。
-- IGC 的高精度格式是 257 个普通点加 128 个暗部扩展点，不能按均匀 385 点解释。原厂 QDCM 的 sRGB 表与普通步长 `1/256`、暗部步长 `1/1024` 精确对应；独立的 Gamma 2.2 表误差不超过一个十六位码值。默认后端仍使用普通 257 点格式，高精度候选另行验证。
+- IGC 的高精度格式是 257 个普通点加 128 个暗部扩展点，不能按均匀 385 点解释。原厂 QDCM 的 sRGB 表与普通步长 `1/256`、暗部步长 `1/1024` 精确对应；独立的 Gamma 2.2 表误差不超过一个十六位码值。默认后端向用户空间提供均匀 1025 点接口，再选取硬件所需的两组采样点。
 - 原厂 DSI 的 `hdr_properties` 描述静态原色和亮度能力；它不等于 HDMI／DP 的动态 `HDR_OUTPUT_METADATA`，也不证明 DDIC 直接接收 PQ 像素。
 - 尚需取得真实 HDR 图层播放时的曲线、色域和亮度处理，对照 SDR 确认原厂在哪一层进行转换和色调映射。
 
@@ -32,7 +32,7 @@ HyperOS 4 的实际配置位于 `/odm/etc/display/qdcm_calib_data_xiaomi_p81_35_
 
 - `native_hdr` 的输出 Gamma 为 2.2，包含 P3 面板校准、17 点色调映射、实时亮度补偿和内容统计；CSOT 配置中的满屏峰值约 844.5 nit，SDR 参考峰值为 400 nit。这些是配置值，不是本次物理亮度测量。
 - HDR 模式配置了 LUMA dither，但 `temporalEnable=0`；配置内容不能代替实际播放时的寄存器状态，也不能单凭该字段认定面板 FRC。
-- [`0045` 高精度候选](../../patches/linux/7.2.9/drafts/0045-drm-igcv5-high-precision-grid.patch)暴露均匀 1025 项 `DEGAMMA_LUT`，由驱动选取两组硬件采样点，仍不启用 dither。组合 DMA 扩大到 16 KiB；实机恒等、非线性和旁路恢复已完成，提交 2142 个 word，两路 DSPP 均返回完成状态。尚未加入默认序列，也不代表 HDR 或面板 FRC 已验证。
+- [`0045` 高精度后端](../../patches/linux/7.2.9/0045-drm-igcv5-high-precision-grid.patch)暴露均匀 1025 项 `DEGAMMA_LUT`，由驱动选取两组硬件采样点，仍不启用 dither。组合 DMA 扩大到 16 KiB；实机恒等、非线性和旁路恢复已完成，提交 2142 个 word，两路 DSPP 均返回完成状态。已加入默认序列；这只扩展曲线采样精度，不代表 HDR 或面板 FRC 已验证。
 
 ## 12-bit 与抖动
 
