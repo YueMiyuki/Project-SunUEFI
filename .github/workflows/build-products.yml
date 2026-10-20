@@ -39,6 +39,7 @@ jobs:
     outputs:
       has_build: ${{ steps.targets.outputs.has_build }}
       matrix: ${{ steps.targets.outputs.matrix }}
+      shared_target: ${{ steps.targets.outputs.shared_target }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -98,7 +99,6 @@ jobs:
                 uefi)
                   ./build.sh uefi
                   ./build.sh module
-                  ./build.sh installer --product artifacts/product/PianoUEFI-product.img
                   ;;
                 linux)
                   ./build.sh linux
@@ -114,9 +114,6 @@ jobs:
                     --initramfs "build/distros/$SUNUEFI_BUILD_TARGET-piano/initramfs/initramfs.cpio.gz" \
                     --root-size-mib 16384
                   python3 tools/package_sparse_images.py --bundle artifacts/release-7.2.9 --output artifacts/fastboot-sparse
-                  ./build.sh installer --bundle artifacts/release-7.2.9
-                  mkdir -p artifacts/rootfs/bundle
-                  mv artifacts/installer/bundle/root.ext4.img artifacts/rootfs/bundle/
                   ;;
                 debian-gnome|debian-kde)
                   python3 -c "import sys; sys.path.insert(0, \"tools\"); from build_release_rootfs import require_host; require_host()"
@@ -129,9 +126,6 @@ jobs:
                   ./build.sh release-rootfs --desktop "${SUNUEFI_BUILD_TARGET#debian-}"
                   ./build.sh package --root-size-mib 8192
                   python3 tools/package_sparse_images.py --bundle artifacts/release-7.2.9 --output artifacts/fastboot-sparse
-                  ./build.sh installer --bundle artifacts/release-7.2.9
-                  mkdir -p artifacts/rootfs/bundle
-                  mv artifacts/installer/bundle/root.ext4.img artifacts/rootfs/bundle/
                   ;;
               esac
             ' 2>&1 | tee build/logs/ci-build.log
@@ -148,74 +142,66 @@ jobs:
               echo "::endgroup::"
             fi
           done
-      - name: Prepare standalone UEFI notices
-        if: matrix.target != 'linux'
+      - name: Prepare shared downloads
+        if: always() && matrix.target == needs.select.outputs.shared_target && matrix.target != 'linux'
         run: |
-          sudo install -D -m 0644 \
-            uefi/components/product-support/Library/ConsoleScale/OFL.txt \
-            artifacts/product/licenses/OFL.PianoSetupFont.txt
-      - name: Standalone UEFI for fastboot boot
-        if: matrix.target != 'linux'
+          mkdir -p artifacts/downloads/module artifacts/downloads/uefi artifacts/downloads/esp
+          if [ -f artifacts/android/manifest.json ]; then
+            cp artifacts/android/SunUEFI-Piano-*.zip artifacts/downloads/module/
+          fi
+          if [ -f artifacts/product/PianoUEFI-product.img ]; then
+            cp artifacts/product/PianoUEFI-product.img artifacts/downloads/uefi/SunUEFI-UEFI-Fastboot.img
+            cp uefi/components/product-support/Library/ConsoleScale/OFL.txt artifacts/downloads/uefi/
+          fi
+          if [ -f artifacts/fastboot-sparse/manifest.json ]; then
+            cp artifacts/fastboot-sparse/esp.img artifacts/downloads/esp/esp.sparse.img
+          fi
+      - name: Android assistant module
+        if: always() && matrix.target == needs.select.outputs.shared_target
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: SunUEFI-UEFI-Fastboot(MembootTest)-${{ matrix.target }}-${{ github.sha }}
-          path: |
-            artifacts/product/PianoUEFI-product.img
-            artifacts/product/manifest.json
-            artifacts/product/licenses/
-          if-no-files-found: error
+          name: SunUEFI-Module
+          path: artifacts/downloads/module/
+          if-no-files-found: ignore
           retention-days: 7
           compression-level: 0
-      - name: ESP image and one-click installer
-        if: matrix.target != 'linux'
+      - name: UEFI for fastboot boot
+        if: always() && matrix.target == needs.select.outputs.shared_target
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: SunUEFI-${{ matrix.target != 'uefi' && format('ESP-{0}', matrix.target) || 'UEFI' }}-${{ github.sha }}
-          path: artifacts/installer/
-          if-no-files-found: error
+          name: SunUEFI-UEFI-Fastboot
+          path: artifacts/downloads/uefi/
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 0
+      - name: Shared sparse ESP
+        if: always() && matrix.target == needs.select.outputs.shared_target
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: SunUEFI-ESP
+          path: artifacts/downloads/esp/
+          if-no-files-found: ignore
           retention-days: 7
           compression-level: 1
-      - name: Downloadable Android boot assistant module
-        if: matrix.target != 'linux'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: SunUEFI-Android-Module-${{ matrix.target }}-${{ github.sha }}
-          path: artifacts/android/
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-      - name: Root filesystem image
+      - name: Prepare sparse root download
+        if: startsWith(matrix.target, 'debian-') || matrix.target == 'steamos' || matrix.target == 'nyarch'
+        run: |
+          mkdir -p artifacts/downloads/root
+          cp artifacts/fastboot-sparse/root.ext4.img "artifacts/downloads/root/root-${SUNUEFI_BUILD_TARGET}.sparse.img"
+      - name: Distribution sparse root
         if: startsWith(matrix.target, 'debian-') || matrix.target == 'steamos' || matrix.target == 'nyarch'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: SunUEFI-Root-${{ matrix.target }}-${{ github.sha }}
-          path: artifacts/rootfs/
+          name: SunUEFI-Root-${{ matrix.target }}
+          path: artifacts/downloads/root/
           if-no-files-found: error
           retention-days: 7
           compression-level: 1
-      - name: Sparse ESP and root for factory Fastboot
-        if: startsWith(matrix.target, 'debian-') || matrix.target == 'steamos' || matrix.target == 'nyarch'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: SunUEFI-Fastboot-Sparse-${{ matrix.target }}-${{ github.sha }}
-          path: artifacts/fastboot-sparse/
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 1
-      - name: Downloadable Linux Image, config and matching modules
-        if: matrix.target == 'linux'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: piano-linux-${{ github.sha }}
-          path: artifacts/kernels/release-7.2.9/
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-      - name: Keep build records and kernel outputs
+      - name: Stage build logs for the combined archive
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: piano-build-records-${{ env.SUNUEFI_BUILD_TARGET }}-${{ github.sha }}
+          name: build-logs-${{ matrix.target }}
           path: |
             build/logs/
             sources.lock.json
@@ -225,6 +211,7 @@ jobs:
             build/distros/nyarch-piano/manifest.json
             build/distros/nyarch-piano/build.log
             build/distros/nyarch-piano/packages.tsv
+            build/distros/nyarch-piano/packages/ffmpeg/SOURCE.json
             build/steamos-base/SOURCE.json
             build/distros/steamos-piano/manifest.json
             build/distros/steamos-piano/packages.tsv
@@ -236,7 +223,6 @@ jobs:
             build/mesa/SHA256SUMS
             build/sensors/SOURCE
             build/sensors/SHA256SUMS
-            build/sensors/runtime/
             build/ffmpeg/SOURCE.json
             build/ffmpeg/SHA256SUMS
             build/ffmpeg/build.log
@@ -245,9 +231,7 @@ jobs:
             build/distros/release-7.2.9/FAILED.json
             build/gsd/SOURCE.json
             build/gsd/build.log
-            build/gsd/runtime/
             build/mutter/SOURCE.json
-            build/mutter/runtime/
             build/mutter/SHA256SUMS
             build/mutter/build.log
             build/distros/release-7.2.9/packages.tsv
@@ -256,10 +240,26 @@ jobs:
             artifacts/android/manifest.json
             build/android-product-module/manifest.json
             artifacts/product/manifest.json
-            artifacts/kernels/release-7.2.9/Image
             artifacts/kernels/release-7.2.9/config
             artifacts/kernels/release-7.2.9/manifest.json
             artifacts/release-7.2.9/manifest.json
+            artifacts/fastboot-sparse/manifest.json
+            artifacts/fastboot-sparse/SHA256SUMS
           if-no-files-found: warn
           retention-days: 7
           compression-level: 0
+
+  logs:
+    needs: [select, build]
+    if: always() && needs.select.outputs.has_build == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Publish one logs.zip and remove intermediate log artifacts
+        uses: actions/upload-artifact/merge@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: logs
+          pattern: build-logs-*
+          separate-directories: true
+          delete-merged: true
+          retention-days: 7
+          compression-level: 6

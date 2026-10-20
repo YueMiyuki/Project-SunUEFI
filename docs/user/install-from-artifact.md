@@ -10,14 +10,16 @@
 
 | 下载包 | 解压后使用的文件 | 用途 |
 | --- | --- | --- |
-| `SunUEFI-Android-Module-提交号` | `SunUEFI-Piano-版本.zip` | 引导助手模块 |
-| `SunUEFI-ESP-提交号` | `bundle/esp.img` | 启动镜像 |
-| `SunUEFI-Root-提交号` | `bundle/root.ext4.img` | Linux 系统镜像 |
+| `SunUEFI-Module` | `SunUEFI-Piano-版本.zip` | 引导助手模块 |
+| `SunUEFI-ESP` | `esp.sparse.img` | 启动镜像 |
+| `SunUEFI-Root-发行版` | `root-发行版.sparse.img` | Linux 系统镜像 |
 
-将模块 ZIP 和两个 `.img` 文件保存在平板上。模块 ZIP 不要再解压；两个镜像可以放在任意方便的位置，之后通过文件选择器选取。手动选择 `uefi` 或 `linux` 的开发构建不包含完整系统。
+Root 可选择 `debian-gnome`、`debian-kde`、`nyarch` 或 `steamos`。ESP、模块和临时 UEFI 镜像各只有一份；`logs.zip` 用于排查构建问题，普通安装无需下载。
 
-此外还有可选的 `SunUEFI-UEFI-Fastboot(MembootTest)-提交号`，包含独立的
-`PianoUEFI-product.img`，供 `fastboot boot` 临时启动 UEFI 使用。
+使用 0.5.2 或更新的助手刷写稀疏镜像。将模块 ZIP 和两个 `.img` 文件保存在平板上。模块 ZIP 不要再解压；两个镜像可以放在任意方便的位置，之后通过文件选择器选取。手动选择 `uefi` 或 `linux` 的开发构建不包含完整系统。
+
+此外还有可选的 `SunUEFI-UEFI-Fastboot`，包含独立的
+`SunUEFI-UEFI-Fastboot.img`，供 `fastboot boot` 临时启动 UEFI 使用。
 助手安装流程不需要下载它，见[临时启动固件](temporary-boot.md)。
 
 ## 1. 安装引导助手
@@ -37,7 +39,7 @@
 
 ## 3. 安装系统镜像
 
-在 **存储** 页的 **安装或更新系统** 中，分别选择 `esp.img` 和 `root.ext4.img`，点击 **安装所选镜像**，确认后等待完成。刷写会覆盖独立分区中原有的系统和文件。
+在 **存储** 页的 **安装或更新系统** 中，分别选择 `esp.sparse.img` 和 `root-发行版.sparse.img`，点击 **安装所选镜像**，确认后等待完成。刷写会覆盖独立分区中原有的系统和文件。
 
 ## 4. 启动 Linux
 

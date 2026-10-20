@@ -11,7 +11,7 @@ Linux 默认用户名为 `piano`，密码为 `piano123456`，桌面默认自动�
 
 * 小米平板 8 Pro，Bootloader 已解锁，重要数据已备份。
 * 电脑装有 `adb` 和 `fastboot`，以及一根 USB-C 数据线。
-* `PianoUEFI-product.img`：下载 GitHub Actions 的 **`SunUEFI-UEFI-Fastboot(MembootTest)-提交号`** 并解压，`uefi` 和完整系统构建均会提供。也可自行构建（见[构建手册](../devel/building.md)，输出在 `artifacts/product/`）。包内 `manifest.json` 记录镜像 SHA256。
+* `SunUEFI-UEFI-Fastboot.img`：下载 GitHub Actions 的 **`SunUEFI-UEFI-Fastboot`** 并解压，`uefi` 和完整系统构建均会提供。也可自行构建（见[构建手册](../devel/building.md)，输出在 `artifacts/product/`）。构建来源和校验记录集中在 `logs.zip` 中。
 
 这是独立 UEFI 镜像，不包含原厂 Android 内核；助手会把同一核心与设备当前
 Android 内核重新打包，形成合体 BOOT。临时启动用这里的独立镜像。
@@ -29,7 +29,7 @@ fastboot getvar unlocked      # 应显示 unlocked: yes
 ## 2. 临时加载固件
 
 ```sh
-fastboot boot PianoUEFI-product.img
+fastboot boot SunUEFI-UEFI-Fastboot.img
 ```
 
 返回 `OKAY` 只说明原厂 Bootloader 接受了镜像。接着确认固件是否真的运行：

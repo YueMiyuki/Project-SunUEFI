@@ -50,10 +50,10 @@
 
 准备一台已解锁 Bootloader、已安装 KernelSU／SukiSU 的小米平板 8 Pro，并备份重要数据。日常安装在平板上的 **SunUEFI 引导助手** 中完成，无需电脑命令或填写序列号。
 
-1. **下载三个包**：从 [Build products](https://github.com/slwyts/Project-SunUEFI/actions/workflows/build-products.yml) 的完整构建下载引导助手、ESP 和 Root。解压后得到模块 ZIP、`esp.img`（启动镜像）和 `root.ext4.img`（系统镜像）。
+1. **下载三个包**：从 [Build products](https://github.com/slwyts/Project-SunUEFI/actions/workflows/build-products.yml) 的完整构建下载引导助手、ESP 和 Root。ESP 为四个发行版共用，Root 按想使用的发行版选择。解压后得到模块 ZIP、`esp.sparse.img` 和对应的 `root-发行版.sparse.img`。
 2. **安装并打开助手**：在模块管理器中安装模块 ZIP，提示出现时按音量＋安装引导；重启后，点击模块卡片上的 **打开 WebUI**。
 3. **分配存储空间**：在 **存储 → 创建独立分区** 中选择容量并确认，完成后重启。已有独立分区时跳过这一步。
-4. **刷写镜像**：在 **存储** 页分别选择下载好的 `esp.img` 和 `root.ext4.img`，点击 **安装所选镜像**，等待完成。
+4. **刷写镜像**：在 **存储** 页分别选择下载好的 `esp.sparse.img` 和 `root-发行版.sparse.img`，点击 **安装所选镜像**，等待完成。
 5. **进入 Linux**：在 **启动** 页选择 **UEFI → Linux**，点击 **保存并重启**。
 
 首次启动会自动把 root 文件系统扩展到已创建的独立分区容量，无需手动扩容；不会占用额外的 Android 空间。
@@ -69,7 +69,7 @@
 
 当前 Linux 内核和系统服务启动约 39 秒，不含开机选择页与 UEFI；首次启动可能更久。
 
-仅临时运行 UEFI 时，另下载 **`SunUEFI-UEFI-Fastboot(MembootTest)-提交号`**，解压后执行 `fastboot boot PianoUEFI-product.img`。这是不含原厂 Android 内核的独立镜像，与助手里的 UEFI 使用同一核心；不会安装 Linux 或改写 BOOT。操作说明见[临时启动固件](docs/user/temporary-boot.md)。
+仅临时运行 UEFI 时，另下载 **`SunUEFI-UEFI-Fastboot`**，解压后执行 `fastboot boot SunUEFI-UEFI-Fastboot.img`。这是不含原厂 Android 内核的独立镜像，与助手里的 UEFI 使用同一核心；不会安装 Linux 或改写 BOOT。操作说明见[临时启动固件](docs/user/temporary-boot.md)。
 
 HyperOS 更新后，在助手的 **维护** 页点击 **重新安装引导**。想回 Android，可以在开机选择页按音量＋选择 Android、短按电源确认；Linux 下也可运行 `piano-next-boot android --reboot`。遇到无法启动的情况，见[故障恢复](docs/user/recovery.md)。
 

@@ -79,7 +79,7 @@ def main():
     matrix = json.dumps({'target': targets}, separators=(',', ':'))
     if output := os.environ.get('GITHUB_OUTPUT'):
         with open(output, 'a') as stream:
-            stream.write('has_build=' + ('true' if targets else 'false') + '\nmatrix=' + matrix + '\n')
+            stream.write('has_build=' + ('true' if targets else 'false') + '\nmatrix=' + matrix + '\nshared_target=' + (targets[0] if targets else '') + '\n')
     print(matrix)
 
 
