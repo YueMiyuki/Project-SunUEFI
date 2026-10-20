@@ -106,11 +106,23 @@ ADSP-DTB 更新，覆盖旧版对应文件；来源、大小和 SHA256 随固件
 ./build.sh module-package --inspect                                      # 低层打包工具：只检查已有输入
 ```
 
-模块支持从当前原厂 BOOT 安装合体引导、更新已有核心，以及在系统更新后手动重新安装。它不自动处理 OTA、修改非活动槽或创建分区；一次性请求自动清除也尚未完成。见[原生 BOOT 重打包](android-boot-repack.md)、[Android 模块](android-module.md)。
+模块支持从当前原厂 BOOT 安装合体引导、更新已有核心，以及在 HyperOS 更新后通过“重新安装引导”恢复启动选择器。分区和镜像刷写在助手的“存储”页完成。见[原生 BOOT 重打包](android-boot-repack.md)、[Android 模块](android-module.md)。
 
 ## CI
 
-GitHub Actions 的 **Build products** 提供 `uefi`、`linux`、`debian-gnome` 三个目标。`uefi` 和 `debian-gnome` 的安装包为 `piano-目标-提交号`（含 `install.sh`、`install.cmd`、安装器和 `INSTALL.md`；`debian-gnome` 另有 `bundle/`），同一轮的模块包单独上传为 `piano-android-module-目标-提交号`。模块包中包含 ZIP、构建清单和 SHA256 校验文件；日志为 `piano-build-records-目标-提交号`。
+GitHub Actions 的 **Build products** 默认构建 Debian GNOME、Debian KDE、Nyarch GNOME 和 SteamOS。手动运行时可以选择 `all`、任一发行版，或仅构建 `uefi`／`linux`。
+
+完整构建提供以下下载：
+
+| 下载名称 | 内容 |
+| --- | --- |
+| `SunUEFI-Module` | Android 引导助手模块 ZIP |
+| `SunUEFI-UEFI-Fastboot` | 用于 `fastboot boot` 的独立 UEFI 镜像 |
+| `SunUEFI-ESP` | 共用的稀疏 ESP 镜像 |
+| `SunUEFI-Root-发行版` | 对应发行版的稀疏 root 镜像 |
+| `logs` | 合并的构建日志、来源清单和校验记录 |
+
+模块、UEFI 和 ESP 每轮只上传一份，各发行版分别上传 root 镜像。安装时将所选发行版的 root 与同一轮 ESP 配套使用；日常安装步骤见[安装指南](../user/install-from-artifact.md)。
 
 不再单独运行 `host-checks.yml` 的 portable 检查。需要对应检查时，在本地运行 `./build.sh check`。依赖和来源记录见[公开构建链](public-build.md)。
 
