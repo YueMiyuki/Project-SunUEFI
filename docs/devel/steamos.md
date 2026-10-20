@@ -111,6 +111,11 @@ ARM64 Steam 客户端当前把 CPU 名称报告为 `Unknown`，频率取 CPU0 �
 硬件视频解码与 7.3 的 ADSP 稳定性仍在调试。对照同一 SteamOS 根系统，
 7.2.9 的 ADSP 和传感器正常，7.3 存在 DSP 崩溃，尚未发布本轮升级。
 
+进一步对照已确认：7.3 关闭 BORE、Gunyah、MGLRU 和动态抢占后仍会崩溃；
+同时替换旧版 PAS 与 FastRPC 驱动也不能解决。停用传感器时音频可以单独
+运行，重新启动传感器服务后复现 ADSP watchdog。保留固件内存映射的候选
+补丁无效，已移出默认构建。设备暂用 7.2.9，继续保留新版 SteamOS 会话修正。
+
 ## 来源
 
 根系统提取器来自 [SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1)，按 GPL-2.0 保留来源。Valve 系统、Steam 客户端及附带组件继续适用各自许可；参考仓库的 GPL 许可不覆盖这些二进制。具体下载身份和构建结果保存在 `SOURCE.json`、根系统 `manifest.json` 和 `packages.tsv`。
