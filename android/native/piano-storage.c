@@ -838,8 +838,8 @@ static void select_image(const char *kind, const char *hex, const char *size) {
   char *end;
   errno = 0;
   uint64_t bytes = strtoull(size, &end, 10);
-  need(*size >= '0' && *size <= '9' && !*end && !errno && bytes >= 8192,
-       "镜像容量无效，请选择未压缩的镜像文件。");
+  need(*size >= '0' && *size <= '9' && !*end && !errno && bytes >= 28,
+       "镜像容量无效，请选择原始或 Android 稀疏镜像。");
   need(realpath(source_root, root) != NULL, "无法访问本地共享存储。");
   int fd = open(root, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
   need(fd >= 0, "无法访问本地共享存储。");
