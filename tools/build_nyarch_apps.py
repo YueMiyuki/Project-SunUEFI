@@ -17,6 +17,8 @@ import subprocess
 import sys
 import urllib.request
 
+from build_chroot import stop_helpers
+
 ROOT = Path(__file__).resolve().parents[1]
 APPS = ('NyarchCustomize', 'NyarchTour', 'NyarchWizard', 'NyarchScript')
 PACKAGES = (
@@ -104,6 +106,7 @@ def guest_environment(root):
         subprocess.run(['chroot', root, 'gpgconf', '--homedir',
                         '/etc/pacman.d/gnupg', '--kill', 'all'],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stop_helpers(root)
         for path in reversed(mounted):
             run(['umount', path])
 

@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tarfile
 from urllib.parse import urlsplit
+from build_chroot import stop_helpers
 from build_piano_ram_bootstrap import guest_resolve
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -320,6 +321,7 @@ def execute(result):
     finally:
         if profile['id'] == 'arch' and (root / 'usr/bin/gpgconf').exists():
             guest(['gpgconf', '--homedir', '/etc/pacman.d/gnupg', '--kill', 'all'], check=False)
+        stop_helpers(root)
         for path in reversed(mounted): run(['umount', path])
     for name in ('dev', 'proc', 'sys', 'run'):
         for path in (root / name).iterdir():
