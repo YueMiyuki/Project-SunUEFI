@@ -169,6 +169,11 @@ class LeScan:
         self.pairing = None
         try:
             connection.call_finish(result)
+            # The retry guard belongs to a failed bond, not this process's
+            # lifetime. A later key mismatch must be recoverable too.
+            self.repair.discard(path)
+            self.repaired.discard(path)
+            self.pair_retry = 0
             # Trust only after Pair has completed, and only this physical pen.
             connection.call_sync('org.bluez', path, 'org.freedesktop.DBus.Properties',
                 'Set', self.GLib.Variant('(ssv)', ('org.bluez.Device1', 'Trusted',
