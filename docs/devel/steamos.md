@@ -96,6 +96,10 @@ ARM64 使用 Plasma 6.2.5 / Frameworks 6.14 的兼容组件，源码及摘要固
 只禁用 offload target 不够：用户登录和临时文件依赖仍可能启动它下面的
 挂载任务，导致反复等待不存在的分区。
 
+Wi-Fi 由 NetworkManager 与 wpa_supplicant 管理，同时设置 Steam 原生支持的
+`STEAM_USE_WPASUPPLICANT=1`。仅修改 NetworkManager 配置不够：Steam 启动
+时会按自己的偏好要求 Manager 切换后端，可能重新写回 iwd。
+
 移除 Frame 留下的系统服务与用户会话 CPU 绑核限制，让应用可使用全部八核。
 SteamOS Manager 不提供依赖 Valve A/B 分区的出厂恢复，也不提供 Steam Deck
 专用 BIOS、底座和风扇操作。重装系统仍通过 SunUEFI 助手刷写 root 镜像。

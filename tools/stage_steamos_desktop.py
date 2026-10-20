@@ -137,6 +137,10 @@ def configure_platform(root):
     (root / 'etc/NetworkManager/conf.d/90-piano-wifi.conf').unlink(missing_ok=True)
     put(root, 'etc/NetworkManager/conf.d/99-valve-wifi-backend.conf',
         '[device]\nwifi.backend=wpa_supplicant\n')
+    # Steam otherwise asks Manager to switch back to iwd at every launch.
+    # Use the client's own backend preference, for Gaming Mode and KDE alike.
+    put(root, 'etc/environment.d/60-piano-steam-wifi.conf',
+        'STEAM_USE_WPASUPPLICANT=1\n')
     bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
     put(root, 'usr/share/steamos-manager/devices/xiaomi-piano.toml',
         (bsp / 'xiaomi-piano.toml').read_text())
