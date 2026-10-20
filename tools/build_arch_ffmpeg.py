@@ -69,7 +69,11 @@ def build(root, output, resume=False):
     series = json.loads(series_path.read_text())
     version = series['upstream_version']
     # Retain Arch's package release ordering while identifying our rebuild.
-    pkgrel = upstream_version.rsplit('-', 1)[1] + '.1'
+    release = upstream_version.rsplit('-', 1)[1]
+    if not re.fullmatch(r'\d+(?:\.\d+)?', release):
+        raise ValueError('Unsupported pacman package release: ' + release)
+    major, _, rebuild = release.partition('.')
+    pkgrel = major + '.' + str(int(rebuild or '0') + 1)
     epoch = package_version.split(':')[0] if ':' in package_version else '0'
     output.mkdir(parents=True, exist_ok=resume)
     provenance = (json.loads((output / 'source/SOURCE.json').read_text())
