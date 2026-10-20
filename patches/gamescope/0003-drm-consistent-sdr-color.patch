@@ -1,0 +1,24 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] drm: apply SDR color management consistently without plane LUTs
+
+MSM lacks the AMD plane color pipeline. Direct scanout skipped the SDR LUT
+while cursor composition applied it, changing colors with the input device.
+Use shader color management whenever the display backend cannot apply it.
+Disabling color management still permits direct scanout.
+
+--- a/src/Backends/DRMBackend.cpp
++++ b/src/Backends/DRMBackend.cpp
+@@ -4657,7 +4657,13 @@
+ 			else
+ 			{
+ 				if ( !SupportsColorManagement() )
++				{
++					// Scanout has no plane LUTs on this backend. Preserve the
++					// same SDR gamut, gamma and night-mode transform whether
++					// a cursor/overlay happens to require composition or not.
++					bNeedsFullComposite |= pFrameInfo->applyOutputColorMgmt;
+ 					bNeedsFullComposite |= ColorspaceIsHDR( pFrameInfo->layers.get( 0 ).colorspace );
++				}
+ 			}
+ 
+ 			bNeedsFullComposite |= !!(g_uCompositeDebug & CompositeDebugFlag::Heatmap);

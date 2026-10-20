@@ -1,0 +1,47 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] input: configure touchpad natural scrolling through libinput
+
+Allow the session to select natural scrolling for touchpads, including devices
+added after startup. Leave mouse wheels and touchscreen direction untouched.
+
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -619,6 +619,30 @@
+ 	return !s_Only.empty() && !wlserver_name_listed( s_Only, device );
+ }
+ 
++// Apply this preference through libinput so finger-scroll direction metadata
++// stays consistent. Mouse wheels and emulated pointers retain their defaults.
++static void wlserver_configure_touchpad( struct wlr_input_device *device )
++{
++	const char *setting = getenv( "GAMESCOPE_TOUCHPAD_NATURAL_SCROLL" );
++	if ( !setting || !wlr_input_device_is_libinput( device ) )
++		return;
++
++	struct libinput_device *lidev = wlr_libinput_get_device_handle( device );
++	struct udev_device *udev = lidev ? libinput_device_get_udev_device( lidev ) : nullptr;
++	if ( !udev )
++		return;
++	const char *kind = udev_device_get_property_value( udev, "ID_INPUT_TOUCHPAD" );
++	bool isTouchpad = kind && strcmp( kind, "1" ) == 0;
++	udev_device_unref( udev );
++	if ( !isTouchpad || !libinput_device_config_scroll_has_natural_scroll( lidev ) )
++		return;
++
++	bool enabled = strcmp( setting, "1" ) == 0;
++	if ( libinput_device_config_scroll_set_natural_scroll_enabled( lidev, enabled ) == LIBINPUT_CONFIG_STATUS_SUCCESS )
++		wl_log.infof( "Touchpad %s: natural scrolling %s", device->name,
++			libinput_device_config_scroll_get_natural_scroll_enabled( lidev ) ? "enabled" : "disabled" );
++}
++
+ static void wlserver_new_input(struct wl_listener *listener, void *data)
+ {
+ 	struct wlr_input_device *device = (struct wlr_input_device *) data;
+@@ -658,6 +682,7 @@
+ 		break;
+ 		case WLR_INPUT_DEVICE_POINTER:
+ 		{
++			wlserver_configure_touchpad( device );
+ 			struct wlserver_pointer *pointer = (struct wlserver_pointer *) calloc( 1, sizeof( struct wlserver_pointer ) );
+ 
+ 			pointer->wlr = wlr_pointer_from_input_device( device );

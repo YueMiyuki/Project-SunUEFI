@@ -3,6 +3,7 @@ set -eu
 export SteamDeck=1
 export XDG_CURRENT_DESKTOP=gamescope
 export STEAM_DISPLAY_REFRESH_LIMITS=30,120
+export GAMESCOPE_TOUCHPAD_NATURAL_SCROLL="${GAMESCOPE_TOUCHPAD_NATURAL_SCROLL:-1}"
 for brightness in /sys/class/backlight/*/brightness; do
     [ ! -e "$brightness" ] ||
         /usr/bin/steamos-polkit-helpers/steamos-priv-write "$brightness" "" ||

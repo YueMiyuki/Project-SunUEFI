@@ -15,6 +15,9 @@ SUBPROJECTS = ('wlroots', 'libliftoff', 'vkroots', 'libdisplay-info')
 PATCHES = (
     ROOT / 'patches/gamescope/0001-drm-separate-render-and-display.patch',
     ROOT / 'patches/gamescope/0002-backlight-avoid-double-dimming.patch',
+    ROOT / 'patches/gamescope/0003-drm-consistent-sdr-color.patch',
+    ROOT / 'patches/gamescope/0004-steam-respect-session-refresh.patch',
+    ROOT / 'patches/gamescope/0005-input-touchpad-natural-scroll.patch',
 )
 RECIPE = ROOT / 'linux/bsp/steamos/gamescope/PKGBUILD'
 

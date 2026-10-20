@@ -1,0 +1,26 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] xwm: retain the requested session refresh rate for Steam UI
+
+A 120 Hz session on a 144 Hz panel was switched to the panel maximum as
+soon as Steam mapped its UI, despite Xwayland still advertising 120 Hz.
+Keep a supported requested rate for the UI and retain game-specific rates.
+
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -3767,9 +3767,15 @@
+ 
+ 		int nDynamicRefreshHz = g_nDynamicRefreshRate[GetBackend()->GetScreenType()];
+ 
++		// Keep Steam at the session's requested refresh rate instead of
++		// immediately replacing -r with the panel maximum. The Xwayland
++		// output also uses this rate, so UI presentation stays in cadence.
++		int nSteamRefreshHz = gamescope::ConvertmHzToHz( g_nNestedRefresh );
++		if ( std::find( rates.begin(), rates.end(), nSteamRefreshHz ) == rates.end() )
++			nSteamRefreshHz = int( rates.back() );
+ 		int nTargetRefreshHz = nDynamicRefreshHz && steamcompmgr_window_should_refresh_switch( pFocus->focusWindow )
+ 			? nDynamicRefreshHz
+-			: int( rates[ rates.size() - 1 ] );
++			: nSteamRefreshHz;
+ 
+ 		uint64_t now = get_time_in_nanos();
+ 
