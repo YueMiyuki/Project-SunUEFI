@@ -17,6 +17,7 @@ import build_arch_ffmpeg
 import stage_arch_piano
 import prepare_steam_client
 import build_steamos_gamescope
+import build_steamos_manager
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -155,6 +156,11 @@ def build(args):
                      recipe)
         build_arch_package.build(root, recipe, mesa)
     gamescope = output / 'packages/gamescope'
+    manager = output / 'packages/steamos-manager'
+    if not build_steamos_manager.is_current(manager):
+        if manager.exists():
+            shutil.rmtree(manager)
+        build_steamos_manager.build(root, manager)
     if not build_steamos_gamescope.is_current(gamescope):
         if gamescope.exists():
             shutil.rmtree(gamescope)
