@@ -151,6 +151,7 @@ def build(output, source, rootfs=None):
                      'etc/modules-load.d/piano-pen-dock.conf',
                      'etc/udev/rules.d/79-piano-pen-charger.rules',
                      'usr/lib/piano/bluetooth-address.py',
+                     'usr/lib/piano/usb-network',
                      'usr/share/piano/pen/p81c-radio.json',
                      'usr/share/piano/pen/calibration/piano-boe.ini',
                      'usr/share/piano/pen/calibration/piano-csot.ini',

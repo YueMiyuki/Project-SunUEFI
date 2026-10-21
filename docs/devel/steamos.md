@@ -45,6 +45,10 @@ Steam 的系统更新入口使用 pacman 软件包更新，与 KDE Discover 共�
 
 `tools/build_steamos_rootfs.py` 组装根系统，`tools/stage_arch_piano.py` 与 Nyarch 共用固件、内核模块和设备服务。`tools/stage_steamos_desktop.py` 处理 KDE、Gamescope 和头显专用服务的差异。原来的 VR 会话及其自动删除游戏的磁盘清理逻辑不启用。
 
+`/etc/piano/linux-debug.conf` 中的 `usb=acm-ncm` 同时提供 USB 网络和
+ACM 串口。串口用于独立采集内核日志；适配位于公共 BSP 的
+`usr/lib/piano/usb-network`，不额外启动登录 shell 或常驻日志服务。
+
 ## FFmpeg 和图形运行时
 
 FFmpeg 默认从源码构建为原生 pacman 包并替换根系统中的版本，保留

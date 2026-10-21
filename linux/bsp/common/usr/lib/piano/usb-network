@@ -1,0 +1,63 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Derived from debian-piano/rootfs/overlay/usr/lib/piano/usb-network.
+# Copyright (c) 2026 bluseliu50 and piano mainline contributors
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+# of the Software, and to permit persons to whom the Software is furnished to do
+# so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+set -eu
+mkdir -p /sys/kernel/config
+if ! grep -q ' /sys/kernel/config ' /proc/mounts; then
+    mount -t configfs configfs /sys/kernel/config
+fi
+n=0; udc=
+while [ "$n" -lt 120 ]; do
+    for u in /sys/class/udc/*; do
+        [ ! -e "$u" ] || { udc=${u##*/}; break; }
+    done
+    [ -z "$udc" ] || break
+    sleep 1; n=$((n + 1))
+done
+[ -n "$udc" ] || { echo 'No USB device controller after 120 seconds'; exit 1; }
+g=/sys/kernel/config/usb_gadget/piano
+mkdir -p "$g"
+if [ ! -s "$g/UDC" ] || [ -z "$(cat "$g/UDC")" ]; then
+    echo 0x18d1 > "$g/idVendor"
+    echo 0xd001 > "$g/idProduct"
+    echo 0x0200 > "$g/bcdUSB"
+    mkdir -p "$g/strings/0x409" "$g/functions/ncm.usb0" "$g/configs/b.1/strings/0x409"
+    echo piano-linux > "$g/strings/0x409/manufacturer"
+    echo 'Piano Linux USB' > "$g/strings/0x409/product"
+    echo 0123456789 > "$g/strings/0x409/serialnumber"
+    echo 02:11:22:33:44:55 > "$g/functions/ncm.usb0/dev_addr"
+    echo 02:66:77:88:99:aa > "$g/functions/ncm.usb0/host_addr"
+    echo ncm > "$g/configs/b.1/strings/0x409/configuration"
+    echo 500 > "$g/configs/b.1/MaxPower"
+    [ -e "$g/configs/b.1/ncm.usb0" ] ||
+        ln -s "$g/functions/ncm.usb0" "$g/configs/b.1/ncm.usb0"
+    # Honor the existing debug transport setting. The serial channel carries
+    # logs independently of SSH; it does not start a shell or another gadget.
+    if [ -r /etc/piano/linux-debug.conf ] &&
+       grep -qx 'usb=acm-ncm' /etc/piano/linux-debug.conf; then
+        mkdir -p "$g/functions/acm.usb0"
+        [ -e "$g/configs/b.1/acm.usb0" ] ||
+            ln -s "$g/functions/acm.usb0" "$g/configs/b.1/acm.usb0"
+        echo 'ncm + serial' > "$g/configs/b.1/strings/0x409/configuration"
+    fi
+    echo "$udc" > "$g/UDC"
+fi
+ip link set usb0 up
+ip addr replace 10.42.0.2/24 dev usb0
