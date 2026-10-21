@@ -37,13 +37,25 @@ def stage(args):
         raise ValueError('Stage only a privileged project build rootfs')
     cfg = json.loads((ROOT / 'config/release.json').read_text())
     kernel, kernel_hash = modules.inspect(args.kernel)
+    helper_kernel = json.loads((args.runtime / 'manifest.json').read_text())['kernel']
+    if (helper_kernel['commit'], helper_kernel['release']) != (
+            kernel['source_commit'], kernel['kernel_release']):
+        raise ValueError('Rebuild the runtime helpers for the selected kernel')
     steamos = getattr(args, 'desktop', 'nyarch') == 'steamos'
     userspace.stage(root, ROOT / cfg['debian']['source'],
                     desktop='kde' if steamos else 'gnome')
-    hardware.build(output / 'piano-adapters', ROOT / cfg['debian']['source'], root)
+    # These are generated files in the build root; refresh them on --resume.
+    adapters = output / 'piano-adapters'
+    if adapters.exists():
+        shutil.rmtree(adapters)
+    hardware.build(adapters, ROOT / cfg['debian']['source'], root)
     old_modules = ([p.name for p in (root / 'usr/lib/modules').iterdir()
                     if p.is_dir() and p.name != kernel['kernel_release']]
                    if steamos and (root / 'usr/lib/modules').is_dir() else [])
+    current_modules = modules.safe_target(
+        root, Path('usr/lib/modules') / kernel['kernel_release'])
+    if current_modules.exists():
+        shutil.rmtree(current_modules)
     modules.stage(root, args.kernel, old_modules)
     runtime.stage(args.runtime.resolve(), root)
     fw = ROOT / cfg['firmware']['source']
@@ -111,6 +123,8 @@ def stage(args):
     else:
         from prepare_nyarch_material import prepare, UUID
         extension_bundle = output / 'nyarch-shell-extensions'
+        if extension_bundle.exists():
+            shutil.rmtree(extension_bundle)
         shutil.copytree(args.extensions, extension_bundle)
         prepare(args.desktop_source.resolve(), root, extension_bundle / UUID)
         desktop = nyarch.stage(root, args.desktop_source, extension_bundle)
