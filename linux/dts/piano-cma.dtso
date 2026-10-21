@@ -1,0 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+/plugin/;
+
+/* Keep the factory allocation range. This reusable pool also serves large
+ * TEE firmware images and high-resolution video buffers in mainline Linux.
+ */
+/ {
+	fragment@0 {
+		target-path = "/reserved-memory/linux,cma";
+		__overlay__ {
+			size = <0x0 0x10000000>;
+		};
+	};
+};

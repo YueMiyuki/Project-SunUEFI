@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "4a2587ec3e6f43cc01696ca79613254488cf048f",
-  "original_target_commit": "e355cc7a99beb1d6c244685d512696fd9925c0c2",
+  "target_tree": "2f33f7f070f712e5a0bea7991a19f0a76b9b5cf4",
+  "original_target_commit": "19e821eaee6ce74f9bc1fcf8830c16c28261e1d2",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -111,6 +111,14 @@
       "original_parent": "3141d26caacec6ca2ca39713ed6a05868fd54aee",
       "committer_date": "2026-10-22T04:35:06+08:00",
       "tree": "4a2587ec3e6f43cc01696ca79613254488cf048f"
+    },
+    {
+      "file": "0014-qcomtee-large-shared-memory.patch",
+      "sha256": "94e9fcafb1ee5b1ff57cee3f93cd3127d141fb6043eed937f662bd92543f8d4e",
+      "original_commit": "19e821eaee6ce74f9bc1fcf8830c16c28261e1d2",
+      "original_parent": "e355cc7a99beb1d6c244685d512696fd9925c0c2",
+      "committer_date": "2026-10-22T06:28:54+08:00",
+      "tree": "2f33f7f070f712e5a0bea7991a19f0a76b9b5cf4"
     }
   ],
   "provenance": {

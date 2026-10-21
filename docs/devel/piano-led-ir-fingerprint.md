@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | RGB 通道 | PM8550 SID1 上的 `qcom,pm8350c-pwm`，SPMI LPG，通道 1/2/3 为 red/green/blue | 标准驱动和产品DT已有；补齐SDAM/LPG模块加载后已出现三个标准LED接口。实际发光、可见位置和用途尚待确认。 |
 | 红外发射 | SE15 / SPI `0x89c000` / CS0，`ir-spi`，Android 原始波形字符设备 | 已确认原厂约40%占空比、低电平间隔和32位打包；控制器标准绑定及LIRC待接入，实际光学输出未验证。 |
-| 侧指纹 | `xiaomi,xiaomi-fp` 平台驱动，复位/IRQ/供电及 netlink 事件 | 公开驱动没有本机指纹图像或认证传输接口；不能直接接成 libfprint/fprintd。 |
+| 侧指纹 | Goodix，GPIO 控制与高通 QTEE 安全服务 | Linux 已能加载原厂签名的安全程序；传感器控制、录入、认证和 fprintd 接入尚未完成。 |
 
 ## RGB 通道
 
@@ -42,20 +42,32 @@
 
 ## 侧指纹
 
-原厂 `/soc/xiaomi_fingerprint` 实际绑定 `mi_fp`：GPIO73 复位、GPIO85 IRQ，`fp_3v3_vreg-supply` 指向 PM-HUMU L9，netlink 协议号 25，选择字符串 `p81_n1_142`。ROM 名称清单含 `libgoodixhwfingerprint.so`，但该名称不能独自确定芯片型号或实际认证传输。
+HyperOS 4 的实际 `mfp-daemon` 使用 Goodix HAL、`/dev/xiaomi-fp`
+和高通 QTEE。`libQSEEComAPI.so` 通过 `libminkdescriptor.so` 打开
+UID 122 的 QSEECOMPAT 服务，再加载名为 **`gfpia`** 的签名安全程序。
+原厂进程的映射和文件描述符已确认这条路径，不能套用其他小米平板的
+FPC 驱动或 Goodix USB 驱动。
 
-[固定 MiCode `fp_driver.c`](https://github.com/MiCode/Xiaomi_Kernel_OpenSource/blob/45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71/drivers/input/fingerprint/mi_fp/fp_driver.c)在非 MTK 配置使用 platform driver，提供电源、复位、IRQ、按键和屏幕事件 ioctl；SPI driver 分支只用于 MTK。本机 ROM 模块的外部调用也只有 GPIO、pinctrl、regulator、input、netlink 等支持接口，没有 SPI、TEE 或 SCM 数据传输调用。当前 Linux 源码没有 `xiaomi,xiaomi-fp` 对应驱动；移植这层只能取得上述控制和事件，不能完成图像读取、录入或认证。
+Linux 7.3 的 `qcomtee` 驱动提供标准 `/dev/tee0`。
+使用高通公开的 [quic-teec](https://github.com/quic/quic-teec) 客户端，
+已在实机取得同一个 QSEECOMPAT 服务，并成功加载、释放由原厂分段文件
+还原的完整签名 `gfpia`。程序大小为 11,681,880 字节，QTEE 版本为
+5.2.0；安全程序和加载接口均没有修改或绕过签名。
 
-仍需确认运行时选中的HAL、客户端依赖的具体内核接口、传感器协议，以及可接入标准认证用户空间的实现。已确认下面的候选走QSEECom客户端API，但没有实机会话或识别结果。原厂init/VINTF和依赖只用于定位公开接口元数据，不读取指纹模板、密钥、校准私密值或用户数据；不要创建占位的认证设备。
+原始 QTEE 共享内存分配器使用 `alloc_pages_exact()`，超过伙伴分配器
+支持的最大阶数时会报错。项目的
+[`0014-qcomtee-large-shared-memory.patch`](../../patches/linux/7.3/0014-qcomtee-large-shared-memory.patch)
+让大缓冲区使用可回收的 CMA 连续内存，小缓冲区保留原来的路径，
+并继续登记和注销安全世界的共享内存桥。
+[`piano-cma.dtso`](../../linux/dts/piano-cma.dtso) 将默认池从 36 MiB
+扩大到 256 MiB，保留原厂允许的分配地址范围。这部分内存空闲时仍能
+供 Linux 使用，不是永久划走的固件内存。
 
-2026-10-09已补齐原厂入口元数据：ODM `AHBF-V3-service.xml` 实际声明AIDL version4的 `android.hardware.biometrics.fingerprint.IFingerprint/default`；`init.mfp-daemon.aidl.rc` 启动 `/odm/bin/hw/mfp-daemon`，并配置 `/dev/xiaomi-fp`、`/dev/mifp_id` 等控制节点。init同时声明 `fpsensor_socket`，但尚未追到其用途，不能因此认定它承载传感器数据。
-
-入口链已按真实依赖逐层静态确认：`fingerprint.goodix.so` 在VA `0x8200`调用 `libgf_hal.so` 的 `gf_hal_open`，后者打开 `/dev/xiaomi-fp` 并把fd交给 `gf_ca_set_handle`；会话由 `gf_hal_common_open_session` 直接转交 `libgf_ca.so` 的 `gf_ca_open_session`。`libgoodixhwfingerprint.so` 的 `registerServices` 另负责小米诊断Binder接口。这里的GPIO/power控制和诊断服务不等于标准认证数据接口。
-
-CA的 `gf_ca_open_session` 在VA `0x4588/0x45e4`真实调用 `QSEECom_start_app()`，TA名称是 **`gfpia`**，查找路径依次为 `/vendor/firmware_mnt/image`、`/firmware/image`，初始共享buffer为4096字节。`gf_ca_invoke_command` 在VA `0x4390`调用 `QSEECom_send_modified_cmd()`，使用128字节request、64字节response及附加共享buffer/fd描述；直接依赖 `libQSEEComAPI.so`、`libdmabufheap.so`、`libion.so`。只核对调用和导出的启动元数据，未读取key、模板、私密校准或任何命令payload值，也未分析发送密钥的函数正文。
-
-这证明候选的QSEECom客户端路径，仍未证明当前ROM的 `libQSEEComAPI` 底层使用 `/dev/qseecom` 还是其它TEE接口、TA内真实传感器总线或具体芯片型号；没有Android运行时maps证明候选被选择，也没有启动TA或指纹识别实测。[libfprint支持表](https://fprint.freedesktop.org/supported-devices.html)列出的Goodix USB设备不能凭厂商名套用到本机。标准fprintd接入仍需要可用的内核/TEE客户端接口、控制驱动与libfprint后端，不能直接加载Android HAL封装代替它。四个按明确调用授权提取的库、准确调用及哈希保存在私有 `private/analysis/piano-fingerprint-static-20261009/`；本轮到此停止，未继续提取QSEECom库或TA、执行blob、注册服务或操作设备。
-
-本轮源清单、精确节点和哈希保存在私有分析目录 `private/analysis/piano-led-ir-fp-20261008/`。未修改当前内核源码、配置、构建目录或产品 DT。
+传感器控制仍需实现。[固定 MiCode 驱动](https://github.com/MiCode/Xiaomi_Kernel_OpenSource/blob/45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71/drivers/input/fingerprint/mi_fp/fp_driver.c)
+提供供电、复位和中断：原厂 DT 指定 GPIO73 复位、GPIO85 IRQ，
+`fp_3v3_vreg-supply` 指向 PM-HUMU L9。认证数据由安全服务处理；
+Goodix 客户端使用 `QSEECom_send_modified_cmd()` 发送请求。
+目前尚未接通这些控制、完整命令协议和 libfprint 后端，因此还不能在
+Linux 中录入或验证指纹。
 
 随后bde3普通重启发现，虽然modules-load文件已安装，旧modprobe黑名单仍使systemd把LPG记为deny-listed。已仅移除 `leds_qcom_lpg` 这一条，并让完整root stager与通用BSP使用同一份tracked modprobe配置。重新启动标准modules-load后实际插入LPG并出现三个接口，随后一次完整正常重启也已确认三个接口自动出现。当前证据在 `bde3-rgb-startup.txt` 与 `bde3-rgb-policy-fixed.txt`，不能用之前手动modprobe结果替代启动策略验证。
