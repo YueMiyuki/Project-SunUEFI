@@ -101,8 +101,14 @@ KDE 默认值位于 `linux/desktops/kde/config/kcminputrc`。
 Gamescope 的指针适配保留 libinput 的加速位移，同时向游戏提供原始相对
 位移。数位笔通过标准 tablet-v2 协议传递位置、压力和倾斜；Steam 等没有
 数位笔协议的界面使用指针点击兼容路径。适配位于
-`patches/gamescope/0006-input-tablet-and-accelerated-pointer.patch`，
-已经编译，仍需在平板上确认游戏模式中的实际操作。
+`patches/gamescope/0006-input-tablet-and-accelerated-pointer.patch`。
+
+`0007-compositor-preserve-input-damage.patch` 修正合成器等待显示完成时丢失
+新输入的问题：绘制前取走本帧的重画标记，保留等待期间到达的指针事件；
+若帧率控制暂缓绘制，则继续保留原来的标记。触控板实测上报间隔中位数
+约 7.1 毫秒。修正后，在 120 Hz 游戏模式、GPU 自动调频下，连续指针移动
+的 4 秒采集中显示了 477 帧，主要间隔为 8.33 毫秒。该结果针对光标更新，
+不代表所有游戏均能达到 120 帧。
 
 FFmpeg 的 H.264 8-bit 测试已实际调用 Iris，解码 720p 的 60 帧并正常退出。
 HEVC Main10 已修复 P010 格式映射，720p 的 60 帧解码无错误，首帧与软件

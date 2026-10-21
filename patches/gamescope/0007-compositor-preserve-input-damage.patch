@@ -1,0 +1,66 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] compositor: preserve input damage arriving during presentation
+
+The DRM backend waits for the page flip inside paint_all. Clearing the atomic
+repaint flag afterwards loses pointer events received during that wait. Consume
+the pending damage before painting all outputs, retain concurrently arriving
+events, and restore the consumed damage when pacing defers presentation.
+
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -10933,6 +10933,10 @@
+ 		if ( cv_adaptive_sync_ignore_overlay )
+ 			nIgnoredOverlayRepaints = 0;
+ 
++		// Present may wait for a page flip while the input thread keeps running.
++		// Consume only the damage we are about to draw, preserving new input.
++		const bool bNeedsRepaint = hasRepaint.exchange( false );
++
+ 		for ( auto &iter : g_VirtualConnectorFocuses )
+ 		{
+ 			global_focus_t *pPaintFocus = &iter.second;
+@@ -11026,13 +11030,13 @@
+ 				{
+ 					case FlipType::Normal:
+ 					{
+-						bShouldPaint = vblank && ( hasRepaint || hasRepaintNonBasePlane || bForceSyncFlip );
++						bShouldPaint = vblank && ( bNeedsRepaint || hasRepaintNonBasePlane || bForceSyncFlip );
+ 						break;
+ 					}
+ 
+ 					case FlipType::Async:
+ 					{
+-						bShouldPaint = hasRepaint;
++						bShouldPaint = bNeedsRepaint;
+ 
+ 						if ( vblank && !bShouldPaint && hasRepaintNonBasePlane )
+ 							nIgnoredOverlayRepaints++;
+@@ -11042,7 +11046,7 @@
+ 
+ 					case FlipType::VRR:
+ 					{
+-						bShouldPaint = hasRepaint && bVRRCanFlip;
++						bShouldPaint = bNeedsRepaint && bVRRCanFlip;
+ 
+ 						if ( bIsVBlankFromTimer )
+ 						{
+@@ -11100,7 +11104,6 @@
+ 		{
+ 			GetBackend()->OnEndFrame();
+ 
+-			hasRepaint = false;
+ 			hasRepaintNonBasePlane = false;
+ 			nIgnoredOverlayRepaints = 0;
+ 
+@@ -11108,6 +11111,11 @@
+ 				gamescope::CScriptScopedLock script;
+ 				script.Manager().CallHook( "OnPostPaint" );
+ 			}
++		}
++		else if ( bNeedsRepaint )
++		{
++			// Keep damage pending when pacing, VRR or visibility deferred a frame.
++			hasRepaint = true;
+ 		}
+ 
+ 		publish_mangoapp_snapshot();
