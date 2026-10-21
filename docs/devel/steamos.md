@@ -144,6 +144,10 @@ KDE 会话明确选择 DRM 后端，避免合成器重启时继承旧显示变�
 运行，重新启动传感器服务后复现 ADSP watchdog。保留固件内存映射的候选
 补丁无效，已移出默认构建。设备暂用 7.2.9，继续保留新版 SteamOS 会话修正。
 
+后续将 SCM/PAS 固件接口、MDT 加载器及其调用者整体回退到 7.2.9，
+再同步回退 FastRPC 和 RPMh 电源域，7.3 仍复现相同的 ADSP 看门狗故障。
+这些诊断回退不进入默认产品补丁，不能视为升级修复。
+
 ## 来源
 
 根系统提取器来自 [SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1)，按 GPL-2.0 保留来源。Valve 系统、Steam 客户端及附带组件继续适用各自许可；参考仓库的 GPL 许可不覆盖这些二进制。具体下载身份和构建结果保存在 `SOURCE.json`、根系统 `manifest.json` 和 `packages.tsv`。
