@@ -110,6 +110,46 @@ class FakeDevice:
 
 
 class InstallerTests(unittest.TestCase):
+    def test_fastboot_receives_sparse_chunks_with_exact_image_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = Path(directory) / 'root.ext4.img'
+            content = b'A' * 4096 + bytes(8192) + b'B' * 4096
+            image.write_bytes(content)
+            transfers = []
+
+            def runner(argv, **kwargs):
+                self.assertEqual(argv[:6], ['fastboot', '-s', 'SYNTHETIC001', '-S', '128M', 'flash'])
+                transferred = Path(argv[-1])
+                self.assertNotEqual(transferred, image)
+                data = transferred.read_bytes()
+                magic, major, minor, header, chunk_header, block, blocks, chunks, crc = struct.unpack_from(
+                    '<IHHHHIIII', data)
+                self.assertEqual((magic, major, minor, header, chunk_header, block, blocks, crc),
+                                 (0xed26ff3a, 1, 0, 28, 12, 4096, 4, 0))
+                offset = header
+                expanded = bytearray()
+                for _ in range(chunks):
+                    kind, reserved, count, size = struct.unpack_from('<HHII', data, offset)
+                    self.assertEqual(reserved, 0)
+                    payload = data[offset + chunk_header:offset + size]
+                    if kind == 0xcac1:
+                        expanded.extend(payload)
+                    else:
+                        self.assertEqual((kind, len(payload)), (0xcac2, 4))
+                        expanded.extend(payload * (count * block // 4))
+                    offset += size
+                self.assertEqual(bytes(expanded), content)
+                self.assertEqual(offset, len(data))
+                transfers.append(transferred)
+                return subprocess.CompletedProcess(argv, 0, stdout=b'', stderr=b'')
+
+            device = install.Device('SYNTHETIC001', runner=runner)
+            device.check_fastboot = lambda identity, partition: None
+            device.flash({'factory_serial': 'SYNTHETIC001'}, {'name': 'sunuefi_root'}, image)
+            self.assertEqual(image.read_bytes(), content)
+            self.assertEqual(len(transfers), 1)
+            self.assertFalse(transfers[0].exists())
+
     def test_ssh_plan_binds_key_and_refuses_missing_or_changed_key_before_flash(self):
         snapshot = update_snapshot()
         with tempfile.TemporaryDirectory() as directory:

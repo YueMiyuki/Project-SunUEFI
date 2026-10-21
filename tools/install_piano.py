@@ -21,6 +21,7 @@ import zlib
 
 from provision_piano_bluetooth import FACTORY_PATH, factory_address, provision_boot, split_boot
 import provision_piano_ssh as ssh_provision
+from package_sparse_images import convert as sparse_image
 
 BLOCK = 4096
 ALIGN = 512  # One supported F2FS section: 512 * 4 KiB.
@@ -363,10 +364,16 @@ class Device:
     def flash(self, identity, partition, image):
         require(partition['name'] in PARTITIONS, 'Only dedicated OS partitions may be flashed')
         self.check_fastboot(identity, partition)
-        # Piano ABL can stop responding to a single 512 MiB raw ESP write.
-        # Let standard fastboot sparsify/split images into bounded transfers.
-        self.call(['fastboot', '-s', identity['factory_serial'], '-S', '128M',
-                   'flash', partition['name'], str(image)], timeout=1800)
+        # -S limits USB transfers, but fastboot may still allocate the whole
+        # raw image while sparsifying it. Convert with a bounded buffer first.
+        # Keep this large temporary file beside the bundle, away from RAM /tmp
+        # and outside a potentially read-only extracted bundle directory.
+        image = Path(image)
+        with tempfile.TemporaryDirectory(prefix='piano-fastboot-', dir=image.parent.parent) as folder:
+            sparse = Path(folder) / image.name
+            sparse_image(image, sparse)
+            self.call(['fastboot', '-s', identity['factory_serial'], '-S', '128M',
+                       'flash', partition['name'], str(sparse)], timeout=1800)
 
     def reboot_android(self, identity):
         self.call(['fastboot', '-s', identity['factory_serial'], 'reboot'])

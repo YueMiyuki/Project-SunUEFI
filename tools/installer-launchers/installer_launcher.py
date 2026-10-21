@@ -15,7 +15,8 @@ def main():
     record = json.loads((base / 'installer-record.json').read_text())
     installer = base / 'install_piano.py'
     modules = record.get('python_sources', ['install_piano.py'])
-    if set(modules) != {'install_piano.py', 'provision_piano_bluetooth.py', 'compose_piano_dtb.py', 'provision_piano_ssh.py'}:
+    if set(modules) != {'install_piano.py', 'provision_piano_bluetooth.py', 'compose_piano_dtb.py',
+                        'provision_piano_ssh.py', 'package_sparse_images.py'}:
         raise ValueError('Installer Python dependencies are incomplete; download the artifact again')
     for name in modules:
         source = base / name
