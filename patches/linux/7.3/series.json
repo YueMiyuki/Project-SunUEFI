@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "d9ab27d8a094614e11a75487e507c3432a7ad176",
-  "original_target_commit": "3141d26caacec6ca2ca39713ed6a05868fd54aee",
+  "target_tree": "4a2587ec3e6f43cc01696ca79613254488cf048f",
+  "original_target_commit": "e355cc7a99beb1d6c244685d512696fd9925c0c2",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -103,6 +103,14 @@
       "original_parent": "679af40069fab5a72bf4c3bdc76ab760ae33db63",
       "committer_date": "2026-10-21T19:19:53+00:00",
       "tree": "d9ab27d8a094614e11a75487e507c3432a7ad176"
+    },
+    {
+      "file": "0013-asoc-va-sm8750-core-votes.patch",
+      "sha256": "232b4eeff5030daba1de0a5aa4c0ebac27d349b235d697476f105c67d605595c",
+      "original_commit": "e355cc7a99beb1d6c244685d512696fd9925c0c2",
+      "original_parent": "3141d26caacec6ca2ca39713ed6a05868fd54aee",
+      "committer_date": "2026-10-22T04:35:06+08:00",
+      "tree": "4a2587ec3e6f43cc01696ca79613254488cf048f"
     }
   ],
   "provenance": {
