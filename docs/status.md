@@ -1,12 +1,12 @@
 # 项目状态
 
-更新日期：2026-10-20。本页按功能列出当前状态。首页的表格是它的简化版；各项的技术细节在 `docs/devel/` 的对应页面中。
+更新日期：2026-10-22。本页按功能列出当前状态。首页的表格是它的简化版；各项的技术细节在 `docs/devel/` 的对应页面中。
 
 ## 测试设备
 
 所有结果来自同一台小米平板 8 Pro（`piano`，型号 `25091RP04C`，SM8750P，16 GB 内存），原厂已更新到 Android 17／HyperOS 4（`OS4.0.4.0.XPYCNXM`，vendor `OS4.0.2.1.XPYCN`），Bootloader 已解锁，当前运行使用 CSOT 面板配置（由原厂引导程序传来的标识选择，不等同于对物理供应商的识别）。Linux 对面板的选择见[面板选择](devel/panel-selection.md)；其他面板、内存容量和 ROM 版本没有测试过。
 
-这台机器划出了 `sunuefi_esp`（512 MiB FAT32，4 KiB 扇区，与 UFS 逻辑扇区一致）和 `sunuefi_root`（63.5 GiB ext4），已运行 Debian 13 / GNOME 与 Nyarch / GNOME。默认内核基于 Linux 7.2.9，从合体 BOOT 经 UEFI 启动，支持来回切换 Android 与 Linux。四个发行版共用 HyperOS 4 的 ADSP 固件及配套 ADSP-DTB。
+这台机器划出了 `sunuefi_esp`（512 MiB FAT32，4 KiB 扇区，与 UFS 逻辑扇区一致）和 `sunuefi_root`（256 GiB ext4），已运行 Debian 13 / GNOME、Nyarch / GNOME 和 SteamOS 0.6.0。默认内核为 `7.3.0-piano-sunuefi-cachy`，从合体 BOOT 经 UEFI 启动，支持来回切换 Android 与 Linux。四个发行版共用内核、BSP 和原厂 DSP 固件；root 镜像首次启动会自动扩展到分区容量。
 
 ## 启动与安装
 
@@ -55,7 +55,7 @@
 | 自动亮度 | GNOME 策略包沿用原厂 lux 阈值与延迟，传感器数据不做修改 | 依赖传感器联动完成度，见[自动亮度](devel/piano-auto-brightness.md) |
 | 夜灯 / 色温 | GNOME 夜灯可用，自动生成内置屏幕的颜色配置 | 通用 sRGB 配置，不是原厂校准 |
 | 电源 | 双电池、基础 PD 充电、UPower；合盖和短按电源锁屏熄屏；2 分钟空闲熄屏，电池 5 分钟、外接电源 10 分钟自动挂起；RTC 和电源键唤醒 | 待机耗电仍需优化，休眠未启用。见[电源键](devel/piano-power-button.md) |
-| 指纹 | 原厂 QSEECom 通路已定位 | Linux 无后端 |
+| 指纹 | Linux QTEE 已能加载原厂签名的 Goodix 安全程序 | 传感器控制、录入、认证及 libfprint 后端尚未完成 |
 | 红外 / RGB 灯 | RGB 灯接口出现，红外 LIRC 候选已准备 | 红外发射未验证 |
 | 默认桌面 | 中文界面、拼音输入法、Chromium 浏览器，GNOME 动画开启 | — |
 | Windows / WinPE | 目标 | 未启动 |
@@ -68,7 +68,7 @@
 
 ### 其他发行版
 
-CI 提供 Debian / GNOME、Debian / KDE、Nyarch / GNOME 和 SteamOS，四个目标已完成一轮完整构建，生成模块、ESP、root、稀疏刷写镜像和临时启动 UEFI。Debian / GNOME 与 Nyarch / GNOME 已在设备上运行；其他桌面的完整实机体验仍需验证。各发行版使用同一套内核和 BSP。
+CI 提供 Debian / GNOME、Debian / KDE、Nyarch / GNOME 和 SteamOS，生成模块、ESP、各发行版 root 稀疏镜像、临时启动 UEFI 及日志。Debian / GNOME、Nyarch / GNOME 和 SteamOS 已在设备上运行；Debian / KDE 的完整实机体验仍需验证。各发行版使用同一套内核和 BSP。
 
 ## 接下来的适配
 
