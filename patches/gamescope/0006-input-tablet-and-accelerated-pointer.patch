@@ -1,0 +1,328 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] input: forward tablets and preserve accelerated pointer motion
+
+Use libinput acceleration for pointer navigation while retaining raw relative
+motion for games. Handle absolute pointers and tablet-v2 pressure/tilt input,
+with pointer fallback for clients without tablet support.
+
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -46,6 +46,8 @@
+ #include <wlr/types/wlr_pointer.h>
+ #include <wlr/types/wlr_seat.h>
+ #include <wlr/types/wlr_touch.h>
++#include <wlr/types/wlr_tablet_tool.h>
++#include <wlr/types/wlr_tablet_v2.h>
+ #include <wlr/types/wlr_drm.h>
+ #include <wlr/util/log.h>
+ #include <wlr/xwayland/server.h>
+@@ -367,11 +369,17 @@
+ 	bump_input_counter();
+ }
+ 
+-static void wlserver_perform_rel_pointer_motion(double unaccel_dx, double unaccel_dy)
++static struct wlr_tablet_manager_v2 *s_TabletManager;
++static void apply_touchscreen_orientation(GamescopePanelOrientation orientation, double *x, double *y);
++static std::pair<int, int> wlserver_get_cursor_bounds();
++static void wlserver_pointer_motion(double dx, double dy, double raw_dx, double raw_dy, uint32_t time);
++
++static void wlserver_perform_rel_pointer_motion(double dx, double dy, double raw_dx, double raw_dy, uint32_t time)
+ {
+ 	assert( wlserver_is_lock_held() );
+ 
+-	wlr_relative_pointer_manager_v1_send_relative_motion( wlserver.relative_pointer_manager, wlserver.wlr.seat, 0, unaccel_dx, unaccel_dy, unaccel_dx, unaccel_dy );
++	wlr_relative_pointer_manager_v1_send_relative_motion( wlserver.relative_pointer_manager,
++		wlserver.wlr.seat, uint64_t(time) * 1000, dx, dy, raw_dx, raw_dy );
+ }
+ 
+ static void wlserver_handle_pointer_motion(struct wl_listener *listener, void *data)
+@@ -380,7 +388,27 @@
+ 
+ 	wlserver.physical_cursor_move = true;
+ 
+-	wlserver_mousemotion(event->unaccel_dx, event->unaccel_dy, event->time_msec);
++	wlserver_pointer_motion(event->delta_x, event->delta_y,
++		event->unaccel_dx, event->unaccel_dy, event->time_msec);
++}
++
++static std::pair<double, double> wlserver_absolute_coords(double x, double y)
++{
++	if ( auto *connector = GetBackend()->GetCurrentConnector() )
++		apply_touchscreen_orientation(connector->GetCurrentOrientation(), &x, &y);
++	x = (x * g_nOutputWidth + focusedWindowOffsetX) * focusedWindowScaleX;
++	y = (y * g_nOutputHeight + focusedWindowOffsetY) * focusedWindowScaleY;
++	auto [width, height] = wlserver_get_cursor_bounds();
++	return {clamp(x, 0.0, width - 0.1), clamp(y, 0.0, height - 0.1)};
++}
++
++static void wlserver_handle_pointer_absolute(struct wl_listener *listener, void *data)
++{
++	auto *event = static_cast<struct wlr_pointer_motion_absolute_event *>(data);
++	auto [x, y] = wlserver_absolute_coords(event->x, event->y);
++	wlserver.physical_cursor_move = true;
++	wlserver_mousewarp(x, y, event->time_msec, false);
++	bump_input_counter();
+ }
+ 
+ void wlserver_open_steam_menu( bool qam )
+@@ -529,6 +557,7 @@
+ 	struct wlserver_pointer *pointer = wl_container_of( listener, pointer, destroy );
+ 
+ 	wl_list_remove( &pointer->motion.link );
++	wl_list_remove( &pointer->motion_absolute.link );
+ 	wl_list_remove( &pointer->button.link );
+ 	wl_list_remove( &pointer->axis.link );
+ 	wl_list_remove( &pointer->frame.link );
+@@ -547,6 +576,165 @@
+ 	free( touch );
+ }
+ 
++struct wlserver_tablet {
++	struct wlr_tablet *wlr;
++	struct wlr_tablet_v2_tablet *v2;
++	struct wl_listener axis, proximity, tip, button, destroy;
++};
++
++struct wlserver_tablet_tool {
++	struct wlr_tablet_tool *wlr;
++	struct wlr_tablet_v2_tablet_tool *v2;
++	struct wl_listener destroy;
++	bool pointer_down = false;
++	bool pointer_right = false;
++	bool pointer_middle = false;
++};
++
++static void wlserver_tablet_release_pointer(wlserver_tablet_tool *tool, uint32_t time)
++{
++	if (tool->pointer_down) wlserver_mousebutton(BTN_LEFT, false, time);
++	if (tool->pointer_right) wlserver_mousebutton(BTN_RIGHT, false, time);
++	if (tool->pointer_middle) wlserver_mousebutton(BTN_MIDDLE, false, time);
++	tool->pointer_down = tool->pointer_right = tool->pointer_middle = false;
++}
++
++static void wlserver_handle_tablet_tool_destroy(struct wl_listener *listener, void *data)
++{
++	wlserver_tablet_tool *tool = wl_container_of(listener, tool, destroy);
++	wlserver_tablet_release_pointer(tool, 0);
++	tool->wlr->data = nullptr;
++	wl_list_remove(&tool->destroy.link);
++	delete tool;
++}
++
++static wlserver_tablet_tool *wlserver_get_tablet_tool(struct wlr_tablet_tool *wlr)
++{
++	if (wlr->data)
++		return static_cast<wlserver_tablet_tool *>(wlr->data);
++	auto *tool = new wlserver_tablet_tool{};
++	tool->wlr = wlr;
++	tool->v2 = wlr_tablet_tool_create(s_TabletManager, wlserver.wlr.seat, wlr);
++	if (!tool->v2) {
++		delete tool;
++		return nullptr;
++	}
++	tool->destroy.notify = wlserver_handle_tablet_tool_destroy;
++	wl_signal_add(&wlr->events.destroy, &tool->destroy);
++	wlr->data = tool;
++	return tool;
++}
++
++static bool wlserver_tablet_focus(wlserver_tablet *tablet, wlserver_tablet_tool *tool)
++{
++	auto *surface = wlserver.mouse_focus_surface;
++	if (surface && wlr_surface_accepts_tablet_v2(surface, tablet->v2)) {
++		wlserver_tablet_release_pointer(tool, 0);
++		wlr_tablet_v2_tablet_tool_notify_proximity_in(tool->v2, tablet->v2, surface);
++		return true;
++	}
++	wlr_tablet_v2_tablet_tool_notify_proximity_out(tool->v2);
++	return false;
++}
++
++static void wlserver_handle_tablet_axis(struct wl_listener *listener, void *data)
++{
++	wlserver_tablet *tablet = wl_container_of(listener, tablet, axis);
++	auto *event = static_cast<struct wlr_tablet_tool_axis_event *>(data);
++	auto *tool = wlserver_get_tablet_tool(event->tool);
++	if (!tool) return;
++	auto [x, y] = wlserver_absolute_coords(event->x, event->y);
++	if (wlserver_tablet_focus(tablet, tool)) {
++		if (event->updated_axes & (WLR_TABLET_TOOL_AXIS_X | WLR_TABLET_TOOL_AXIS_Y))
++			wlr_tablet_v2_tablet_tool_notify_motion(tool->v2, x, y);
++		if (event->updated_axes & WLR_TABLET_TOOL_AXIS_PRESSURE)
++			wlr_tablet_v2_tablet_tool_notify_pressure(tool->v2, event->pressure);
++		if (event->updated_axes & WLR_TABLET_TOOL_AXIS_DISTANCE)
++			wlr_tablet_v2_tablet_tool_notify_distance(tool->v2, event->distance);
++		if (event->updated_axes & (WLR_TABLET_TOOL_AXIS_TILT_X | WLR_TABLET_TOOL_AXIS_TILT_Y))
++			wlr_tablet_v2_tablet_tool_notify_tilt(tool->v2, event->tilt_x, event->tilt_y);
++		if (event->updated_axes & WLR_TABLET_TOOL_AXIS_ROTATION)
++			wlr_tablet_v2_tablet_tool_notify_rotation(tool->v2, event->rotation);
++		if (event->updated_axes & WLR_TABLET_TOOL_AXIS_SLIDER)
++			wlr_tablet_v2_tablet_tool_notify_slider(tool->v2, event->slider);
++		if (event->updated_axes & WLR_TABLET_TOOL_AXIS_WHEEL)
++			wlr_tablet_v2_tablet_tool_notify_wheel(tool->v2, event->wheel_delta, 0);
++	} else if (event->updated_axes & (WLR_TABLET_TOOL_AXIS_X | WLR_TABLET_TOOL_AXIS_Y)) {
++		wlserver.physical_cursor_move = true;
++		wlserver_mousewarp(x, y, event->time_msec, false);
++	}
++	bump_input_counter();
++}
++
++static void wlserver_handle_tablet_proximity(struct wl_listener *listener, void *data)
++{
++	wlserver_tablet *tablet = wl_container_of(listener, tablet, proximity);
++	auto *event = static_cast<struct wlr_tablet_tool_proximity_event *>(data);
++	auto *tool = wlserver_get_tablet_tool(event->tool);
++	if (!tool) return;
++	if (event->state == WLR_TABLET_TOOL_PROXIMITY_OUT) {
++		wlr_tablet_v2_tablet_tool_notify_proximity_out(tool->v2);
++		wlserver_tablet_release_pointer(tool, event->time_msec);
++	} else {
++		auto [x, y] = wlserver_absolute_coords(event->x, event->y);
++		if (wlserver_tablet_focus(tablet, tool))
++			wlr_tablet_v2_tablet_tool_notify_motion(tool->v2, x, y);
++		else
++			wlserver_mousewarp(x, y, event->time_msec, false);
++	}
++	bump_input_counter();
++}
++
++static void wlserver_handle_tablet_tip(struct wl_listener *listener, void *data)
++{
++	wlserver_tablet *tablet = wl_container_of(listener, tablet, tip);
++	auto *event = static_cast<struct wlr_tablet_tool_tip_event *>(data);
++	auto *tool = wlserver_get_tablet_tool(event->tool);
++	if (!tool) return;
++	bool down = event->state == WLR_TABLET_TOOL_TIP_DOWN;
++	auto [x, y] = wlserver_absolute_coords(event->x, event->y);
++	if (wlserver_tablet_focus(tablet, tool)) {
++		wlr_tablet_v2_tablet_tool_notify_motion(tool->v2, x, y);
++		if (down) wlr_tablet_v2_tablet_tool_notify_down(tool->v2);
++		else wlr_tablet_v2_tablet_tool_notify_up(tool->v2);
++	} else {
++		wlserver_mousewarp(x, y, event->time_msec, false);
++		wlserver_mousebutton(BTN_LEFT, down, event->time_msec);
++		tool->pointer_down = down;
++	}
++	bump_input_counter();
++}
++
++static void wlserver_handle_tablet_button(struct wl_listener *listener, void *data)
++{
++	wlserver_tablet *tablet = wl_container_of(listener, tablet, button);
++	auto *event = static_cast<struct wlr_tablet_tool_button_event *>(data);
++	auto *tool = wlserver_get_tablet_tool(event->tool);
++	if (!tool) return;
++	bool down = event->state == WLR_BUTTON_PRESSED;
++	if (wlserver_tablet_focus(tablet, tool)) {
++		wlr_tablet_v2_tablet_tool_notify_button(tool->v2, event->button,
++			down ? ZWP_TABLET_PAD_V2_BUTTON_STATE_PRESSED : ZWP_TABLET_PAD_V2_BUTTON_STATE_RELEASED);
++	} else {
++		uint32_t button = event->button == BTN_STYLUS2 ? BTN_MIDDLE : BTN_RIGHT;
++		wlserver_mousebutton(button, down, event->time_msec);
++		if (button == BTN_RIGHT) tool->pointer_right = down;
++		else tool->pointer_middle = down;
++	}
++	bump_input_counter();
++}
++
++static void wlserver_handle_tablet_destroy(struct wl_listener *listener, void *data)
++{
++	wlserver_tablet *tablet = wl_container_of(listener, tablet, destroy);
++	wl_list_remove(&tablet->axis.link);
++	wl_list_remove(&tablet->proximity.link);
++	wl_list_remove(&tablet->tip.link);
++	wl_list_remove(&tablet->button.link);
++	wl_list_remove(&tablet->destroy.link);
++	delete tablet;
++}
++
+ // SteamOS-ARM: dual-screen handhelds (AYN Thor, AYANEO Pocket DS) have a
+ // second touchscreen on the panel the main gamescope does not drive. Both are
+ // I2C, so the heuristic above would map the second one onto the main screen and
+@@ -664,6 +852,8 @@
+ 
+ 			pointer->motion.notify = wlserver_handle_pointer_motion;
+ 			wl_signal_add( &pointer->wlr->events.motion, &pointer->motion );
++			pointer->motion_absolute.notify = wlserver_handle_pointer_absolute;
++			wl_signal_add( &pointer->wlr->events.motion_absolute, &pointer->motion_absolute );
+ 			pointer->button.notify = wlserver_handle_pointer_button;
+ 			wl_signal_add( &pointer->wlr->events.button, &pointer->button );
+ 			pointer->axis.notify = wlserver_handle_pointer_axis;
+@@ -674,6 +864,27 @@
+ 			wl_signal_add( &device->events.destroy, &pointer->destroy);
+ 		}
+ 		break;
++		case WLR_INPUT_DEVICE_TABLET:
++		{
++			auto *tablet = new wlserver_tablet{};
++			tablet->wlr = wlr_tablet_from_input_device(device);
++			tablet->v2 = wlr_tablet_create(s_TabletManager, wlserver.wlr.seat, device);
++			if (!tablet->v2) {
++				delete tablet;
++				break;
++			}
++			tablet->axis.notify = wlserver_handle_tablet_axis;
++			wl_signal_add(&tablet->wlr->events.axis, &tablet->axis);
++			tablet->proximity.notify = wlserver_handle_tablet_proximity;
++			wl_signal_add(&tablet->wlr->events.proximity, &tablet->proximity);
++			tablet->tip.notify = wlserver_handle_tablet_tip;
++			wl_signal_add(&tablet->wlr->events.tip, &tablet->tip);
++			tablet->button.notify = wlserver_handle_tablet_button;
++			wl_signal_add(&tablet->wlr->events.button, &tablet->button);
++			tablet->destroy.notify = wlserver_handle_tablet_destroy;
++			wl_signal_add(&device->events.destroy, &tablet->destroy);
++		}
++		break;
+ 		case WLR_INPUT_DEVICE_TOUCH:
+ 		{
+ 			if ( wlserver_touch_ignored( device ) )
+@@ -2799,6 +3010,9 @@
+ 	}
+ 
+ 	wlserver.wlr.seat = wlr_seat_create(wlserver.display, "seat0");
++	s_TabletManager = wlr_tablet_v2_create(wlserver.display);
++	if (!s_TabletManager)
++		return false;
+ 	wlr_seat_set_capabilities( wlserver.wlr.seat, WL_SEAT_CAPABILITY_POINTER | WL_SEAT_CAPABILITY_KEYBOARD | WL_SEAT_CAPABILITY_TOUCH );
+ 
+ 	wl_log.infof("Running compositor on wayland display '%s'", wlserver.wl_display_name);
+@@ -3582,14 +3796,15 @@
+ 	return true;
+ }
+ 
+-void wlserver_mousemotion( double dx, double dy, uint32_t time )
++static void wlserver_pointer_motion(double dx, double dy, double raw_dx, double raw_dy, uint32_t time)
+ {
+ 	assert( wlserver_is_lock_held() );
+ 
+ 	dx *= g_mouseSensitivity;
+ 	dy *= g_mouseSensitivity;
+ 
+-	wlserver_perform_rel_pointer_motion( dx, dy );
++	wlserver_perform_rel_pointer_motion(dx, dy,
++		raw_dx * g_mouseSensitivity, raw_dy * g_mouseSensitivity, time);
+ 
+ 	if ( !wlserver_apply_constraint( &dx, &dy ) )
+ 	{
+@@ -3615,6 +3830,11 @@
+ 	wlr_seat_pointer_notify_frame( wlserver.wlr.seat );
+ }
+ 
++void wlserver_mousemotion(double dx, double dy, uint32_t time)
++{
++	wlserver_pointer_motion(dx, dy, dx, dy, time);
++}
++
+ void wlserver_mousewarp( double x, double y, uint32_t time, bool bSynthetic )
+ {
+ 	assert( wlserver_is_lock_held() );
+--- a/src/wlserver.hpp
++++ b/src/wlserver.hpp
+@@ -231,6 +231,7 @@
+ 	struct wlr_pointer *wlr;
+ 	
+ 	struct wl_listener motion;
++	struct wl_listener motion_absolute;
+ 	struct wl_listener button;
+ 	struct wl_listener axis;
+ 	struct wl_listener frame;

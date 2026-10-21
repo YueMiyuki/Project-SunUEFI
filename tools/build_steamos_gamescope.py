@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Prepare the fixed mobile Gamescope source and build a native SteamOS package."""
 import hashlib
+import configparser
 import json
 from pathlib import Path
 import shutil
@@ -18,6 +19,7 @@ PATCHES = (
     ROOT / 'patches/gamescope/0003-drm-consistent-sdr-color.patch',
     ROOT / 'patches/gamescope/0004-steam-respect-session-refresh.patch',
     ROOT / 'patches/gamescope/0005-input-touchpad-natural-scroll.patch',
+    ROOT / 'patches/gamescope/0006-input-tablet-and-accelerated-pointer.patch',
 )
 RECIPE = ROOT / 'linux/bsp/steamos/gamescope/PKGBUILD'
 
@@ -28,6 +30,7 @@ def source_inputs():
         'valve_commit': UPSTREAM,
         'patches': {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in PATCHES},
         'recipe_sha256': hashlib.sha256(RECIPE.read_bytes()).hexdigest(),
+        'preparer_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
     }
 
 
@@ -71,6 +74,18 @@ def prepare(output):
                     ignore=shutil.ignore_patterns('.git', 'subprojects'))
     shutil.copytree(upstream / 'subprojects', source / 'subprojects',
                     ignore=shutil.ignore_patterns('.git'))
+    wraps = {}
+    for name in ('glm', 'stb'):
+        wrap = configparser.ConfigParser()
+        wrap.read(source / 'subprojects' / (name + '.wrap'))
+        pin = wrap['wrap-git']
+        cached = cache / ('gamescope-' + name)
+        checkout(cached, pin['url'], pin['revision'])
+        destination = source / 'subprojects' / name
+        shutil.copytree(cached, destination, ignore=shutil.ignore_patterns('.git'))
+        shutil.copytree(source / 'subprojects/packagefiles' / name,
+                        destination, dirs_exist_ok=True)
+        wraps[name] = {'url': pin['url'], 'commit': pin['revision']}
     for patch in PATCHES:
         subprocess.run(['patch', '--batch', '--forward', '--fuzz=0', '-p1',
                         '-i', str(patch)], cwd=source, check=True)
@@ -81,6 +96,7 @@ def prepare(output):
                         'commit': UPSTREAM},
         'subprojects': {name: git(upstream / 'subprojects' / name, 'rev-parse', 'HEAD')
                         for name in SUBPROJECTS},
+        'wrap_subprojects': wraps,
         'inputs': source_inputs(),
     }
     (source / 'SUNUEFI-SOURCE.json').write_text(json.dumps(provenance, indent=2) + '\n')

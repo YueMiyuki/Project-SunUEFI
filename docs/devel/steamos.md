@@ -94,6 +94,12 @@ MSM 不提供 Gamescope 使用的 AMD 平面色彩转换接口。启用色彩管
 `GAMESCOPE_TOUCHPAD_NATURAL_SCROLL=0` 可恢复传统方向，重新进入会话后生效。
 KDE 默认值位于 `linux/desktops/kde/config/kcminputrc`。
 
+Gamescope 的指针适配保留 libinput 的加速位移，同时向游戏提供原始相对
+位移。数位笔通过标准 tablet-v2 协议传递位置、压力和倾斜；Steam 等没有
+数位笔协议的界面使用指针点击兼容路径。适配位于
+`patches/gamescope/0006-input-tablet-and-accelerated-pointer.patch`，
+已经编译，仍需在平板上确认游戏模式中的实际操作。
+
 FFmpeg 的 H.264 8-bit 测试已实际调用 Iris，解码 720p 的 60 帧并正常退出。
 HEVC Main10 已修复 P010 格式映射，720p 的 60 帧解码无错误，首帧与软件
 解码逐字节一致。这验证了十位视频解码，不代表 HDR 显示链路已经完成。
@@ -160,11 +166,16 @@ KDE 会话明确选择 DRM 后端，避免合成器重启时继承旧显示变�
 进一步对照已确认：7.3 关闭 BORE、Gunyah、MGLRU 和动态抢占后仍会崩溃；
 同时替换旧版 PAS 与 FastRPC 驱动也不能解决。停用传感器时音频可以单独
 运行，重新启动传感器服务后复现 ADSP watchdog。保留固件内存映射的候选
-补丁无效，已移出默认构建。设备暂用 7.2.9，继续保留新版 SteamOS 会话修正。
+补丁无效，已移出默认构建。7.2.9 作为运行对照，继续保留新版 SteamOS 会话修正。
 
 后续将 SCM/PAS 固件接口、MDT 加载器及其调用者整体回退到 7.2.9，
 再同步回退 FastRPC 和 RPMh 电源域，7.3 仍复现相同的 ADSP 看门狗故障。
 这些诊断回退不进入默认产品补丁，不能视为升级修复。
+
+2026-10-22 已合入高通 FastRPC 的三个退出修复：先初始化设备引用，
+DSP 退出时唤醒轮询调用，并等待活动调用结束后再拆除 DMA 映射。
+7.3 实机仍复现最初的 DSP watchdog；这些修复处理清理竞态，
+不能作为音频、传感器或整机稳定性已经恢复的证明。
 
 ## 来源
 
