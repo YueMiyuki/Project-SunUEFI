@@ -96,10 +96,19 @@ def build(root, output, resume=False):
     recipe = package_recipe(version, epoch, pkgrel, options, deps, provides)
     (guest_work / 'PKGBUILD').write_text(recipe)
     with build_resolver(root), guest_environment(root) as guest:
-        guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel', 'clang',
+        dependencies = ['base-devel', 'clang',
                'nasm', 'amf-headers', 'avisynthplus', 'ffnvcodec-headers',
                'frei0r-plugins', 'ladspa', 'opencl-headers', 'vulkan-headers',
-               *deps])
+               *deps]
+        # SteamOS retains some base-only packages and virtual soname
+        # dependencies. Do not ask the repository to reinstall satisfied ones.
+        missing = subprocess.run(['chroot', root, 'pacman', '-T', *dependencies],
+                                 capture_output=True, text=True)
+        if missing.returncode not in (0, 127):
+            raise RuntimeError(missing.stderr)
+        if missing.returncode:
+            guest(['pacman', '-S', '--needed', '--noconfirm',
+                   *missing.stdout.splitlines()])
         if subprocess.run(['chroot', root, 'id', 'sunuefi-ffmpeg'],
                           capture_output=True).returncode:
             guest(['useradd', '-m', 'sunuefi-ffmpeg'])
