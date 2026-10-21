@@ -83,6 +83,14 @@ def kde_recipes(output):
         folder = output / item['name']
         folder.mkdir(parents=True, exist_ok=True)
         q = shlex.quote
+        patches = [ROOT / p for p in item.get('patches', [])]
+        for patch in patches:
+            shutil.copy2(patch, folder / patch.name)
+        sources = [item['url'], *[p.name for p in patches]]
+        checksums = [item['sha256'], *[digest(p) for p in patches]]
+        prepare_commands = ''.join(
+            f'  patch --batch --fuzz=0 -p1 -i "$srcdir/{p.name}"\n'
+            for p in patches)
         (folder / 'PKGBUILD').write_text(
             f"pkgname={q(item['name'])}\npkgver={q(item['version'])}\npkgrel=1.1\n"
             "pkgdesc='KDE desktop component for SteamOS ARM64'\narch=(aarch64)\n"
@@ -90,7 +98,10 @@ def kde_recipes(output):
             f"depends=({' '.join(q(p) for p in item['depends'])})\n"
             "makedepends=(base-devel cmake ninja extra-cmake-modules kdoctools)\n"
             "options=(!lto !debug)\n"
-            f"source=({q(item['url'])})\nsha256sums=({q(item['sha256'])})\n"
+            f"source=({' '.join(q(p) for p in sources)})\n"
+            f"sha256sums=({' '.join(q(p) for p in checksums)})\n"
+            + ('prepare() {\n  cd "$pkgname-$pkgver"\n'
+               + prepare_commands + '}\n' if patches else '') +
             'build() {\n  cmake -S "$pkgname-$pkgver" -B build -G Ninja '
             '-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr '
             '-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBEXECDIR=lib '
@@ -245,7 +256,7 @@ def build(args):
     if not (runtime / 'manifest.json').exists():
         run(sys.executable, ROOT / 'tools/build_release_helpers.py',
             '--kernel', kernel, '--source', kernel_source,
-            '--kernel-build', ROOT / 'build/kernels/release',
+            '--kernel-build', args.kernel_build.resolve(),
             '--output', runtime, '--sysroot', args.bootstrap_sysroot.resolve())
     # Shared stager installs firmware, matching modules, standard interfaces,
     # input/audio/camera helpers, suspend policy and the LABEL-based initramfs.
@@ -265,6 +276,8 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, default=ROOT / 'build/distros/steamos-piano')
     parser.add_argument('--bootstrap-sysroot', type=Path, default=Path('/'),
                         help='Native ARM64 Debian build environment containing busybox-static')
+    parser.add_argument('--kernel-build', type=Path, default=ROOT / 'build/kernels/release',
+                        help='Build directory matching artifacts/kernels/release')
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()

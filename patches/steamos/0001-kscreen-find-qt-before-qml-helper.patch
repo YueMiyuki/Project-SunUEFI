@@ -1,0 +1,22 @@
+From: slwyts <slwyts@foxmail.com>
+Subject: [PATCH] build: initialize Qt before loading the ECM QML helper
+
+Qt 6.11 QML depends on Network. Loading ECMQmlModule before the main Qt
+package initialization leaves Qt dependency search paths incomplete in a
+fresh build directory, so ecm_add_qml_module is never defined.
+
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -29,11 +29,11 @@
+ include(KDEClangFormat)
+ include(KDEGitCommitHooks)
+ include(ECMDeprecationSettings)
+-include(ECMQmlModule)
+ 
+ include_directories("${CMAKE_CURRENT_BINARY_DIR}")
+ 
+ find_package(Qt6 ${QT_MIN_VERSION} REQUIRED COMPONENTS Gui Test QuickControls2)
++include(ECMQmlModule)
+ if (Qt6Gui_VERSION VERSION_GREATER_EQUAL "6.10.0")
+     find_package(Qt6GuiPrivate ${REQUIRED_QT_VERSION} REQUIRED NO_MODULE)
+ endif()
