@@ -270,6 +270,9 @@ def configure(root):
     put(root, 'etc/sddm.conf.d/10-sunuefi.conf',
         '[Autologin]\nUser=piano\nSession=gamescope-wayland.desktop\nRelogin=true\n')
     put(root, 'etc/locale.conf', 'LANG=zh_CN.UTF-8\n')
+    localtime = root / 'etc/localtime'
+    localtime.unlink(missing_ok=True)
+    localtime.symlink_to('/usr/share/zoneinfo/Asia/Shanghai')
     put(root, 'etc/hostname', 'piano\n')
     put(root, 'etc/sudoers.d/20-piano', '%wheel ALL=(ALL:ALL) ALL\n', 0o440)
     resolver = root / 'etc/resolv.conf'
