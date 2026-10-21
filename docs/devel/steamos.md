@@ -43,6 +43,16 @@ Steam 的系统更新入口使用 pacman 软件包更新，与 KDE Discover 共�
 
 `config/steamos.json` 固定 Valve 镜像、casync 数据源、完整镜像 SHA256 和提取器提交。`config/steam-client.json` 固定公开 ARM64 handheld 客户端各个包的地址、大小和 SHA256。`config/steam-runtime.json` 固定完整 ARM64 Proton 与 Steam Linux Runtime。构建不会读取电脑或平板上已登录的 Steam 目录。
 
+镜像默认以源码提交时间统一文件时间；显式使用 `SOURCE_DATE_EPOCH=0`
+时以一秒代替零。Qt 6.11 将精确为零的文件时间视为无效，SDDM 因而
+跳过全部登录配置，退回无法驱动本机显示的默认 Xorg 路径。有效时间戳
+使原有 Wayland 和自动登录配置在首次启动时直接生效。
+
+电脑安装器先用固定大小的缓冲区生成 Android 稀疏镜像，再交给
+Fastboot 分块传输。`fastboot -S` 本身只限制传输量，处理大型原始镜像
+时仍可能将整份文件读入内存；不能用它代替预先转换。实机刷写
+16 GiB root 时，修正后的 Fastboot 峰值内存约 69 MiB，ESP 约 103 MiB。
+
 `tools/build_steamos_rootfs.py` 组装根系统，`tools/stage_arch_piano.py` 与 Nyarch 共用固件、内核模块和设备服务。`tools/stage_steamos_desktop.py` 处理 KDE、Gamescope 和头显专用服务的差异。原来的 VR 会话及其自动删除游戏的磁盘清理逻辑不启用。
 
 `/etc/piano/linux-debug.conf` 中的 `usb=acm-ncm` 同时提供 USB 网络和

@@ -23,7 +23,7 @@ FRAME_UNITS = (
     'dsp_service.service', 'iris-driver-rebind.service',
     'steamvr-program-ble.service', 'steamvr-set-kernel-thread-priorities.service',
     'steamvr-v4l2loopback.service', 'adbd.service', 'adbd-pre.service',
-    'adbd-post.service', 'usb-gadget.target', 'usb-gadget.service',
+    'adbd-post.service', 'usb-gadget.service',
     'usb-gadget-init.service', 'usb-ncm-gadget@.service',
     'usb-ncm-dnsmasq@.service', 'steamos-boot.service',
     'efi.mount', 'esp.mount', 'systemd-repart.service',
@@ -35,6 +35,7 @@ FRAME_UNITS = (
     'home.mount', 'set-bluetooth-mac-address.service', 'set-wifi-mac-address.service',
     'steamos-devkit-service.service', 'steam-web-debug-portforward.service',
     'steamvr-web-debug-portforward.service',
+    'steamos-log-submitter.service',
 )
 
 
@@ -160,6 +161,23 @@ def configure_platform(root):
         link = root / 'etc/systemd/system' / unit
         link.unlink(missing_ok=True)
         link.symlink_to('/dev/null')
+    # Keep systemd's standard UDC activation target, with the shared Piano
+    # gadget service instead of Frame's ADB and FunctionFS setup.
+    gadget = root / 'etc/systemd/system/usb-gadget.target'
+    if gadget.is_symlink() and str(gadget.readlink()) == '/dev/null':
+        gadget.unlink()
+    wants = root / 'etc/systemd/system/usb-gadget.target.wants'
+    wants.mkdir(parents=True, exist_ok=True)
+    for name in ('adbd-pre.service', 'adbd.service', 'adbd-post.service',
+                 'dev-usb\\x2dffs-adb.mount', 'usb-gadget.service'):
+        (wants / name).unlink(missing_ok=True)
+    link = wants / 'piano-usb.service'
+    link.unlink(missing_ok=True)
+    link.symlink_to('/usr/lib/systemd/system/piano-usb.service')
+    # The Frame module parameter is absent from mainline ath12k. A same-name
+    # local config shadows the headset-only reorder policy across upgrades.
+    put(root, 'etc/modprobe.d/ath12k.conf',
+        '# Use mainline ath12k firmware defaults; no Frame RX reorder override.\n')
     # The native DRM/KMS path is Wayland. The Frame root also contains Xorg
     # policy for its own displays; use KWin for SDDM as well as the session.
     put(root, 'etc/sddm.conf.d/20-piano-wayland.conf',
