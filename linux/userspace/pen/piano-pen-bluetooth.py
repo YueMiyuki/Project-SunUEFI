@@ -6,12 +6,14 @@ The supplied board profile contains radio parameters, never pairing keys or
 device identities. This client does not read THP frames or generate input.
 """
 import argparse
+import ctypes
 import fcntl
 import json
 import os
 import re
 from pathlib import Path
 import signal
+import socket
 import struct
 import time
 
@@ -121,6 +123,28 @@ class LeScan:
         self.pair_retry = 0
         self.agent = None
         self.agent_path = '/org/sunuefi/PenPairing'
+        self.auth_monitor = None
+        self.auth_watch = None
+        # Older BlueZ versions collapse a missing LE key into Error.Failed
+        # and lack Device1.Disconnected's typed authentication reason.
+        # The kernel management API reports MGMT_EV_AUTH_FAILED directly.
+        try:
+            self.auth_monitor = socket.socket(
+                socket.AF_BLUETOOTH, socket.SOCK_RAW | socket.SOCK_CLOEXEC,
+                socket.BTPROTO_HCI)
+            # Python's HCI bind tuple does not expose hci_channel.
+            endpoint = struct.pack('HHH', socket.AF_BLUETOOTH, 0xffff, 3)
+            libc = ctypes.CDLL(None, use_errno=True)
+            if libc.bind(self.auth_monitor.fileno(), endpoint, len(endpoint)):
+                error = ctypes.get_errno()
+                raise OSError(error, os.strerror(error))
+            self.auth_monitor.setblocking(False)
+            self.auth_watch = GLib.io_add_watch(
+                self.auth_monitor.fileno(), GLib.IO_IN, self.auth_failed)
+        except OSError:
+            if self.auth_monitor is not None:
+                self.auth_monitor.close()
+            self.auth_monitor = None
         self.signals = [
             self.bus.signal_subscribe(
                 'org.bluez', 'org.freedesktop.DBus.Properties', 'PropertiesChanged',
@@ -133,6 +157,32 @@ class LeScan:
                 'org.bluez', 'org.bluez.Device1', 'Disconnected',
                 None, None, self.Gio.DBusSignalFlags.NONE, self.disconnected, None),
         ]
+
+    def auth_failed(self, _fd, _condition):
+        while True:
+            try:
+                packet = self.auth_monitor.recv(4096)
+            except BlockingIOError:
+                break
+            if len(packet) < 14:
+                continue
+            event, index, length = struct.unpack_from('<HHH', packet)
+            if length != 8:
+                continue
+            # Some kernels deliver only DEVICE_DISCONNECTED reason 4 after
+            # encryption fails; both events explicitly identify authentication.
+            if not ((event == 0x0011 and packet[13] == 0x05) or
+                    (event == 0x000c and packet[13] == 0x04)):
+                continue
+            address = ':'.join(f'{byte:02X}' for byte in packet[6:12][::-1])
+            # Only repair a genuine key/authentication failure for the pen
+            # independently identified over the magnetic charging link.
+            if address != dock_address():
+                continue
+            path = f'/org/bluez/hci{index}/dev_' + address.replace(':', '_')
+            self.repair.add(path)
+            self.activity = True
+        return True
 
     def disconnected(self, _bus, _sender, path, _interface, _member, args, _data):
         reason, _ = args.unpack()
@@ -592,6 +642,10 @@ def main():
             scan.bus.signal_unsubscribe(subscription)
         if scan.agent is not None:
             scan.bus.unregister_object(scan.agent)
+        if scan.auth_watch is not None:
+            scan.GLib.source_remove(scan.auth_watch)
+        if scan.auth_monitor is not None:
+            scan.auth_monitor.close()
 
 
 if __name__ == '__main__':
