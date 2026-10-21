@@ -200,6 +200,8 @@ def toolchain():
     if any(path is None for path in binaries.values()):raise ValueError('Missing full build dependencies: '+str([name for name,path in binaries.items()if path is None]))
     cc=[binaries['ccache'],binaries['clang']]if cached else[binaries['clang']]
     return env,{'paths':binaries,'sha256':{name:sha(Path(path))for name,path in binaries.items()},'compiler':text([binaries['clang'],'--version'],env=env).splitlines()[0],
+               'linker':text([binaries['ld.lld'],'--version'],env=env).splitlines()[0],
+               'llvm_tools':text([binaries['llvm-ar'],'--version'],env=env).splitlines(),
                'ccache_enabled':cached,'ccache_dir':env.get('CCACHE_DIR')if cached else None,'kernel_cc':cc}
 
 
