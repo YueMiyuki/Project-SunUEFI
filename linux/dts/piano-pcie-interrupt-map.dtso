@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/soc/pcie@1c00000";
+		__overlay__ {
+			/*
+			 * The folded factory GIC has one parent address cell,
+			 * while upstream sm8750.dtsi uses two. Keep INT A-D's
+			 * real SPI numbers and level-high polarity; omit the
+			 * extra address cell so neither is shifted on parsing.
+			 */
+			interrupt-map =
+				<0 0 0 1 &intc 0 0 149 4>,
+				<0 0 0 2 &intc 0 0 150 4>,
+				<0 0 0 3 &intc 0 0 151 4>,
+				<0 0 0 4 &intc 0 0 152 4>;
+		};
+	};
+};

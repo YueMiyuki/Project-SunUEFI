@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "component": "piano-cdsp",
+  "rom": "OS4.0.4.0.XPYCNXM",
+  "source": "stock modem_b /image (read-only mount; Android /vendor/firmware_mnt/image)",
+  "files": {
+    "cdsp.b00": {
+      "bytes": 564,
+      "sha256": "f23129ebf4ab7edbe00ead8e3a115852ed219d08bebc301fe732a1ea33f2e93f"
+    },
+    "cdsp.b01": {
+      "bytes": 27644,
+      "sha256": "366ba8f6c1ef72e0841cc573beae6caf70a8fefd6440aa60cd490f98078eeb02"
+    },
+    "cdsp.b02": {
+      "bytes": 79076,
+      "sha256": "e6ba949dd9eab6d979e7cc0c3f4d72c9208384f8e578044d5da6706bcdb629d3"
+    },
+    "cdsp.b03": {
+      "bytes": 140303,
+      "sha256": "f0c2ad6458fad2f456fb429a65fe4cf2953cdd82950f6beb19e42ebfb1b2d378"
+    },
+    "cdsp.b04": {
+      "bytes": 1376,
+      "sha256": "1a644f200134c0399830121eede772708f8e5ef35d322f8463ad22095e98e595"
+    },
+    "cdsp.b05": {
+      "bytes": 2412580,
+      "sha256": "5bf142e0eaf7533bc664d9170f051aa2cc50889090e2a3da7cd676281e9a76e9"
+    },
+    "cdsp.b06": {
+      "bytes": 114696,
+      "sha256": "1397c5408656263cc50afb933c89c75960576ec617b3411385c308b17f3f3114"
+    },
+    "cdsp.b07": {
+      "bytes": 2840,
+      "sha256": "d8085907906da01a57ce3c50707cf5d838d5d21edafac581fec62b9e353bf3d2"
+    },
+    "cdsp.b08": {
+      "bytes": 124406,
+      "sha256": "d9be659121deeb5b644e8ff3de716a65014c4bbefaacb94b0c3e162afc135596"
+    },
+    "cdsp.b09": {
+      "bytes": 786332,
+      "sha256": "a160acba40d65094b8171e307a34bff57c6dd253d936c6e7179337fee8508aa7"
+    },
+    "cdsp.b10": {
+      "bytes": 14016,
+      "sha256": "ac64b7967d54cca4b267bc2fc1f134e3297ac3bb4f27452c2fc4827e7aa5f119"
+    },
+    "cdsp.b11": {
+      "bytes": 3184,
+      "sha256": "71449afb1cdd2ad9b824688a7da6860f81b9263d2d49592d1915cad37cbed36f"
+    },
+    "cdsp.b12": {
+      "bytes": 114256,
+      "sha256": "ae9678ba0bd99b045e356e7b7296dd6e6ad14e8def23b359a4e6de9512a7adba"
+    },
+    "cdsp.b13": {
+      "bytes": 5600,
+      "sha256": "6eb64e59fa121afb5cc1043d72016b50b1ea4ce77e911ae694fbdd3ecb349eac"
+    },
+    "cdsp.b15": {
+      "bytes": 4520,
+      "sha256": "718bca172070f5ff6aa5781327afb2f12a8300bc8cbd8d85011bcc3020f6f8ff"
+    },
+    "cdsp.mdt": {
+      "bytes": 5084,
+      "sha256": "346dd9e4fc9b12fb26f97091ec751558ae295594ccdc1dfd7ea10a3e549219aa"
+    },
+    "cdsp_dtb.b00": {
+      "bytes": 148,
+      "sha256": "d1c170ee54f5c94712189107621cb63ece52f55735ee485e2ee806b40852b622"
+    },
+    "cdsp_dtb.b01": {
+      "bytes": 29916,
+      "sha256": "cadea7e0797419aecbae57976b9c0abad9489b4de0c72033970661b6644815be"
+    },
+    "cdsp_dtb.b02": {
+      "bytes": 3896,
+      "sha256": "02e67549cde935aba3e84e1ca113d1c94466893722aa489e2a39b069f50e2dec"
+    },
+    "cdsp_dtb.mdt": {
+      "bytes": 4044,
+      "sha256": "8ee9995ee92a98116365d800cadf66fdc0f1f43c7df219850c728bd57491d338"
+    },
+    "cdspr.jsn": {
+      "bytes": 513,
+      "sha256": "6d01cd7dce745204d5de20efe57e2511149ca2a5b48ee562fbedefda573ca465"
+    }
+  }
+}

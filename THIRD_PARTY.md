@@ -25,6 +25,11 @@ SunUEFI 站在这些项目之上：EDK2 / Mu-Silicium 提供 UEFI 基础和高�
 
 内核 MiPPS [候选补丁](patches/linux/7.2.9/drafts/0040-power-piano-native-mipps.patch)移植了上述 `xiaomi-mipps-auth` 的协议常量、挑战应答顺序和摘要计算，保留 GPL-2.0-only。另查阅 [blu-sharky/piano-mipps-auth](https://github.com/blu-sharky/piano-mipps-auth/tree/ccdc3ce7f5200ef736d7d552eb7b387ea3bb6fd9) 对 Piano 固件漏报充电器身份的处理；该身份恢复逻辑尚未移植。候选的实际支持范围见 [ADSP 配套说明](vendor/firmware/hyperos4-adsp/README.md)。
 
+HyperOS 4 的 [ADSP](vendor/firmware/hyperos4-adsp/README.md) 和
+[CDSP](vendor/firmware/hyperos4-cdsp/README.md) 固件来自本机原厂固件分区，
+保留原始签名、文件名和逐文件 SHA256，按清单装入四个发行版。
+它们属于 Qualcomm／小米专有固件，不适用本项目的源码许可。
+
 Gunyah 的 Android 驱动与主线接口适配来自
 [code002-2/librevm](https://github.com/code002-2/librevm/tree/56918558e2c4303cda803a655ea716869c551b71/packaging/gunyah-driver-7.2)
 整理的补丁包，原适配来自

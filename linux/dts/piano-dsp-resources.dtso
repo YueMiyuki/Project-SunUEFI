@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/soc/remoteproc-cdsp@32300000";
+		__overlay__ {
+			compatible = "qcom,sm8750-cdsp-pas";
+			clocks = <&rpmhcc_ml 0>;
+			clock-names = "xo";
+			/* RPMHPD_CX, RPMHPD_MXC, RPMHPD_NSP from sm8750.dtsi. */
+			power-domains = <&rpmhpd_ml 0>,
+					<&rpmhpd_ml 10>,
+					<&rpmhpd_ml 13>;
+			power-domain-names = "cx", "mxc", "nsp";
+		};
+	};
+
+	fragment@1 {
+		target-path = "/soc/remoteproc-adsp@03000000";
+		__overlay__ {
+			clocks = <&rpmhcc_ml 0>;
+			clock-names = "xo";
+		};
+	};
+};

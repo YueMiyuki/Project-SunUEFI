@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "2f33f7f070f712e5a0bea7991a19f0a76b9b5cf4",
-  "original_target_commit": "19e821eaee6ce74f9bc1fcf8830c16c28261e1d2",
+  "target_tree": "c200de0da2aecb925a7ecf7db107be3866fcb116",
+  "original_target_commit": "c2d32344450463b6a6b2bfafec0b55b3ac568656",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -119,6 +119,14 @@
       "original_parent": "e355cc7a99beb1d6c244685d512696fd9925c0c2",
       "committer_date": "2026-10-22T06:28:54+08:00",
       "tree": "2f33f7f070f712e5a0bea7991a19f0a76b9b5cf4"
+    },
+    {
+      "file": "0015-remoteproc-sm8750-cdsp-sync-memory.patch",
+      "sha256": "d26581e081e931d65b3f733d8a06669747db1b33244f0008762484f5383d32e3",
+      "original_commit": "c2d32344450463b6a6b2bfafec0b55b3ac568656",
+      "original_parent": "19e821eaee6ce74f9bc1fcf8830c16c28261e1d2",
+      "committer_date": "2026-10-22T07:46:25+08:00",
+      "tree": "c200de0da2aecb925a7ecf7db107be3866fcb116"
     }
   ],
   "provenance": {
