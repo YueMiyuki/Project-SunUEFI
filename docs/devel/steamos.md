@@ -12,7 +12,13 @@
 
 root 镜像容量为 16 GiB，独立 root 分区至少需要相同容量。账户为 `piano`，密码为 `piano123456`。首次启动 Steam 需要联网检查客户端更新并登录。
 
-暂不支持 Valve 的 A/B 系统 OTA；更新系统使用 SunUEFI 助手重新刷写镜像。Steam 客户端自身的正常更新保留。
+Steam 的系统更新入口使用 pacman 软件包更新，与 KDE Discover 共用软件源；
+不调用 Valve 的 A/B 镜像更新。设备专用的 Mesa、Gamescope、FFmpeg、
+传感器和平台管理包随 BSP 镜像更新，避免被不含平板适配的原包覆盖。
+内核与 BSP 更新仍通过 SunUEFI 助手刷写镜像。Steam 客户端自身的更新保留。
+
+默认提供 IBus 拼音，按 `Ctrl+空格` 切换中英文；KDE 与游戏模式使用
+标准 GTK、Qt、XIM 和 SDL 输入接口。
 
 游戏模式默认开启触控板自然滚动。Steam 没有对应设置页；KDE 桌面模式可在
 系统设置的触控板页面调整，两种会话各自保存输入偏好。
@@ -41,7 +47,11 @@ root 镜像容量为 16 GiB，独立 root 分区至少需要相同容量。账�
 
 ## FFmpeg 和图形运行时
 
-FFmpeg 默认从源码构建为原生 pacman 包并替换根系统中的版本。使用与 Debian 相同的三个 V4L2 补丁，保留 Valve 原包的完整编解码配置和依赖。当前基础镜像使用 FFmpeg 7.0，修补版为同一主要库 ABI 的 7.1.5；构建器拒绝用它覆盖其他 ABI 代际。构建失败时整个 rootfs 构建失败，不会悄悄退回原包。
+FFmpeg 默认从源码构建为原生 pacman 包并替换根系统中的版本，保留
+Valve 原包的完整编解码配置和依赖。构建器按目标系统的 FFmpeg 7、8、9
+库接口选择补丁；新版 SteamOS 软件源使用 FFmpeg 8.1，状态切换、旧帧
+缓冲区保留和 P010 十位输出补丁均有对应来源清单。遇到尚未适配的库版本
+会停止构建，不混装其他代际的共享库。
 
 这会覆盖系统 FFmpeg 及使用它的程序。Steam 或 Electron 自带的私有编解码库不属于系统包，不能用不同 ABI 的共享库强行替换；其硬件视频路径需要分别确认。
 
@@ -89,8 +99,10 @@ Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接�
 基础镜像是 Valve `VARIANT_ID=vr`，不是 Steam Deck 的桌面镜像。对照
 [Steam Deck 3.9.3 官方包清单](https://steamdeck-images.steamos.cloud/steamdeck/20261015.100/steamdeck-20261015.100-3.9.3.manifest.pacman)，
 补充 Bluetooth、NetworkManager 的 KDE 界面、显示设置和系统信息。
-ARM64 使用 Plasma 6.2.5 / Frameworks 6.14 的兼容组件，源码及摘要固定在
-`config/steamos.json`，全部构建为 pacman 包，不直接混装更新的 x86 库。
+当前底包为 Valve ARM64 0.6.0，构建时先通过公开软件源完整升级，再安装
+配套的 Plasma 6.6 与 Qt 6.11 组件。大部分桌面组件直接使用同一软件源的
+原生包；软件源缺少的显示设置组件按 `config/steamos.json` 编译，不再
+混用旧版 Plasma 6.2 的组件。
 
 `stage_steamos_desktop.py` 禁用头显专用服务、原设备 MAC 地址设置、
 `by-partsets/shared/home` 和 offload 挂载，桌面入口改为原生 Plasma Wayland。

@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/steamos-update
+
+[Action]
+Description = Keep Steam system updates on the Piano package backend
+When = PostTransaction
+Exec = /usr/bin/ln -sfn /usr/local/libexec/piano-steamos-update /usr/bin/steamos-update

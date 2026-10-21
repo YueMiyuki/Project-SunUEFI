@@ -22,6 +22,18 @@ import build_steamos_manager
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def configure_repositories(root):
+    """Use Valve's public rolling repositories with the image's native DBPath."""
+    path = root / 'etc/pacman.conf'
+    options = path.read_text().split('[options]', 1)[1].split('\n[', 1)[0]
+    public = 'https://holo-packages.steamos.cloud/archlinux-deckard/archlinux/main'
+    # The distributed image contains build-specific snapshot endpoints. They
+    # are not the public update channel and must not enter our shipped rootfs.
+    path.write_text('[options]' + options.rstrip() + '\n\n' + ''.join(
+        f'[{repo}]\nServer = {public}/$repo/os/$arch\n\n'
+        for repo in ('core', 'extra')))
+
+
 def run(*args, **kwargs):
     return subprocess.run([str(a) for a in args], check=True, **kwargs)
 
@@ -96,7 +108,8 @@ def build(args):
         raise ValueError('Output exists; use --resume only for this same build')
     output.mkdir(parents=True, exist_ok=True)
     cfg = json.loads((ROOT / 'config/release.json').read_text())
-    base = ROOT / 'build/steamos-base'
+    base_config = json.loads((ROOT / 'config/steamos.json').read_text())['base']
+    base = ROOT / 'build' / ('steamos-base-' + base_config['version'])
     base_record = prepare(base, workers=32)
     root = output / 'rootfs'
     if not root.exists():
@@ -114,13 +127,29 @@ def build(args):
     if json.loads((output / 'BASE.json').read_text())['base'] != base_record['base']:
         raise ValueError('Existing root belongs to another Valve base image')
 
+    configure_repositories(root)
     # Keep the native pacman ABI and separate FEX guest runtime. Native Mesa
     # is rebuilt below because the Frame image does not know Piano's A830v1.
     with build_resolver(root), guest_environment(root) as guest:
+        # Refresh the complete Valve package cohort before building local
+        # adapters against it. Partial package upgrades can mix library ABIs.
+        # Frame split these files into clang-libs; the public repository now
+        # ships them in clang itself. Remove that obsolete split package before
+        # the full transaction, which installs the current compiler and libs.
+        if subprocess.run(['chroot', root, 'pacman', '-Qq', 'clang-libs'],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            guest(['pacman', '-Rdd', '--noconfirm', 'clang-libs'])
+        guest(['pacman', '-Syu', '--noconfirm'])
         guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel',
                'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager', 'wpa_supplicant',
                'alsa-utils', 'pipewire', 'pipewire-pulse', 'wireplumber',
-               'python', 'python-gobject', 'polkit', 'erofs-utils', 'rsync', 'chromium'])
+               'python', 'python-gobject', 'polkit', 'erofs-utils', 'rsync', 'chromium',
+               'bluez-qt', 'networkmanager-qt', 'modemmanager-qt',
+               'bluedevil', 'plasma-nm', 'kinfocenter', 'powerdevil',
+               'discover', 'packagekit', 'packagekit-qt6', 'pacman-contrib',
+               'dconf', 'noto-fonts-cjk'])
+        if not (root / 'usr/share/ibus/component/pinyin.xml').is_file():
+            raise ValueError('The Valve base image must include its native IBus Pinyin engine')
         if subprocess.run(['chroot', root, 'id', 'piano'], capture_output=True).returncode:
             guest(['usermod', '-l', 'piano', '-d', '/home/piano', '-m', 'steamos'])
             guest(['groupmod', '-n', 'piano', 'steamos'])

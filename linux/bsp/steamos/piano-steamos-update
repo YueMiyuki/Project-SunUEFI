@@ -1,0 +1,59 @@
+#!/usr/bin/python3
+"""Adapt Steam's update entry point to the writable pacman installation."""
+import fcntl
+import hashlib
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+    flags = set(sys.argv[1:])
+    allowed = {'check', '--beta', '-d', '--enable-duplicate-detection',
+               '--supports-duplicate-detection'}
+    if flags - allowed:
+        print('Usage: steamos-update [check] [--enable-duplicate-detection]', file=sys.stderr)
+        return 1
+    if '--supports-duplicate-detection' in flags:
+        return 0
+    if '--beta' in flags:
+        print('System packages follow the configured pacman repositories.', file=sys.stderr)
+
+    if 'check' in flags:
+        # checkupdates synchronizes a separate database, leaving the installed
+        # package database untouched until a complete upgrade is requested.
+        with tempfile.TemporaryDirectory(prefix='piano-checkupdates-') as db:
+            result = subprocess.run(
+                ['/usr/bin/checkupdates'], env={**os.environ, 'CHECKUPDATES_DB': db},
+                stdout=subprocess.PIPE, text=True)
+        if result.returncode == 2:
+            if ('--enable-duplicate-detection' in flags and
+                    Path('/run/piano-package-update-applied').exists()):
+                return 8
+            return 7
+        if result.returncode:
+            return 1
+        # Steam's legacy CLI accepts only a numeric update identifier.
+        print(int.from_bytes(hashlib.sha256(result.stdout.encode()).digest()[:4], 'big'))
+        return 0
+
+    if os.geteuid():
+        print('Run the system update through Steam or Discover.', file=sys.stderr)
+        return 1
+    with open('/run/piano-package-update.lock', 'w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print('Another system update is running.', file=sys.stderr)
+            return 1
+        result = subprocess.run(['/usr/bin/pacman', '-Syu', '--noconfirm'])
+        if result.returncode:
+            return 1
+        Path('/run/piano-package-update-applied').touch()
+    return 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

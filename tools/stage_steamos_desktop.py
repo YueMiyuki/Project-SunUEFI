@@ -33,7 +33,52 @@ FRAME_UNITS = (
     'steamos-post-update.service', 'holo-post-update-shutdown.service',
     'gpu-trace.service', 'softapmanager.service', 'steam-video-codec-setup.service',
     'home.mount', 'set-bluetooth-mac-address.service', 'set-wifi-mac-address.service',
+    'steamos-devkit-service.service', 'steam-web-debug-portforward.service',
+    'steamvr-web-debug-portforward.service',
 )
+
+
+def configure_package_updates(root):
+    bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
+    put(root, 'usr/local/libexec/piano-steamos-update',
+        (bsp / 'piano-steamos-update').read_text(), 0o755)
+    put(root, 'etc/pacman.d/hooks/95-piano-update-adapter.hook',
+        (bsp / '95-piano-update-adapter.hook').read_text())
+    entry = root / 'usr/bin/steamos-update'
+    entry.unlink(missing_ok=True)
+    entry.symlink_to('/usr/local/libexec/piano-steamos-update')
+    # Device-specific builds are delivered with the BSP. Stock replacements
+    # lose the tablet's GPU, sensor and decoder fixes. This same policy also
+    # applies to Discover's libalpm backend.
+    policy = root / 'etc/pacman.conf'
+    text = policy.read_text()
+    ignore = ('deckard-mesa-linux-aarch64 gamescope steamos-manager '
+              'ffmpeg fastrpc libssc iio-sensor-proxy')
+    block = ('# Piano hardware packages are updated with the BSP image.\n'
+             'IgnorePkg = ' + ignore + '\n')
+    if block not in text:
+        text = text.replace('[options]\n', '[options]\n' + block, 1)
+    policy.write_text(text)
+
+
+def configure_input_method(root):
+    # Use the installed IBus engine and its ordinary XIM/Qt/GTK interfaces.
+    put(root, 'etc/environment.d/60-piano-input-method.conf',
+        'GTK_IM_MODULE=ibus\nQT_IM_MODULE=ibus\n'
+        'XMODIFIERS=@im=ibus\nSDL_IM_MODULE=ibus\n')
+    put(root, 'etc/xdg/autostart/piano-ibus.desktop',
+        '[Desktop Entry]\nType=Application\nName=IBus\n'
+        'Exec=ibus-daemon --replace --xim\n'
+        'OnlyShowIn=KDE;\nNoDisplay=true\n')
+    profile = root / 'etc/dconf/profile/user'
+    text = profile.read_text() if profile.exists() else 'user-db:user\n'
+    if 'system-db:local' not in text.splitlines():
+        put(root, 'etc/dconf/profile/user', text.rstrip() + '\nsystem-db:local\n')
+    put(root, 'etc/dconf/db/local.d/60-piano-input-method',
+        "[desktop/ibus/general]\npreload-engines=['xkb:us::eng', 'pinyin']\n"
+        "engines-order=['xkb:us::eng', 'pinyin']\n"
+        "[desktop/ibus/general/hotkey]\ntriggers=['<Control>space']\n")
+    subprocess.run(['chroot', root, 'dconf', 'update'], check=True)
 
 
 def configure_identity(root, base, build_id):
@@ -181,6 +226,8 @@ def configure(root):
                  '70-spatial-node-config.conf'):
         (root / 'etc/wireplumber/wireplumber.conf.d' / name).unlink(missing_ok=True)
     units = configure_platform(root)
+    configure_package_updates(root)
+    configure_input_method(root)
     offload = root / 'etc/tmpfiles.d/steamos-offload.conf'
     offload.parent.mkdir(parents=True, exist_ok=True)
     offload.unlink(missing_ok=True)

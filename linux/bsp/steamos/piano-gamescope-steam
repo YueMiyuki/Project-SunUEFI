@@ -6,5 +6,8 @@ export STEAM_ENABLE_VOLUME_HANDLER=1
 unset WAYLAND_DISPLAY XDG_SESSION_TYPE
 dbus-update-activation-environment --systemd \
     DISPLAY GAMESCOPE_WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR SteamDeck
+if ! ibus-daemon --daemonize --replace --xim; then
+    printf '%s\n' 'IBus could not start; continuing Steam without Chinese input.' >&2
+fi
 systemd-notify --ready
 exec steam -steamdeck -steamos3 -gamepadui

@@ -10,14 +10,14 @@
     "desktop_package_list": "https://steamdeck-images.steamos.cloud/steamdeck/20261015.100/steamdeck-20261015.100-3.9.3.manifest.pacman"
   },
   "base": {
-    "build": "20261002.6232440",
-    "version": "0.5.3",
-    "bundle_url": "https://steamdeck-images.steamos.cloud/vr/20261002.6232440/deckard-20261002.6232440-0.5.3.raucb",
-    "bundle_sha256": "1f7994a8ba2dde7a3832f67acfa029ded35856f52f697be9720a3ec769dd60db",
-    "rootfs_sha256": "63950ce7f4654be7ad8b3060bbef63579a2758308ed14ed5d130d154ea98a8de",
+    "build": "20261020.6174944",
+    "version": "0.6.0",
+    "bundle_url": "https://steamdeck-images.steamos.cloud/vr/20261020.6174944/deckard-20261020.6174944-0.6.0.raucb",
+    "bundle_sha256": "0529e08327606ee58a4ad9115b61bf0ceff069cab2b5a4c2df8ccba3bbbc3df1",
+    "rootfs_sha256": "1404102aa560427c896e37d62e70733a4c2daf9ea1741e7bea9e3439163c71f2",
     "rootfs_bytes": 10737418240,
     "stores": [
-      "https://steamdeck-images.steamos.cloud/vr/20261002.6232440/deckard-20261002.6232440-0.5.3.castr",
+      "https://steamdeck-images.steamos.cloud/vr/20261020.6174944/deckard-20261020.6174944-0.6.0.castr",
       "https://steamdeck-images.steamos.cloud/vr/chunks.castr"
     ]
   },
@@ -29,101 +29,26 @@
   },
   "ffmpeg": {
     "required": true,
-    "patch_series": "linux/bsp/patches/ffmpeg/series.json",
     "package_format": "pacman",
-    "policy": "Rebuild the rootfs-compatible package; never install Debian libraries into SteamOS"
+    "policy": "Rebuild the rootfs-compatible package; never install Debian libraries into SteamOS",
+    "patch_series_by_abi": {
+      "7": "linux/bsp/patches/ffmpeg/series.json",
+      "8": "linux/bsp/patches/ffmpeg/series-8.json",
+      "9": "linux/bsp/patches/ffmpeg/series-9.json"
+    }
   },
   "kde_packages": [
     {
-      "name": "bluez-qt",
-      "version": "6.14.0",
-      "url": "https://download.kde.org/stable/frameworks/6.14/bluez-qt-6.14.0.tar.xz",
-      "sha256": "ea845f930ecc7c4f259c478ae6680c79395dcb2598ee3f5b45bced6df277f9d5",
-      "depends": [
-        "bluez",
-        "qt6-base",
-        "qt6-declarative"
-      ]
-    },
-    {
-      "name": "networkmanager-qt",
-      "version": "6.14.0",
-      "url": "https://download.kde.org/stable/frameworks/6.14/networkmanager-qt-6.14.0.tar.xz",
-      "sha256": "0c392bdf4f8dd85f1441f65ba931d8f49541c5567f2350c78e7b121434c3b126",
-      "depends": [
-        "networkmanager",
-        "qt6-base"
-      ]
-    },
-    {
-      "name": "modemmanager-qt",
-      "version": "6.14.0",
-      "url": "https://download.kde.org/stable/frameworks/6.14/modemmanager-qt-6.14.0.tar.xz",
-      "sha256": "c1f03a4df18c28c42540ba59d9f9b9962d59f4074cdf686bc787e2ff595783d9",
-      "depends": [
-        "modemmanager",
-        "qt6-base"
-      ]
-    },
-    {
       "name": "kscreen",
-      "version": "6.2.5",
-      "url": "https://download.kde.org/stable/plasma/6.2.5/kscreen-6.2.5.tar.xz",
-      "sha256": "6237c47fe70384d10e6f20d7f058c6aacca51a493da928077fcec91b0ef69642",
+      "version": "6.6.3",
+      "url": "https://download.kde.org/stable/plasma/6.6.3/kscreen-6.6.3.tar.xz",
+      "sha256": "45f2999182eef89991812cfcf085b368d58052d21c22ab46325998aa51db13d1",
       "depends": [
         "libkscreen",
         "libplasma",
         "kirigami",
         "kcmutils",
         "layer-shell-qt"
-      ]
-    },
-    {
-      "name": "bluedevil",
-      "version": "6.2.5",
-      "url": "https://download.kde.org/stable/plasma/6.2.5/bluedevil-6.2.5.tar.xz",
-      "sha256": "4e5f43e9dd9d7590e29a432148ad51abbbd31cf30285731425f5be8f2444f2ba",
-      "depends": [
-        "bluez-qt",
-        "libplasma",
-        "kirigami",
-        "kcmutils",
-        "knotifications",
-        "kio"
-      ]
-    },
-    {
-      "name": "plasma-nm",
-      "version": "6.2.5",
-      "url": "https://download.kde.org/stable/plasma/6.2.5/plasma-nm-6.2.5.tar.xz",
-      "sha256": "146d76936ce98558839a9a7cf30fa951b7ee6cd3daa7c32d71ccdf157a4f6c68",
-      "depends": [
-        "networkmanager-qt",
-        "libplasma",
-        "kirigami",
-        "kcmutils",
-        "kio",
-        "modemmanager-qt",
-        "qcoro",
-        "qca-qt6"
-      ]
-    },
-    {
-      "name": "kinfocenter",
-      "version": "6.2.5",
-      "url": "https://download.kde.org/stable/plasma/6.2.5/kinfocenter-6.2.5.tar.xz",
-      "sha256": "9ed87edb3a24256189f8dc79c821b8f45589aab7032d8dde78d5d94cf0639ff9",
-      "depends": [
-        "systemsettings",
-        "kirigami",
-        "kcmutils",
-        "kio",
-        "solid",
-        "mesa-utils",
-        "vulkan-tools",
-        "wayland-utils",
-        "clinfo",
-        "dmidecode"
       ]
     }
   ]
