@@ -41,7 +41,7 @@ Steam 的系统更新入口使用 pacman 软件包更新，与 KDE Discover 共�
 ./build.sh installer --bundle artifacts/release
 ```
 
-`config/steamos.json` 固定 Valve 镜像、casync 数据源、完整镜像 SHA256 和提取器提交。`config/steam-client.json` 固定公开 ARM64 handheld 客户端各个包的地址、大小和 SHA256。构建不会读取电脑上已登录的 Steam 目录。
+`config/steamos.json` 固定 Valve 镜像、casync 数据源、完整镜像 SHA256 和提取器提交。`config/steam-client.json` 固定公开 ARM64 handheld 客户端各个包的地址、大小和 SHA256。`config/steam-runtime.json` 固定完整 ARM64 Proton 与 Steam Linux Runtime。构建不会读取电脑或平板上已登录的 Steam 目录。
 
 `tools/build_steamos_rootfs.py` 组装根系统，`tools/stage_arch_piano.py` 与 Nyarch 共用固件、内核模块和设备服务。`tools/stage_steamos_desktop.py` 处理 KDE、Gamescope 和头显专用服务的差异。原来的 VR 会话及其自动删除游戏的磁盘清理逻辑不启用。
 
@@ -70,6 +70,12 @@ GPU 节点负责渲染，实际支持 KMS 的 DPU 节点负责输出。游戏模
 `gamescope-session.service`，供 SteamOS Manager 识别游戏模式和切换桌面。
 登录后菜单与游戏模式、KDE 桌面的来回切换均可用。Milthm 已通过
 ARM64 Proton 启动并使用 Adreno 渲染。
+
+镜像预装 GE-Proton11-11 ARM64 和 Steam Linux Runtime 4.0 ARM64，
+工具文件在构建时完整解包，默认兼容工具已配置。Proton 内含 FEX、
+DXVK 和 vkd3d-proton，不依赖首次启动游戏时才下载一套运行时。
+各组件的源提交及二进制校验值记录在 `config/steam-runtime.json`。
+Steam 登录、游戏内容和后续更新仍需要网络。
 
 背光沿用 SteamOS 的受限 sysfs 写入接口，会话启动前取得相应权限。
 `patches/gamescope/0002-backlight-avoid-double-dimming.patch` 修正移动版

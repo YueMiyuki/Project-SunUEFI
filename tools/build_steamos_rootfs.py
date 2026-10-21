@@ -16,6 +16,7 @@ import build_arch_package
 import build_arch_ffmpeg
 import stage_arch_piano
 import prepare_steam_client
+import prepare_steam_runtime
 import build_steamos_gamescope
 import build_steamos_manager
 
@@ -136,9 +137,12 @@ def build(args):
         # Frame split these files into clang-libs; the public repository now
         # ships them in clang itself. Remove that obsolete split package before
         # the full transaction, which installs the current compiler and libs.
-        if subprocess.run(['chroot', root, 'pacman', '-Qq', 'clang-libs'],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
-            guest(['pacman', '-Rdd', '--noconfirm', 'clang-libs'])
+        for obsolete in ('clang-libs', 'deckard-steamvr-session'):
+            if subprocess.run(['chroot', root, 'pacman', '-Qq', obsolete],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+                # The VR session also claims plasma.desktop, now supplied by
+                # the ordinary Plasma package used on the tablet.
+                guest(['pacman', '-Rdd', '--noconfirm', obsolete])
         guest(['pacman', '-Syu', '--noconfirm'])
         guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel',
                'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager', 'wpa_supplicant',
@@ -208,6 +212,12 @@ def build(args):
             (ROOT / 'config/steam-client.json').read_text()):
         raise ValueError('Cached Steam client differs from config/steam-client.json')
     prepare_steam_client.enable_first_launch(root)
+    game_runtime = output / 'steam-runtime'
+    if not (game_runtime / 'SOURCE.json').is_file():
+        prepare_steam_runtime.prepare(root, game_runtime)
+    runtime_record = json.loads((game_runtime / 'SOURCE.json').read_text())
+    if runtime_record['config_sha256'] != digest(ROOT / 'config/steam-runtime.json'):
+        raise ValueError('Cached Proton/runtime differs from config/steam-runtime.json')
 
     kernel = ROOT / 'artifacts/kernels/release'
     kernel_source = Path(json.loads((ROOT / 'build/release/source-manifest.json').read_text())['worktree'])
@@ -225,7 +235,8 @@ def build(args):
     manifest = output / 'manifest.json'
     record = json.loads(manifest.read_text())
     record.update(base_source=base_record, ffmpeg=json.loads((ffmpeg / 'SOURCE.json').read_text()),
-                  steam_client=json.loads((client / 'SOURCE.json').read_text()))
+                  steam_client=json.loads((client / 'SOURCE.json').read_text()),
+                  steam_runtime=runtime_record)
     manifest.write_text(json.dumps(record, indent=2) + '\n')
 
 

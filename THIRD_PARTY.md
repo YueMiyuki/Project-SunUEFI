@@ -70,6 +70,12 @@ SteamOS Manager 使用 [Valve 26.4.1 源码](https://gitlab.steamos.cloud/holo/s
 保留 MIT 许可；本项目的补丁使可选内核日志跟踪失败时仍能提供平台管理。
 源码、Rust 工具链和补丁摘要由 `tools/build_steamos_manager.py` 固定。
 
+预装兼容工具取自 [GE-Proton11-11 ARM64 发布](https://github.com/GloriousEggroll/proton-ge-custom/releases/tag/GE-Proton11-11)，
+容器运行时取自 [Valve Steam Linux Runtime 4.0 ARM64](https://repo.steampowered.com/steamrt4/images/4.0.20260928.262390/)。
+二进制与其附带的 Wine、FEX、DXVK、vkd3d-proton 和其他组件保留各自许可、
+版权和源码提供方式，不改变为本仓库许可。下载身份、摘要及关键源提交固定在
+`config/steam-runtime.json`；构建直接提取公开工具包，不复制用户的 Steam 账户数据。
+
 ## 字体、图标与显示资源
 
 | 资源 | 身份与使用 | 通知 / 尚需核对 |
