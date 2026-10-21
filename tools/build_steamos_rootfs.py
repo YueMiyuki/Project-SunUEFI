@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -132,6 +133,15 @@ def build(args):
     # Keep the native pacman ABI and separate FEX guest runtime. Native Mesa
     # is rebuilt below because the Frame image does not know Piano's A830v1.
     with build_resolver(root), guest_environment(root) as guest:
+        # SunUEFI supplies the kernel, initramfs and matching loopback module.
+        # Remove the headset kernel through pacman so later package updates
+        # do not rebuild unused Frame initramfs images.
+        installed = subprocess.check_output(
+            ['chroot', root, 'pacman', '-Qq'], text=True).splitlines()
+        frame_kernels = [p for p in installed
+                         if re.fullmatch(r'linux-[0-9]+-(?:v4l2loopback-)?deckard', p)]
+        if frame_kernels:
+            guest(['pacman', '-R', '--noconfirm', *frame_kernels])
         # Refresh the complete Valve package cohort before building local
         # adapters against it. Partial package upgrades can mix library ABIs.
         # Frame split these files into clang-libs; the public repository now
@@ -144,14 +154,24 @@ def build(args):
                 # the ordinary Plasma package used on the tablet.
                 guest(['pacman', '-Rdd', '--noconfirm', obsolete])
         guest(['pacman', '-Syu', '--noconfirm'])
-        guest(['pacman', '-S', '--needed', '--noconfirm', 'base-devel',
+        packages = ['base-devel',
                'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager', 'wpa_supplicant',
                'alsa-utils', 'pipewire', 'pipewire-pulse', 'wireplumber',
                'python', 'python-gobject', 'polkit', 'erofs-utils', 'rsync', 'chromium',
                'bluez-qt', 'networkmanager-qt', 'modemmanager-qt',
                'bluedevil', 'plasma-nm', 'kinfocenter', 'powerdevil',
                'discover', 'packagekit', 'packagekit-qt6', 'pacman-contrib',
-               'dconf', 'noto-fonts-cjk'])
+               'dconf', 'noto-fonts-cjk']
+        # Some Frame packages, including SDDM, are shipped in the base but
+        # absent from the public repositories. Syu already refreshes packages
+        # available there; request only unmet dependencies in this step.
+        missing = subprocess.run(['chroot', root, 'pacman', '-T', *packages],
+                                 capture_output=True, text=True)
+        if missing.returncode not in (0, 127):
+            raise RuntimeError(missing.stderr)
+        if missing.returncode:
+            guest(['pacman', '-S', '--needed', '--noconfirm',
+                   *missing.stdout.splitlines()])
         if not (root / 'usr/share/ibus/component/pinyin.xml').is_file():
             raise ValueError('The Valve base image must include its native IBus Pinyin engine')
         if subprocess.run(['chroot', root, 'id', 'piano'], capture_output=True).returncode:
