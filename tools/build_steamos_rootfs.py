@@ -254,10 +254,13 @@ def build(args):
     kernel_source = Path(json.loads((ROOT / 'build/release/source-manifest.json').read_text())['worktree'])
     runtime = output / 'runtime'
     if not (runtime / 'manifest.json').exists():
+        from build_piano_full_kernel import toolchain
+        helper_env, helper_tools = toolchain()
         run(sys.executable, ROOT / 'tools/build_release_helpers.py',
             '--kernel', kernel, '--source', kernel_source,
             '--kernel-build', args.kernel_build.resolve(),
-            '--output', runtime, '--sysroot', args.bootstrap_sysroot.resolve())
+            '--output', runtime, '--sysroot', args.bootstrap_sysroot.resolve(),
+            '--cc', helper_tools['paths']['clang'], env=helper_env)
     # Shared stager installs firmware, matching modules, standard interfaces,
     # input/audio/camera helpers, suspend policy and the LABEL-based initramfs.
     stage_arch_piano.stage(argparse.Namespace(
