@@ -181,6 +181,10 @@ DSP 退出时唤醒轮询调用，并等待活动调用结束后再拆除 DMA �
 7.3 实机仍复现最初的 DSP watchdog；这些修复处理清理竞态，
 不能作为音频、传感器或整机稳定性已经恢复的证明。
 
+音频初始化还移除了 `apm_probe()` 内无效的就绪查询：APR 此时尚未注册
+接收回调，DSP 的正常回复被丢弃，造成固定五秒等待。后续 PRM 驱动仍通过
+正常接口查询就绪状态。这项修正不代替麦克风触发 DSP 崩溃的定位。
+
 ## 来源
 
 根系统提取器来自 [SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1)，按 GPL-2.0 保留来源。Valve 系统、Steam 客户端及附带组件继续适用各自许可；参考仓库的 GPL 许可不覆盖这些二进制。具体下载身份和构建结果保存在 `SOURCE.json`、根系统 `manifest.json` 和 `packages.tsv`。

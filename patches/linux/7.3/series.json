@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "9e708487db96356af9d4cb48218b89734445e751",
-  "original_target_commit": "679af40069fab5a72bf4c3bdc76ab760ae33db63",
+  "target_tree": "d9ab27d8a094614e11a75487e507c3432a7ad176",
+  "original_target_commit": "3141d26caacec6ca2ca39713ed6a05868fd54aee",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -95,6 +95,14 @@
       "original_parent": "21a155746e066cf1c6f69ab879ca971a3124e7f2",
       "committer_date": "2026-10-22T00:30:00+08:00",
       "tree": "9e708487db96356af9d4cb48218b89734445e751"
+    },
+    {
+      "file": "0012-asoc-q6apm-avoid-unregistered-query.patch",
+      "sha256": "e8beaefe447f3ec3bcace66d8dde7ceac587d70c54fcec3fafc667171486d485",
+      "original_commit": "3141d26caacec6ca2ca39713ed6a05868fd54aee",
+      "original_parent": "679af40069fab5a72bf4c3bdc76ab760ae33db63",
+      "committer_date": "2026-10-21T19:19:53+00:00",
+      "tree": "d9ab27d8a094614e11a75487e507c3432a7ad176"
     }
   ],
   "provenance": {
