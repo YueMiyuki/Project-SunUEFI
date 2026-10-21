@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "component": "ffmpeg-v4l2m2m",
+  "upstream_version": "8.1",
+  "local_revision": "sunuefi3",
+  "source": {
+    "url": "https://ffmpeg.org/releases/ffmpeg-8.1.tar.xz",
+    "filename": "ffmpeg-8.1.tar.xz",
+    "size": 11702216,
+    "sha256": "b072aed6871998cce9b36e7774033105ca29e33632be5b6347f3206898e0756a"
+  },
+  "series": [
+    {
+      "path": "0004-v4l2m2m-ffmpeg9-stateful.patch",
+      "sha256": "ad7b86872378f38fbbdf8a24e31726f62a765869b6f910322be6a8d8695b1a3c",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
+    },
+    {
+      "path": "0005-v4l2m2m-orphan-capture-ffmpeg9.patch",
+      "sha256": "b35c619d8467a15144db5ba58b4015884de71167f32b0c31fdb6f3b834e29bb3",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
+    },
+    {
+      "path": "0006-v4l2m2m-p010-capture.patch",
+      "sha256": "2eeca4bcb88a54819c8211703eb3b6461e00a4fd122d5c405ff2764c08381044",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
+    }
+  ]
+}

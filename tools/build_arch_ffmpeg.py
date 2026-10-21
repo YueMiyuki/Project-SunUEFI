@@ -2,7 +2,7 @@
 """Build shared FFmpeg BSP patches as native SteamOS or Arch packages.
 
 Preserve the target's codec configuration and library ABI. FFmpeg 7.0/7.1
-use the shared Debian source; rolling FFmpeg 9 uses its matching patch port.
+use the shared Debian source; FFmpeg 8 and 9 use their matching patch ports.
 """
 import argparse
 import json
@@ -62,6 +62,8 @@ def build(root, output, resume=False):
     upstream_version = package_version.split(':')[-1]
     if re.match(r'^7\.[01](?:[.\s-])', upstream_version):
         series_path = source.SERIES
+    elif re.match(r'^8\.1-', upstream_version):
+        series_path = source.SERIES.with_name('series-8.json')
     elif re.match(r'^9\.0\.2-', upstream_version):
         series_path = source.SERIES.with_name('series-9.json')
     else:

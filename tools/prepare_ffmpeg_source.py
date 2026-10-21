@@ -22,7 +22,7 @@ def prepare(output, apply_patches=True, series=SERIES):
     output = Path(output).resolve()
     if not output.is_relative_to(ROOT / 'build') or output.exists():
         raise ValueError('Use a new project build directory; existing source edits are preserved')
-    series = Path(series)
+    series = Path(series).resolve()
     record = json.loads(series.read_text())
     origin = record['source']
     if 'archives' in origin:
