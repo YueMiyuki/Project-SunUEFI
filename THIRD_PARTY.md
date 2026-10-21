@@ -56,11 +56,12 @@ Gamescope 的 BSD-2-Clause 许可。依赖子项目取自 Valve Gamescope 3.16.3
 构建来源记录在 `tools/build_steamos_gamescope.py` 和生成的 `SOURCE.json`。
 
 SteamOS 缺少的 KDE 组件取自 [KDE 官方发行归档](https://download.kde.org/stable/)。
+版本、URL、SHA-256 和依赖写在 `config/steamos.json` 的 `kde_packages` 中，
+按 Valve ARM64 系统现有 ABI 构建，保留每个组件的 `LICENSES/`。
+
 SteamOS Manager 使用 [Valve 26.4.1 源码](https://gitlab.steamos.cloud/holo/steamos-manager/-/tree/a0d399defebd60db30ba38325d9cf47dbda49bee)，
 保留 MIT 许可；本项目的补丁使可选内核日志跟踪失败时仍能提供平台管理。
 源码、Rust 工具链和补丁摘要由 `tools/build_steamos_manager.py` 固定。
-版本、URL、SHA-256 和依赖写在 `config/steamos.json` 的 `kde_packages` 中，
-按 Valve ARM64 系统现有 ABI 构建，保留每个组件的 `LICENSES/`。
 
 ## 字体、图标与显示资源
 
