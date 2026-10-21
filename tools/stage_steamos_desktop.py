@@ -81,6 +81,13 @@ def configure_cpu_and_recovery(root):
     for manager in ('system', 'user'):
         put(root, f'etc/systemd/{manager}.conf.d/90-piano-cpu.conf',
             '[Manager]\nCPUAffinity=\n')
+    # This helper reports Valve's active A/B slot, not the root filesystem
+    # partition. Piano has no Valve A/B installation to report here.
+    about = root / 'etc/xdg/kcm-about-distrorc'
+    if about.is_file():
+        about.write_text('\n'.join(
+            line for line in about.read_text().splitlines()
+            if line.strip() != 'ExtraSoftwareData=/usr/bin/steamos-partition') + '\n')
     # Advertise only the installed platform's capabilities through Manager.
     # Valve's reset assumes its A/B layout; its BIOS/dock/fan tools target Deck.
     path = root / 'usr/share/steamos-manager/platform.toml'
@@ -213,8 +220,11 @@ def configure(root):
     backlight = root / 'etc/systemd/system/systemd-backlight@.service'
     if backlight.is_symlink() and str(backlight.readlink()) == '/dev/null':
         backlight.unlink()
+    # Gaming Mode has no desktop power daemon. Let logind suspend on a short
+    # press; Plasma's standard handle-power-key inhibitor takes over in KDE.
+    (root / 'etc/systemd/logind.conf.d/10-logind-no-powerbutton.conf').unlink(missing_ok=True)
     put(root, 'etc/systemd/logind.conf.d/20-piano.conf',
-        '[Login]\nHandlePowerKey=ignore\nHandleLidSwitch=suspend\n')
+        '[Login]\nHandlePowerKey=suspend\nHandleLidSwitch=suspend\n')
     # The standard distribution desktop owns power-button policy.
     for directory in ('etc/environment.d', 'etc/profile.d'):
         for file in (root / directory).glob('*'):

@@ -58,7 +58,8 @@ Gamescope 使用参考项目的移动设备适配，并增加分离 DRM 节点�
 GPU 节点负责渲染，实际支持 KMS 的 DPU 节点负责输出。游戏模式分辨率为
 3200×2136，菜单按会话配置保持 120 Hz，不再自动切到面板最高的 144 Hz。会话使用
 `gamescope-session.service`，供 SteamOS Manager 识别游戏模式和切换桌面。
-完整的登录后菜单、模式切换和游戏仍需继续验证。
+登录后菜单与游戏模式、KDE 桌面的来回切换均可用。Milthm 已通过
+ARM64 Proton 启动并使用 Adreno 渲染。
 
 背光沿用 SteamOS 的受限 sysfs 写入接口，会话启动前取得相应权限。
 `patches/gamescope/0002-backlight-avoid-double-dimming.patch` 修正移动版
@@ -78,8 +79,8 @@ MSM 不提供 Gamescope 使用的 AMD 平面色彩转换接口。启用色彩管
 KDE 默认值位于 `linux/desktops/kde/config/kcminputrc`。
 
 FFmpeg 的 H.264 8-bit 测试已实际调用 Iris，解码 720p 的 60 帧并正常退出。
-HEVC 10-bit 测试返回格式错误，仍需修复；不能把编码器列表或驱动节点出现
-当作所有视频格式已经可用。
+HEVC Main10 已修复 P010 格式映射，720p 的 60 帧解码无错误，首帧与软件
+解码逐字节一致。这验证了十位视频解码，不代表 HDR 显示链路已经完成。
 
 Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接安装这里的 7.1 包。
 
@@ -109,6 +110,20 @@ ARM64 Steam 客户端当前把 CPU 名称报告为 `Unknown`，频率取 CPU0 �
 `prepare_steam_client.py` 处理首次登录时的客户端解包，直接启动 ARM64
 程序，保留退出码 42 的正常重启行为。预装文件附带客户端安装清单，
 避免首次启动仅因清单缺失而重下整套客户端。在线更新与登录仍由 Steam 负责。
+启动器同时建立 `sdkarm64` 链接并保持有效的日志输出，避免游戏因找不到
+`steam-launch-wrapper` 或向运行容器传递无效标准输出而退出。Gamescope
+默认传递真实触摸事件，允许游戏接收多指输入，实际玩法仍取决于游戏支持。
+
+SteamOS Manager 使用 Valve 26.4.1 源码，补丁位于
+`patches/steamos-manager/`：缺少 tracefs 时停用内核诊断采集，继续提供
+桌面切换等管理功能。`tools/build_steamos_manager.py` 固定源码、工具链
+及摘要，并构建匹配系统的原生包。
+
+游戏模式短按电源键由 logind 挂起；KDE 由 PowerDevil 接管，默认
+2 分钟熄屏、电池下 5 分钟或接电时 10 分钟挂起。KDE 已识别
+30、48、50、60、90、120 和 144 Hz，实机完成 120→60→120 Hz 切换。
+Steam 自动亮度尚未接通：传感器通过 SensorProxy 提供照度，而客户端
+当前直接扫描 IIO，不能仅通过强开按钮解决。
 
 2026-10-21 实机记录：清理原设备服务后，Linux 7.3 的内核和系统服务启动
 约 18 秒，不含 UEFI；Steam 登录界面已显示。完整游戏模式、模式切换、

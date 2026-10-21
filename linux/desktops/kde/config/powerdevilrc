@@ -1,31 +1,42 @@
-# Temporary defaults until native DSI OFF/ON and suspend resume are fixed.
 # Standard Plasma 6 PowerDevil settings, editable in System Settings.
 [AC][Display]
 DimDisplayWhenIdle=false
-TurnOffDisplayWhenIdle=false
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=120
+LockBeforeTurnOffDisplay=true
 TurnOffDisplayIdleTimeoutWhenLockedSec=0
 
 [AC][SuspendAndShutdown]
-AutoSuspendAction=0
-LidAction=0
-PowerButtonAction=16
+AutoSuspendIdleTimeoutSec=600
+AutoSuspendAction=1
+SleepMode=1
+LidAction=1
+PowerButtonAction=1
 
 [Battery][Display]
 DimDisplayWhenIdle=false
-TurnOffDisplayWhenIdle=false
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=120
+LockBeforeTurnOffDisplay=true
 TurnOffDisplayIdleTimeoutWhenLockedSec=0
 
 [Battery][SuspendAndShutdown]
-AutoSuspendAction=0
-LidAction=0
-PowerButtonAction=16
+AutoSuspendIdleTimeoutSec=300
+AutoSuspendAction=1
+SleepMode=1
+LidAction=1
+PowerButtonAction=1
 
 [LowBattery][Display]
 DimDisplayWhenIdle=false
-TurnOffDisplayWhenIdle=false
+TurnOffDisplayWhenIdle=true
+TurnOffDisplayIdleTimeoutSec=120
+LockBeforeTurnOffDisplay=true
 TurnOffDisplayIdleTimeoutWhenLockedSec=0
 
 [LowBattery][SuspendAndShutdown]
-AutoSuspendAction=0
-LidAction=0
-PowerButtonAction=16
+AutoSuspendIdleTimeoutSec=300
+AutoSuspendAction=1
+SleepMode=1
+LidAction=1
+PowerButtonAction=1
