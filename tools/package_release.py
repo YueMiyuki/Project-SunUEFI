@@ -395,6 +395,9 @@ def package(args):
     require(not output.exists() and not output.is_relative_to(root), 'Output must be fresh and outside rootfs')
     require(64 <= args.esp_size_mib <= 2048 and (args.root_size_mib is None or 64 <= args.root_size_mib <= 65536), 'Invalid image capacity')
     require(0 <= args.epoch <= 0x7fffffff, 'Invalid SOURCE_DATE_EPOCH')
+    # Qt treats an exact zero file timestamp as invalid. SDDM then skips all
+    # configuration files on a fresh image. Keep deterministic, positive times.
+    args.epoch = max(1, args.epoch)
     require(re.fullmatch('LABEL=[A-Za-z0-9_-]{1,16}', args.root_selector), 'Portable bundle requires a filesystem LABEL root selector')
     metas = [record(uefi.parent / 'manifest.json'), record(kernel / 'manifest.json'), record(dtb.parent / 'manifest.json'), record(initrd.parent / 'manifest.json')]
     image = kernel / 'Image'
@@ -536,7 +539,11 @@ def parser():
     ap.add_argument('--root-size-mib', type=int)
     ap.add_argument('--root-archive', action='store_true',
                     help='Also export root.tar.zst when building a root.ext4.img')
-    ap.add_argument('--epoch', type=int, default=int(os.environ.get('SOURCE_DATE_EPOCH', '0')))
+    epoch = os.environ.get('SOURCE_DATE_EPOCH')
+    if epoch is None:
+        epoch = subprocess.check_output(
+            ['git', '-C', ROOT, 'show', '-s', '--format=%ct', 'HEAD'], text=True).strip()
+    ap.add_argument('--epoch', type=int, default=int(epoch))
     return ap
 
 
