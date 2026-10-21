@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "89d2aad905c7e14699f641ac3394e0a7cccc862b",
-  "original_target_commit": "21a155746e066cf1c6f69ab879ca971a3124e7f2",
+  "target_tree": "9e708487db96356af9d4cb48218b89734445e751",
+  "original_target_commit": "679af40069fab5a72bf4c3bdc76ab760ae33db63",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -87,6 +87,14 @@
       "original_parent": "95f8b55c62eb2cac8f331913aced9f8e5d849f70",
       "committer_date": "2026-10-20T15:50:00+00:00",
       "tree": "89d2aad905c7e14699f641ac3394e0a7cccc862b"
+    },
+    {
+      "file": "0011-fastrpc-drain-ssr-invokes.patch",
+      "sha256": "0388cb7001807cf6692d1628ce07f6b720da23e759a962b1904431b47215ab4f",
+      "original_commit": "679af40069fab5a72bf4c3bdc76ab760ae33db63",
+      "original_parent": "21a155746e066cf1c6f69ab879ca971a3124e7f2",
+      "committer_date": "2026-10-22T00:30:00+08:00",
+      "tree": "9e708487db96356af9d4cb48218b89734445e751"
     }
   ],
   "provenance": {
@@ -415,6 +423,15 @@
     "cachyos_patch": "7.3/sched/0001-bore-cachy.patch",
     "cachyos_patch_sha256": "4abd36b417f9de244c93ebecda7efbbbdea4e295db6dd4f0f00af0272805073e",
     "gunyah_source": "https://github.com/code002-2/librevm",
-    "gunyah_commit": "56918558e2c4303cda803a655ea716869c551b71"
+    "gunyah_commit": "56918558e2c4303cda803a655ea716869c551b71",
+    "fastrpc_ssr": {
+      "source": "https://github.com/qualcomm-linux/kernel/pull/1212",
+      "author": "Jianping Li",
+      "commits": [
+        "a0741420ba061510b843fa98e40a1c3fa513e131",
+        "bcf730279a854ce7a7f586c68d8064726e48ffff",
+        "2b139af3cfefe0b79fb33e1b207eac3ea2812678"
+      ]
+    }
   }
 }

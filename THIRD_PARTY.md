@@ -44,6 +44,13 @@ BORE 6.8.0 来自 Masahito Suzuki 的调度器实现，以及
 [`series.json`](patches/linux/7.3/series.json)中。MGLRU、ZRAM、
 `schedutil` 与抢占机制属于 Linux 自身功能，不作为 CachyOS 独有改动介绍。
 
+FastRPC 的 DSP 重启清理修复参考高通 Jianping Li 提交的
+[三个上游补丁](https://github.com/qualcomm-linux/kernel/pull/1212)，
+本地适配为 [`0011-fastrpc-drain-ssr-invokes.patch`](patches/linux/7.3/0011-fastrpc-drain-ssr-invokes.patch)。
+修复设备开放时的初始化顺序、轮询调用的退出通知，以及活动调用尚未退出就拆除 DMA 映射的竞态。
+原始提交记录在补丁正文与内核来源清单中，沿用 Linux 源文件的 GPL-2.0-only 许可。
+这些改动处理 DSP 崩溃后的清理，不代表已经解决 DSP 最初的崩溃原因。
+
 SteamOS 根系统提取使用 [hashtagbasit/SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1) 的 `scripts/extract_rootfs.py`（GPL-2.0）。提交与文件 SHA256 固定在 `config/steamos.json`，下载时保留源文件通知。该项目提供提取方法和移植参考，SunUEFI 使用自己的启动器、设备内核与 BSP。Valve ARM64 根系统与公开 Steam 客户端分别记录在 `config/steamos.json`、`config/steam-client.json`，继续适用各组件的原有许可，不因提取脚本采用 GPL 而改变。FFmpeg 使用既有 BSP 补丁，构建为匹配 SteamOS 库 ABI 的 pacman 包，保留完整编解码配置与许可文件。
 
 SteamOS 的 Gamescope 采用同一固定 `SteamOS-ARM-Port` 提交中
