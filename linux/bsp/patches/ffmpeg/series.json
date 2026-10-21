@@ -2,7 +2,7 @@
   "schema_version": 1,
   "component": "ffmpeg-v4l2m2m",
   "upstream_version": "7.1.5",
-  "local_revision": "sunuefi4",
+  "local_revision": "sunuefi5",
   "source": {
     "source": "https://ffmpeg.org",
     "upstream_version": "7.1.5",
@@ -48,12 +48,17 @@
       "path": "0005-v4l2m2m-orphan-capture-ffmpeg7.patch",
       "sha256": "c74f3b275e01cbade1d54fc3c09038d2858e133b5c67546b260c6e8ee2766b7e",
       "license": "LGPL-2.1-or-later; retain upstream file notices"
+    },
+    {
+      "path": "0006-v4l2m2m-p010-capture.patch",
+      "sha256": "2eeca4bcb88a54819c8211703eb3b6461e00a4fd122d5c405ff2764c08381044",
+      "license": "LGPL-2.1-or-later; retain upstream file notices"
     }
   ],
   "distribution_independent": true,
   "debian_reference": {
     "source_version": "7:7.1.5-0+deb13u1",
-    "planned_binary_version": "7:7.1.5-0+deb13u1+sunuefi4",
+    "planned_binary_version": "7:7.1.5-0+deb13u1+sunuefi5",
     "binary_packages_built": false
   },
   "scope": [
@@ -84,6 +89,19 @@
     "decode_errors": 0,
     "encoded_frames": 12,
     "full_native_package_installed": false,
-    "other_codecs_validated": false
+    "other_codecs_validated": false,
+    "hevc_main10": {
+      "kernel_release": "7.2.9-piano-gnome-g130ea5f43e40",
+      "resolution": [
+        1280,
+        720
+      ],
+      "decoded_frames": 60,
+      "decode_errors": 0,
+      "output_format": "p010le",
+      "first_frame_matches_software": true,
+      "decoded_frame_sha256": "afdfb7b5ea9df5838861befb92ade41b4150ae8e8b45bf4cc0b9c28aa9daddde",
+      "full_native_package_installed": false
+    }
   }
 }
