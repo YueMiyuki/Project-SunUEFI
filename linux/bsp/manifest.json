@@ -462,6 +462,20 @@
       "source_sha256": "73129f8e24d641a516eb01753493327985c60edfa3e2870f3c9c6d6a59378bc7",
       "source_git_mode": "100644",
       "license": "BSD-2-Clause-Patent"
+    },
+    {
+      "group": "common",
+      "path": "etc/modules-load.d/piano-rtc.conf",
+      "type": "file",
+      "mode": "0644",
+      "uid": 0,
+      "gid": 0,
+      "sha256": "148ee66e0ee5839909e837fd1e5754ab8b2873ce87f464e7431181e33471dcbd",
+      "source": "linux/bsp/common/etc/modules-load.d/piano-rtc.conf",
+      "source_component": "Project SunUEFI",
+      "source_sha256": "148ee66e0ee5839909e837fd1e5754ab8b2873ce87f464e7431181e33471dcbd",
+      "source_git_mode": "100644",
+      "license": "MIT"
     }
   ],
   "excluded": [

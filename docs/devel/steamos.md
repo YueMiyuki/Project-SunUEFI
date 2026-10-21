@@ -191,6 +191,22 @@ DSP 退出时唤醒轮询调用，并等待活动调用结束后再拆除 DMA �
 接收回调，DSP 的正常回复被丢弃，造成固定五秒等待。后续 PRM 驱动仍通过
 正常接口查询就绪状态。这项修正不代替麦克风触发 DSP 崩溃的定位。
 
+进一步实机对照将触发点定位到 VA 麦克风设备的 runtime suspend：
+7.3 的 PM-clock 转换会释放最后两路共享核心投票，随后出现 ADSP watchdog；
+保持这两路投票时，录音结束和设备空闲均正常。`0013` 仅为 SM8750 保留
+`LPASS_HW_MACRO_VOTE`、`LPASS_HW_DCODEC_VOTE` 的注册期引用，采样时钟仍由
+runtime PM 管理，探测失败和移除时归还引用。其他型号保持原来的行为。
+这修正了本轮已复现的触发条件，不代表长期稳定性或待机功耗已经测完。
+
+正常 PipeWire／WirePlumber 下，电脑与平板已完成双向测试音播放和录音；
+测试后 ADSP 保持运行，没有禁止音频服务启动的诊断配置。四路功放为原厂
+增益 235，麦克风数字增益为 +40 dB，与 Debian 共用同一份 UCM。
+
+系统已完成一次 `deep` 挂起和 PMIC 闹钟唤醒，内核记录成功，桌面与 ADSP
+恢复。公共 BSP 默认加载 `rtc_pm8xxx`，保留硬件闹钟；Piano 内核关闭
+`RTC_HCTOSYS`／`RTC_SYSTOHC`，避免将原厂未换算日期偏移的 RTC 计数当作
+Linux 日期。待机耗电、长时间挂起和所有外设恢复仍需继续确认。
+
 ## 来源
 
 根系统提取器来自 [SteamOS-ARM-Port](https://github.com/hashtagbasit/SteamOS-ARM-Port/tree/e54dac93afccf76e5fefe998399b6c1b1a23f3a1)，按 GPL-2.0 保留来源。Valve 系统、Steam 客户端及附带组件继续适用各自许可；参考仓库的 GPL 许可不覆盖这些二进制。具体下载身份和构建结果保存在 `SOURCE.json`、根系统 `manifest.json` 和 `packages.tsv`。
