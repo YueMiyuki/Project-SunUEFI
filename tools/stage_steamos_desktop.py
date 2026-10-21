@@ -106,6 +106,10 @@ def configure_cpu_and_recovery(root):
 
 def configure_platform(root):
     configure_cpu_and_recovery(root)
+    link = root / 'etc/systemd/system/graphical.target.wants/power-profiles-daemon.service'
+    link.parent.mkdir(parents=True, exist_ok=True)
+    link.unlink(missing_ok=True)
+    link.symlink_to('/usr/lib/systemd/system/power-profiles-daemon.service')
     units = platform_units(root)
     for unit in units:
         link = root / 'etc/systemd/system' / unit
@@ -118,6 +122,13 @@ def configure_platform(root):
         'GreeterEnvironment=QT_WAYLAND_SHELL_INTEGRATION=layer-shell\n'
         '[Wayland]\n'
         'CompositorCommand=kwin_wayland --drm --no-lockscreen --no-global-shortcuts --locale1\n')
+    # Use the native DRM session even when the user manager still holds the
+    # previous compositor's DISPLAY/WAYLAND_DISPLAY. GLES keeps KWin's Qt
+    # Quick windows on the same hardware API as its shared EGL context.
+    put(root, 'etc/systemd/user/plasma-kwin_wayland.service.d/60-piano-drm.conf',
+        '[Service]\nExecStart=\n'
+        'ExecStart=/usr/bin/kwin_wayland_wrapper --drm --xwayland\n'
+        'Environment=KWIN_COMPOSE=O2ES\n')
     # Valve's plasma.desktop starts its VR Gamescope target, which then asks
     # SteamVR to present Plasma inside the headset. Select native Plasma via
     # SDDM's standard local-session override instead.

@@ -138,6 +138,10 @@ def build(args):
         packages = output / 'packages' / name
         if not (packages / 'manifest.json').is_file():
             build_arch_package.build(root, output / 'kde-recipes' / name, packages)
+    power_profiles = output / 'packages/power-profiles-daemon'
+    if not (power_profiles / 'manifest.json').is_file():
+        build_arch_package.build(
+            root, ROOT / 'linux/bsp/steamos/power-profiles-daemon', power_profiles)
     source = output / 'sensor-source'
     if not source.exists():
         sensor_sources(source, cfg['sensors'])
