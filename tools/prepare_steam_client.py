@@ -25,14 +25,22 @@ if ! check_bootstrap "$LAUNCHSTEAMDIR" "$*"; then
     install_bootstrap "$DEFAULTSTEAMDIR"
 fi
 ln -fns "$LAUNCHSTEAMDIR" "$STEAMCONFIG/root"
+ln -fns "$LAUNCHSTEAMDIR/linuxarm64" "$STEAMCONFIG/sdkarm64"
 export LD_LIBRARY_PATH="$LAUNCHSTEAMDIR/$LAUNCHSTEAMPLATFORM${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 cd "$LAUNCHSTEAMDIR"
+mkdir -p logs
 while :; do
     status=0
-    "$LAUNCHSTEAMDIR/$LAUNCHSTEAMPLATFORM/steam" "$@" || status=$?
+    "$LAUNCHSTEAMDIR/$LAUNCHSTEAMPLATFORM/steam" "$@" >>logs/console-linux.txt 2>&1 || status=$?
     [ "$status" = 42 ] || exit "$status"
 done'''
     if new in text:
+        return
+    previous = new.replace(
+        'ln -fns "$LAUNCHSTEAMDIR/linuxarm64" "$STEAMCONFIG/sdkarm64"\n', ''
+    ).replace('mkdir -p logs\n', '').replace(' >>logs/console-linux.txt 2>&1', '')
+    if previous in text:
+        launcher.write_text(text.replace(previous, new))
         return
     if text.count(old) != 1:
         raise ValueError('Steam launcher first-run entry changed')
