@@ -3,6 +3,7 @@
 import shutil
 import subprocess
 import json
+import os
 import shlex
 from datetime import datetime, timezone
 from pathlib import Path
@@ -288,6 +289,19 @@ def configure(root):
     put(root, 'etc/sddm.conf.d/10-sunuefi.conf',
         '[Autologin]\nUser=piano\nSession=gamescope-wayland.desktop\nRelogin=true\n')
     put(root, 'etc/locale.conf', 'LANG=zh_CN.UTF-8\n')
+    # Steam keeps its own language preference, separate from LANG. Seed the
+    # ordinary client registry in the fresh image; later user choices persist.
+    registry = root / 'home/piano/.steam/registry.vdf'
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(
+        '"Registry"\n{\n\t"HKCU"\n\t{\n\t\t"Software"\n\t\t{\n'
+        '\t\t\t"Valve"\n\t\t\t{\n'
+        '\t\t\t\t"Steam"\n\t\t\t\t{\n\t\t\t\t\t"language" "schinese"\n\t\t\t\t}\n'
+        '\t\t\t\t"Steamsteamglobal"\n\t\t\t\t{\n\t\t\t\t\t"language" "schinese"\n\t\t\t\t}\n'
+        '\t\t\t}\n\t\t}\n\t}\n}\n')
+    registry.chmod(0o644)
+    os.chown(registry, 1000, 1000)
+    os.chown(registry.parent, 1000, 1000)
     localtime = root / 'etc/localtime'
     localtime.unlink(missing_ok=True)
     localtime.symlink_to('/usr/share/zoneinfo/Asia/Shanghai')
