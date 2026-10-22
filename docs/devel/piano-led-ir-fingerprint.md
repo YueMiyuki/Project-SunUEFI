@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | RGB 通道 | PM8550 SID1 上的 `qcom,pm8350c-pwm`，SPMI LPG，通道 1/2/3 为 red/green/blue | 标准驱动和产品DT已有；补齐SDAM/LPG模块加载后已出现三个标准LED接口。实际发光、可见位置和用途尚待确认。 |
 | 红外发射 | SE15 / SPI `0x89c000` / CS0，`ir-spi`，Android 原始波形字符设备 | 已确认原厂约40%占空比、低电平间隔和32位打包；控制器标准绑定及LIRC待接入，实际光学输出未验证。 |
-| 侧指纹 | Goodix，GPIO 控制与高通 QTEE 安全服务 | Linux 已能加载原厂签名的安全程序；传感器控制、录入、认证和 fprintd 接入尚未完成。 |
+| 侧指纹 | Goodix，GPIO 控制与高通 QTEE 安全服务 | 供电、复位、中断和安全程序设备查询已接通；录入、认证和 fprintd 接入尚未完成。 |
 
 ## RGB 通道
 
@@ -16,7 +16,7 @@
 
 实际Linux起初没有RGB，LPG的deferred-probe原因为未取得LPG chan SDAM。正确提供者模块名为 `nvmem_qcom_spmi_sdam`；加载它及 `leds_qcom_lpg` 后，实际platform device绑定 `qcom-spmi-lpg`，出现 `red`、`green`、`blue`，初始brightness为0、max_brightness为255。没有读取SDAM内容或写brightness，尚不证明实际可见灯的位置或用途。
 
-[通用模块加载文件](../../linux/bsp/common/etc/modules-load.d/piano-rgb.conf)已写入BSP manifest和完整root stager，也已安装到当前平板；下一次正常启动会按同一策略加载，不添加daemon或重复DT节点。实际记录在 `private/provisioning/recovery-priority-20261008/a8-rgb-provider-load.txt`。另一个无关的 `sdam@7000/sm1510_present@5d` cell描述导致其提供者注册失败，但LPG使用的8400/8500已成功；不将这个告警掩盖或扩大解释为全部SDAM正常。
+[通用模块加载文件](../../linux/bsp/common/etc/modules-load.d/piano-rgb.conf)已写入BSP manifest和完整root stager，也已安装到当前平板；下一次正常启动会按同一策略加载，不添加daemon或重复DT节点。实际记录在 `private/provisioning/recovery-priority-20261008/a8-rgb-provider-load.txt`。另一个无关的 `sdam@7000/sm1510_present@5d` cell 曾因无效位范围阻止其提供者注册；打包器现保留完整原始字节并移除无效位切片，详见[启动设备树处理](kernel-roles.md#piano-启动配置)。LPG 使用的是 8400/8500 两个 SDAM。
 
 ## 红外发射
 
@@ -72,7 +72,7 @@ Goodix 客户端使用 `QSEECom_send_modified_cmd()` 发送请求。
 [`piano-fingerprint.dtso`](../../linux/dts/piano-fingerprint.dtso)。
 打开 `piano-goodix` UIO 设备时打开供电并释放复位，关闭时停止中断、
 拉低复位并归还电源引用；没有 MMIO 映射，也不把中断当成认证结果。
-Linux 已完成供电、复位和关闭，完整认证仍需实现。
+Linux 已完成供电、复位和关闭。普通桌面应用的认证仍需 libfprint 后端。
 
 原厂 `pm_humu_l9` 为 3.300 V。现有主线 PLDO 使用不同的离散电压档位；
 必须选择不超过原厂上限的 3.296 V。此前上取整到 3.304 V 时，
@@ -83,8 +83,25 @@ Goodix 客户端的设备信息命令为路由 1、命令 1000，128 字节请�
 64 字节响应，另带传感器共享缓冲区。Linux 能加载并正常关闭安全程序。
 QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
 不能按外层固件的 ELF32 封装选择地址宽度。修正后传输层返回成功，
-但响应中的缓冲区状态仍为 `-1`；原厂四个传感器检测候选均未取得
-设备信息。临时启用文件和时间监听服务也未改变结果。完整命令协议和
-libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。
+最初响应中的缓冲区状态为 `-1`，原因是小缓冲区来自 4 GiB 以上的伙伴
+分配器。该安全程序接受的共享区域必须在 4 GiB 以下；使用默认 CMA
+池中的真实 4 KiB 缓冲区后，传输、应用和缓冲区状态均返回成功，
+传感器类型为 5。无需给每条命令申请大缓冲区，也无需为这个查询启动
+文件／时间监听服务。
+
+[`0018` 内核修正](../../patches/linux/7.3/0018-qcomtee-public-buffers-cma.patch)
+使应用共享内存使用设备树声明的连续内存池，保留驱动私有小消息的
+普通分配方式。地址范围由池的配置决定，不通过伪造指针或用户空间
+内存热补丁处理。
+
+原生客户端位于
+[`piano-goodix.c`](../../linux/userspace/fingerprint/piano-goodix.c)，
+使用固定版本的 Qualcomm MinkIPC／quic-teec 与 QCBOR，由四个发行版
+共用的运行时构建器静态编译；来源记录在
+[`config/fingerprint.json`](../../config/fingerprint.json)。
+执行 `sudo piano-fingerprint-ctl info` 可查询设备信息，`--help` 不访问设备。
+签名程序按固件清单随镜像提供，不包含用户模板或密码。
+
+完整命令协议和 libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。
 
 随后bde3普通重启发现，虽然modules-load文件已安装，旧modprobe黑名单仍使systemd把LPG记为deny-listed。已仅移除 `leds_qcom_lpg` 这一条，并让完整root stager与通用BSP使用同一份tracked modprobe配置。重新启动标准modules-load后实际插入LPG并出现三个接口，随后一次完整正常重启也已确认三个接口自动出现。当前证据在 `bde3-rgb-startup.txt` 与 `bde3-rgb-policy-fixed.txt`，不能用之前手动modprobe结果替代启动策略验证。
