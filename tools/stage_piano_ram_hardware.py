@@ -148,6 +148,7 @@ def build(output, source, rootfs=None):
     for relative in ('etc/modprobe.d/piano.conf',
                      'etc/modules-load.d/piano-rgb.conf',
                      'etc/modules-load.d/piano-rtc.conf',
+                     'etc/modules-load.d/piano-fingerprint.conf',
                      'etc/modules-load.d/piano-bluetooth.conf',
                      'etc/modules-load.d/piano-pen-dock.conf',
                      'etc/udev/rules.d/79-piano-pen-charger.rules',

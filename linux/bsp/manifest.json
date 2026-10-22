@@ -476,6 +476,20 @@
       "source_sha256": "148ee66e0ee5839909e837fd1e5754ab8b2873ce87f464e7431181e33471dcbd",
       "source_git_mode": "100644",
       "license": "MIT"
+    },
+    {
+      "group": "common",
+      "path": "etc/modules-load.d/piano-fingerprint.conf",
+      "type": "file",
+      "mode": "0644",
+      "uid": 0,
+      "gid": 0,
+      "sha256": "afb943393b9e4f69ce23810562eef7c29ac67412146a56fb8690d2059ebcc396",
+      "source": "linux/bsp/common/etc/modules-load.d/piano-fingerprint.conf",
+      "source_component": "Project SunUEFI",
+      "source_sha256": "afb943393b9e4f69ce23810562eef7c29ac67412146a56fb8690d2059ebcc396",
+      "source_git_mode": "100644",
+      "license": "MIT"
     }
   ],
   "excluded": [
