@@ -23,6 +23,8 @@ def source_inputs():
         'config_sha256': digest(ROOT / 'config/fingerprint.json'),
         'client_sha256': digest(ROOT / 'linux/userspace/fingerprint/piano-goodix.c'),
         'builder_sha256': digest(Path(__file__)),
+        'firmware_manifest_sha256': digest(
+            ROOT / 'vendor/firmware/hyperos4-fingerprint/manifest.json'),
     }
 
 
@@ -99,7 +101,9 @@ def build(output, flags, emulator=None):
         'client_source': 'linux/userspace/fingerprint/piano-goodix.c',
         'client_sha256': digest(originals[-1]),
         'source_files': {str(p.relative_to(ROOT)): digest(p) for p in originals},
-        'firmware': 'gfpia.elf', 'operations': ['info'],
+        'firmware': json.loads(
+            (ROOT / 'vendor/firmware/hyperos4-fingerprint/manifest.json').read_text())['files'],
+        'operations': ['info', 'initialize', 'watch'],
         'enrollment_supported': False, 'authentication_supported': False,
     }
     if source_inputs() != inputs:

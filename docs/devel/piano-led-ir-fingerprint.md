@@ -102,6 +102,35 @@ QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
 执行 `sudo piano-fingerprint-ctl info` 可查询设备信息，`--help` 不访问设备。
 签名程序按固件清单随镜像提供，不包含用户模板或密码。
 
+`sudo piano-fingerprint-ctl initialize` 完成传感器初始化、原厂模型加载和
+交互策略设置，再正常关闭传感器。实机返回传感器类型 5、芯片类型 49、
+132 行 × 24 列阵列，以及 132 × 16 的导航区域。初始化响应中的芯片类型为零
+表示沿用设备查询值，与原厂 HAL 的处理一致，不代表未知芯片。
+
+该设备要求防伪和识别模型，两者均从同版原厂 `libgf_hal.so` 的导出数据符号
+提取，属于通用算法参数，不是用户模板。CAP S／T 的选择依据设备返回的标志，
+芯片类型 49 使用 `DLWeightLightDubaiU4_12_10_14MisTouch`。
+来源库 SHA256、符号、文件偏移、大小和输出校验值全部记录在
+[`固件清单`](../../vendor/firmware/hyperos4-fingerprint/manifest.json)，
+不会安装原厂可执行库。
+
+协议顺序如下，所有命令都通过公开 QTEE 接口进入原厂签名程序：
+
+| 命令 | 功能 |
+| --- | --- |
+| 1000 | 查询传感器类型和功能标志 |
+| 1001 | 读取传感器参数与校准数据 |
+| 1113 | 分块加载防伪／识别模型；每块 511900 字节，逻辑模型命令为 1111 |
+| 1005、1109 | 完成初始化并应用交互策略 |
+| 1009 | 进入待机检测 |
+| 1016 | 读取并确认传感器中断 |
+| 1002 | 关闭传感器，随后关闭安全程序并归还供电 |
+
+`sudo piano-fingerprint-ctl watch 30` 在限定时间内监听 UIO 中断，最多 120 秒。
+收到中断后先通过安全程序确认，再重新启用 IRQ；输出只有事件标志和中断计数，
+不保存或输出图像、模板和认证令牌。启动与待机过程已收到真实中断并完成确认；
+这不等于手指检测、匹配或解锁已经完成。Ctrl+C 可正常结束并释放硬件。
+
 完整命令协议和 libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。
 
 随后bde3普通重启发现，虽然modules-load文件已安装，旧modprobe黑名单仍使systemd把LPG记为deny-listed。已仅移除 `leds_qcom_lpg` 这一条，并让完整root stager与通用BSP使用同一份tracked modprobe配置。重新启动标准modules-load后实际插入LPG并出现三个接口，随后一次完整正常重启也已确认三个接口自动出现。当前证据在 `bde3-rgb-startup.txt` 与 `bde3-rgb-policy-fixed.txt`，不能用之前手动modprobe结果替代启动策略验证。
