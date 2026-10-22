@@ -117,3 +117,16 @@ ADSP 初始化加载标准 `pmic_glink_altmode` 和 `ucsi_glink`，MCA 只处理
 为设备模式时启动，断开或切换为主机模式时停止。方向已经应用到 PHY 后才连接
 调试设备，未插线开机也不等待 USB。服务名称保持 `piano-usb.service`，
 没有新增常驻服务。
+
+## UFS 多队列
+
+[`piano-ufs-mcq.dtso`](../../linux/dts/piano-ufs-mcq.dtso) 补齐同机原厂使用的
+MCQ 寄存器窗口及 ITS 中断连接。普通控制器位于 `0x1d84000`，
+MCQ 配置、厂商状态和队列门铃分别从 `0x1da0000`、`0x1da4000`、
+`0x1da5000` 开始；主线驱动使用一个 28 KiB 的 `mcq` 窗口访问它们。
+ITS 的 UFS 设备编号沿用原厂的 `0x60`，DMA 仍使用既有 SMMU 路由。
+
+2026-10-22 正常重启后，驱动启用 8 个 I/O 队列、1 个轮询队列，
+队列深度为 64；8 路 ESI 中断均有实际完成记录，SteamOS 从内部存储启动。
+这解决了此前缺少 MCQ 资源而退回普通队列的问题。启动时写
+`wExceptionEventControl` 仍被设备拒绝，属于另一项待处理的属性兼容问题。

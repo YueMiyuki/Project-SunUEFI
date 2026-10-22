@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/soc/ufshc@1d84000";
+		__overlay__ {
+			/*
+			 * Factory SM8750 layout: MCQ configuration at 0x1da0000,
+			 * vendor registers at +0x4000 and doorbells at +0x5000.
+			 * The mainline driver maps these through one MCQ window.
+			 * Keep the standard controller window and its DMA route.
+			 */
+			reg = <0x01d84000 0x3000>, <0x01da0000 0x7000>;
+			reg-names = "std", "mcq";
+			/* Factory UFS ITS device ID; unrelated to the DMA SID. */
+			msi-parent = <&gic_its 0x60>;
+		};
+	};
+};
