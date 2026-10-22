@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect/stage/package the tracked, configuration-only Piano BSP offline."""
+"""Inspect/stage/package Piano device configuration and scripts offline."""
 import argparse
 import hashlib
 import json
@@ -47,7 +47,10 @@ def payload(features):
             target = posixpath.normpath(str(PurePosixPath(name).parent / data.decode()))
             require(not data.startswith(b'/') and not target.startswith('../'), 'BSP link escapes payload')
         else:
-            require(not data.startswith(b'\x7fELF') and row['mode'] == '0644', 'Native helper is not a configuration file')
+            script = row['mode'] == '0755' and data.startswith(b'#!')
+            require(not data.startswith(b'\x7fELF') and
+                    (row['mode'] == '0644' or script),
+                    'BSP requires text configuration or an interpreted script: ' + name)
         if row.get('patch'):
             require(sha((BSP / row['patch']).read_bytes()) == row['patch_sha256'], 'BSP patch drift')
         rows.append((row, data))

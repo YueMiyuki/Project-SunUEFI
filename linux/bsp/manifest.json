@@ -500,7 +500,7 @@
       "gid": 0,
       "source": "linux/bsp/common/usr/lib/piano/usb-network",
       "source_component": "Project SunUEFI",
-      "source_git_mode": "100644",
+      "source_git_mode": "100755",
       "license": "MIT",
       "sha256": "4c1b10146434d2623a3291b49df7fcbbf61c4e5979e6f50089828fcabd39e008",
       "source_sha256": "4c1b10146434d2623a3291b49df7fcbbf61c4e5979e6f50089828fcabd39e008"
