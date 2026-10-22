@@ -21,6 +21,7 @@ import prepare_steam_runtime
 import build_steamos_gamescope
 import build_steamos_manager
 import build_piano_runtime_helpers as runtime_helpers
+import build_release_helpers
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -258,9 +259,10 @@ def build(args):
     runtime_kernel = runtime_helpers.kernel_identity(
         args.kernel_build.resolve(), kernel_source,
         kernel_record['source_commit'], kernel_record['kernel_release'])
-    if (runtime / 'manifest.json').is_file() and json.loads(
-            (runtime / 'manifest.json').read_text())['kernel'] != runtime_kernel:
-        shutil.rmtree(runtime)
+    if (runtime / 'manifest.json').is_file():
+        old = json.loads((runtime / 'manifest.json').read_text())
+        if old['kernel'] != runtime_kernel or not build_release_helpers.inputs_current(runtime):
+            shutil.rmtree(runtime)
     if not (runtime / 'manifest.json').exists():
         from build_piano_full_kernel import toolchain
         helper_env, helper_tools = toolchain()

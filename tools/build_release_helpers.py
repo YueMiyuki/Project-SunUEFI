@@ -10,6 +10,7 @@ import shutil
 import subprocess
 
 import build_piano_runtime_helpers as runtime
+import build_piano_fingerprint
 from prepare_linux_modules import modinfo
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +18,17 @@ STABLE_UAPI_COMMIT = '5fce161649b4d779d1b76d9fcd52dc77779774b8'
 STABLE_UAPI_DIGEST = 'b0effcf9c1b646a06c6839a2b98e1c051a7854f23349f676cfb280d6b749b33e'
 LINUX_73_COMMIT = 'c03c1a14507dfaf8b856c2608f9ac216021fc222'
 LINUX_73_UAPI_DIGEST = '12ed203c6e7e5dd78106fb7a9127dd620a6ae90272a8a627c05cf6ad43750591'
+
+def inputs_current(output):
+    path = output / 'manifest.json'
+    if not path.is_file():
+        return False
+    record = json.loads(path.read_text())
+    return (
+        record.get('producer', {}).get('sha256') == runtime.sha(Path(__file__))
+        and record.get('fingerprint', {}).get('inputs')
+        == build_piano_fingerprint.source_inputs()
+    )
 
 
 def expected_uapi_digest(source, commit):
@@ -99,6 +111,13 @@ def build(kernel, source, kernel_build, output, cc, sysroot, macros, loop):
         if name in runtime.BSP_SOURCES:
             item.update(source_kind='project-bsp', source_path=relative)
         files[destination] = item
+    fingerprint_files, fingerprint = build_piano_fingerprint.build(
+        output, flags, emulator=emulator)
+    fingerprint_binary = output / fingerprint_files[
+        'usr/local/sbin/piano-fingerprint-ctl']['file']
+    fingerprint_files['usr/local/sbin/piano-fingerprint-ctl'].update(
+        runtime.verify_elf(fingerprint_binary), help_no_device_access=True)
+    files.update(fingerprint_files)
     run(['bash', public / 'scripts/build-topology.sh', macros, output / 'firmware'])
     topology = output / 'firmware/qcom/sm8750/Xiaomi Pad 8 Pro-tplg.bin'
     if runtime.sha(topology) != runtime.TOPOLOGY_PIN:
@@ -127,6 +146,7 @@ def build(kernel, source, kernel_build, output, cc, sysroot, macros, loop):
     result = {'status': 'RUNTIME_COMPILED_NOT_DEVICE_TESTED', 'kernel': identity,
         'public_commit': runtime.PUBLIC_COMMIT, 'runtime_files': files, 'pen_core': pen_record,
         'producer': {'file': 'tools/build_release_helpers.py', 'sha256': runtime.sha(Path(__file__))},
+        'fingerprint': fingerprint,
         'uapi_sha256': uapi_digest, 'uapi_source_commit': commit, 'macros_commit': runtime.MACROS_COMMIT,
         'v4l2_commit': runtime.LOOP_COMMIT, 'hardware_verified': False,
         'toolchain': {'compiler': compiler, 'compiler_sha256': runtime.sha(Path(compiler)),

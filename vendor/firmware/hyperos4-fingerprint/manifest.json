@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "component": "piano-fingerprint",
+  "rom": "OS4.0.4.0.XPYCNXM",
+  "source": "stock /vendor/firmware_mnt/image/gfpia.mdt and gfpia.b00..b08; reconstructed at their ELF file offsets",
+  "files": {
+    "gfpia.elf": {
+      "bytes": 11681880,
+      "sha256": "577756f06b3af25b1a6f4490bc27fc74ad8b54c84bc1eea535bbd577005eb24c"
+    }
+  }
+}

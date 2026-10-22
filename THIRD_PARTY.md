@@ -30,6 +30,16 @@ HyperOS 4 的 [ADSP](vendor/firmware/hyperos4-adsp/README.md) 和
 保留原始签名、文件名和逐文件 SHA256，按清单装入四个发行版。
 它们属于 Qualcomm／小米专有固件，不适用本项目的源码许可。
 
+原生 Goodix 客户端使用 [Qualcomm MinkIPC](https://github.com/qualcomm/minkipc)、
+[quic-teec](https://github.com/quic/quic-teec) 和
+[QCBOR](https://github.com/laurencelundblade/QCBOR) 的公开源码。
+精确提交、源码许可和构建输入记录在
+[`config/fingerprint.json`](config/fingerprint.json) 及镜像内的
+`/usr/share/piano-provenance/fingerprint.json`；相应许可证随静态客户端安装。
+本项目独立实现本机 Goodix 命令封装，复用标准 UIO／TEE 接口。
+原厂签名程序的来源与范围见
+[固件说明](vendor/firmware/hyperos4-fingerprint/README.md)。
+
 Gunyah 的 Android 驱动与主线接口适配来自
 [code002-2/librevm](https://github.com/code002-2/librevm/tree/56918558e2c4303cda803a655ea716869c551b71/packaging/gunyah-driver-7.2)
 整理的补丁包，原适配来自

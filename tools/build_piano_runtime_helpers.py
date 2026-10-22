@@ -291,6 +291,9 @@ def stage(output,destination):
     manifest=json.loads((output/'manifest.json').read_text());files=manifest['runtime_files'];release=manifest['kernel']['release']
     if not re.fullmatch(r'[a-zA-Z0-9_.+-]{1,128}',release):raise ValueError('Unsafe runtime kernel release')
     expected={row[2]for row in (PUBLIC_SOURCES|BSP_SOURCES).values()}|PEN_RUNTIME_PATHS|{'usr/lib/firmware/qcom/sm8750/Xiaomi Pad 8 Pro-tplg.bin','usr/lib/modules/'+release+'/updates/v4l2loopback.ko'}
+    if manifest.get('fingerprint'):
+        from build_piano_fingerprint import RUNTIME_PATHS
+        expected |= RUNTIME_PATHS
     if set(files)!=expected:raise ValueError('Runtime bundle source/install paths differ from the exact contract')
     if not(destination/'usr/lib/modules'/release/'kernel').is_dir():raise ValueError('Stage the matching full kernel module tree first')
     # Prevalidate the entire generation before changing any destination file.

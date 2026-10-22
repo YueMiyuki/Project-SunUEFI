@@ -7,7 +7,7 @@
     "stable_source": "https://github.com/torvalds/linux.git",
     "stable_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
     "stable_version": "7.3.0",
-    "target_tree": "6b7976cb4ee3bf8d66680c06e208bd73fabc8fe9",
+    "target_tree": "28adb1cb8ddd7264526601e8e35177820d8434af",
     "cpu_model_overlay": "linux/dts/piano-cpu-model.dtso",
     "additional_dtb_overlays": [
       "linux/dts/piano-cma.dtso",
@@ -73,7 +73,8 @@
     "manifest": "firmware/SHA256SUMS",
     "overlays": [
       "vendor/firmware/hyperos4-adsp/manifest.json",
-      "vendor/firmware/hyperos4-cdsp/manifest.json"
+      "vendor/firmware/hyperos4-cdsp/manifest.json",
+      "vendor/firmware/hyperos4-fingerprint/manifest.json"
     ]
   },
   "mesa": {

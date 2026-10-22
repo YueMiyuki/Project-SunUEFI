@@ -209,6 +209,7 @@ jobs:
             sources.lock.json
             config/release.json
             config/steamos.json
+            config/fingerprint.json
             config/nyarch.json
             build/distros/nyarch-gnome-piano/manifest.json
             build/distros/nyarch-gnome-piano/build.log
