@@ -516,8 +516,8 @@
       "source_component": "Project SunUEFI",
       "source_git_mode": "100644",
       "license": "MIT",
-      "sha256": "daee2e3a68ef8609274a751f38ff682eefc6c66d543c708330999ee94899cf34",
-      "source_sha256": "daee2e3a68ef8609274a751f38ff682eefc6c66d543c708330999ee94899cf34"
+      "sha256": "a542ceb7ed80049a1282b6106943736dffa586cbb5b0f5182ee366dcb6656505",
+      "source_sha256": "a542ceb7ed80049a1282b6106943736dffa586cbb5b0f5182ee366dcb6656505"
     },
     {
       "group": "common",
@@ -530,8 +530,8 @@
       "source_component": "Project SunUEFI",
       "source_git_mode": "100644",
       "license": "MIT",
-      "sha256": "4137f013cd62f253c195257c7c6d4c0199bf78c489bcb4c491126f8de7fa1143",
-      "source_sha256": "4137f013cd62f253c195257c7c6d4c0199bf78c489bcb4c491126f8de7fa1143"
+      "sha256": "261a13bc05d2d21b2d1bb346a388f947f802c62e1134e401b0cfe8fe75615819",
+      "source_sha256": "261a13bc05d2d21b2d1bb346a388f947f802c62e1134e401b0cfe8fe75615819"
     }
   ],
   "excluded": [

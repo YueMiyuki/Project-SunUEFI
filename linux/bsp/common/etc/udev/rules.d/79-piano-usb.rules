@@ -1,3 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Start the gadget after Type-C has applied the real connector orientation.
-ACTION=="add", SUBSYSTEM=="typec", KERNEL=="port0-partner", TAG+="systemd", ENV{SYSTEMD_ALIAS}="/sys/subsystem/typec/devices/%k", ENV{SYSTEMD_WANTS}+="piano-usb.service"
+# Type-C emits a change after applying orientation and selecting the data role.
+# The brackets in data_role identify the active role, e.g. "host [device]".
+ACTION!="remove", SUBSYSTEM=="typec", KERNEL=="port0", TAG+="systemd", ENV{SYSTEMD_ALIAS}="/sys/subsystem/typec/devices/%k", ENV{SYSTEMD_READY}="0"
+ACTION!="remove", SUBSYSTEM=="typec", KERNEL=="port0", ATTR{orientation}=="normal|reverse", ATTR{data_role}=="*[[]device[]]*", ENV{SYSTEMD_READY}="1", ENV{SYSTEMD_WANTS}+="piano-usb.service"

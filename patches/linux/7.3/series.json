@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "8629e18d01c0a8607c22b0946647593e5146b220",
-  "original_target_commit": "37817d0275707f2ec3d62725f769befa9dc2a7a0",
+  "target_tree": "399d075608845683187ed3b6776a118e35851a39",
+  "original_target_commit": "03070a4d1f8910f4e1bb74af65366f45fe8d14c3",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -175,6 +175,14 @@
       "original_parent": "b113b8f42c73c695d7d54255e783193122aa2173",
       "committer_date": "2026-10-22T11:52:43+08:00",
       "tree": "8629e18d01c0a8607c22b0946647593e5146b220"
+    },
+    {
+      "file": "0022-ucsi-initial-usb-mux.patch",
+      "sha256": "d69514f2e39773b934849ab1ce9652e6f4965de447972ff6c359bdc1430ddb99",
+      "original_commit": "03070a4d1f8910f4e1bb74af65366f45fe8d14c3",
+      "original_parent": "37817d0275707f2ec3d62725f769befa9dc2a7a0",
+      "committer_date": "2026-10-22T12:27:17+08:00",
+      "tree": "399d075608845683187ed3b6776a118e35851a39"
     }
   ],
   "provenance": {

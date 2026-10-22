@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: MIT
 [Unit]
 Description=Piano USB NCM management network
-# A Type-C partner is registered after its PHY orientation has been applied.
-# Udev starts this existing service on attachment; removal disconnects it.
+# Udev marks the Type-C port ready after orientation and device role are set.
+# Losing that readiness stops the gadget without blocking a cable-free boot.
 Wants=piano-adsp.service
-BindsTo=sys-subsystem-typec-devices-port0\x2dpartner.device
-After=piano-adsp.service sys-subsystem-typec-devices-port0\x2dpartner.device
+BindsTo=sys-subsystem-typec-devices-port0.device
+After=piano-adsp.service sys-subsystem-typec-devices-port0.device
 
 [Service]
 Type=oneshot
