@@ -130,3 +130,25 @@ ITS 的 UFS 设备编号沿用原厂的 `0x60`，DMA 仍使用既有 SMMU 路由
 队列深度为 64；8 路 ESI 中断均有实际完成记录，SteamOS 从内部存储启动。
 这解决了此前缺少 MCQ 资源而退回普通队列的问题。启动时写
 `wExceptionEventControl` 仍被设备拒绝，属于另一项待处理的属性兼容问题。
+
+## CDSP
+
+[`piano-dsp-resources.dtso`](../../linux/dts/piano-dsp-resources.dtso) 使用主线
+NSP NoC 绑定、两单元 interconnect 参数和 AP 的 BCM voter，将 CDSP 到内存的
+带宽路径交给 `qcom_q6v5`。驱动在启动签名固件前申请带宽，交接完成后释放；
+不再依赖 Android 留下的总线状态。打包器保留这条已转换的路径。
+
+[`piano-cdsp-fastrpc.dtso`](../../linux/dts/piano-cdsp-fastrpc.dtso) 将原厂的
+11 个非安全计算会话连接到 Linux 管理的 apps SMMU，保留每个会话实际的
+stream ID 和 mask。原厂安全会话 9 不作为普通 Linux 计算会话使用。
+正常 DMA 映射由内核完成，没有在用户空间写 SMMU 寄存器。
+
+2026-10-22 正常重启后，CDSP 收到真实 ready／handover 中断并进入 running，
+11 个计算会话均使用 DMA domain。`cdsprpcd` 已打开 DSP 端的
+`adsp_default_listener`，无需重启服务，之前连续出现的能力查询错误消失。
+这证明固件启动和 RPC 基础通信可用；具体神经网络、视觉及计算库仍需
+对应用户空间和 DSP 程序支持，不能仅凭服务启动宣称这些应用全部完成。
+
+随后一次 deep 挂起由 RTC 在约 22 秒后唤醒，ADSP、CDSP 继续 running，
+`cdsprpcd` 的重启计数保持为零，Wi-Fi、蓝牙和 USB 恢复连接。
+CPU 离线期间仍有 GPIO 中断亲和性告警，未把这项告警隐藏或标为已修复。

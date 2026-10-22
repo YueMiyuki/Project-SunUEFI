@@ -15,6 +15,7 @@
       "linux/dts/piano-usb-typec.dtso",
       "linux/dts/piano-ufs-mcq.dtso",
       "linux/dts/piano-dsp-resources.dtso",
+      "linux/dts/piano-cdsp-fastrpc.dtso",
       "linux/dts/piano-fingerprint.dtso",
       "linux/dts/piano-board-identity.dtso",
       "linux/dts/piano-regdma-resource.dtso",

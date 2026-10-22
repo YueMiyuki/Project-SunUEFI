@@ -14,6 +14,9 @@
 					<&rpmhpd_ml 10>,
 					<&rpmhpd_ml 13>;
 			power-domain-names = "cx", "mxc", "nsp";
+			/* MASTER_CDSP_PROC=0, SLAVE_EBI1=1, TAG_ALWAYS=7. */
+			interconnects = <&nsp_noc 0 7 &mc_virt 1 7>;
+			interconnect-names = "rproc_ddr";
 		};
 	};
 
@@ -22,6 +25,15 @@
 		__overlay__ {
 			clocks = <&rpmhcc_ml 0>;
 			clock-names = "xo";
+		};
+	};
+
+	fragment@2 {
+		target-path = "/soc/interconnect@320c0000";
+		__overlay__ {
+			compatible = "qcom,sm8750-nsp-noc";
+			#interconnect-cells = <2>;
+			qcom,bcm-voters = <&apps_bcm_voter_ml>;
 		};
 	};
 };

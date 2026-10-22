@@ -49,13 +49,17 @@ def normalize_mainline_bindings(board):
                     del props[key]
                     changes.append(path + ':' + key)
         downstream = any(path == root or path.startswith(root + '/') for root in legacy)
-        # qcom_q6v5_pas does not consume the downstream ICC property. Its
-        # firmware/power-domain resources remain intact. QTB nodes belong to
-        # the old qsmmuv500 binding, not the active ARM SMMU translation.
+        # qcom_q6v5 consumes a standard ICC path during DSP startup. Keep
+        # the converted CDSP path when its NSP provider has the mainline
+        # binding; discard only the inherited downstream paths. QTB nodes
+        # belong to the old qsmmuv500 binding, not the active ARM SMMU.
+        mainline_cdsp = (path == '/soc/remoteproc-cdsp@32300000' and
+                        tree.get('/soc/interconnect@320c0000', {}).get('compatible') ==
+                        b'qcom,sm8750-nsp-noc\0')
         old_icc = downstream or path in (
             '/soc/remoteproc-adsp@03000000', '/soc/remoteproc-cdsp@32300000'
         ) or (path.startswith('/soc/apps-smmu@15000000/') and '_qtb@' in path)
-        if old_icc:
+        if old_icc and not mainline_cdsp:
             for key in ('interconnects', 'interconnect-names'):
                 if key in props:
                     del props[key]

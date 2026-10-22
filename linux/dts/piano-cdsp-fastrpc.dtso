@@ -1,0 +1,115 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+/plugin/;
+
+/* Factory stream IDs/masks, attached to the Linux-owned apps SMMU.
+ * Session 9 is a secure context bank and is not a mainline compute session.
+ */
+/ {
+	fragment@0 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc";
+		__overlay__ { qcom,non-secure-domain; };
+	};
+	fragment@1 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@1";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x19c1 0>,
+				 <&apps_smmu_ml 0x0c21 0>,
+				 <&apps_smmu_ml 0x0c01 0x40>;
+		};
+	};
+	fragment@2 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@2";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1962 0>,
+				 <&apps_smmu_ml 0x0c02 0x20>,
+				 <&apps_smmu_ml 0x0c42 0>,
+				 <&apps_smmu_ml 0x19c2 0>;
+		};
+	};
+	fragment@3 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@3";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1963 0>,
+				 <&apps_smmu_ml 0x0c23 0>,
+				 <&apps_smmu_ml 0x0c03 0x40>,
+				 <&apps_smmu_ml 0x19c3 0>;
+		};
+	};
+	fragment@4 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@4";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1964 0>,
+				 <&apps_smmu_ml 0x0c24 0>,
+				 <&apps_smmu_ml 0x0c04 0x40>,
+				 <&apps_smmu_ml 0x19c4 0>;
+		};
+	};
+	fragment@5 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@5";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1965 0>,
+				 <&apps_smmu_ml 0x0c25 0>,
+				 <&apps_smmu_ml 0x0c05 0x40>,
+				 <&apps_smmu_ml 0x19c5 0>;
+		};
+	};
+	fragment@6 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@6";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1966 0>,
+				 <&apps_smmu_ml 0x0c06 0x20>,
+				 <&apps_smmu_ml 0x0c46 0>,
+				 <&apps_smmu_ml 0x19c6 0>;
+		};
+	};
+	fragment@7 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@7";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1967 0>,
+				 <&apps_smmu_ml 0x0c27 0>,
+				 <&apps_smmu_ml 0x0c07 0x40>,
+				 <&apps_smmu_ml 0x19c7 0>;
+		};
+	};
+	fragment@8 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@8";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x1968 0>,
+				 <&apps_smmu_ml 0x0c08 0x20>,
+				 <&apps_smmu_ml 0x0c48 0>,
+				 <&apps_smmu_ml 0x19c8 0>;
+		};
+	};
+	fragment@9 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@9";
+		__overlay__ { status = "disabled"; };
+	};
+	fragment@10 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@10";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x196c 0>,
+				 <&apps_smmu_ml 0x0c2c 0>,
+				 <&apps_smmu_ml 0x0c0c 0x40>,
+				 <&apps_smmu_ml 0x19cc 0>;
+		};
+	};
+	fragment@11 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@11";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x196d 0>,
+				 <&apps_smmu_ml 0x0c0d 0x20>,
+				 <&apps_smmu_ml 0x0c2e 0>,
+				 <&apps_smmu_ml 0x0c4d 0>,
+				 <&apps_smmu_ml 0x19cd 0>;
+		};
+	};
+	fragment@12 {
+		target-path = "/soc/remoteproc-cdsp@32300000/glink-edge/qcom,fastrpc/compute-cb@12";
+		__overlay__ {
+			iommus = <&apps_smmu_ml 0x196e 0>,
+				 <&apps_smmu_ml 0x0c0e 0x40>,
+				 <&apps_smmu_ml 0x19ce 0>;
+		};
+	};
+};
