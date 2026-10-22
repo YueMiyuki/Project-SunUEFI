@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=Piano USB NCM management network
+# A Type-C partner is registered after its PHY orientation has been applied.
+# Udev starts this existing service on attachment; removal disconnects it.
+Wants=piano-adsp.service
+BindsTo=sys-subsystem-typec-devices-port0\x2dpartner.device
+After=piano-adsp.service sys-subsystem-typec-devices-port0\x2dpartner.device
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/piano/usb-network
+ExecStop=/usr/lib/piano/usb-network stop
+RemainAfterExit=yes
+TimeoutStartSec=130

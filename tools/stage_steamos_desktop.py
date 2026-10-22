@@ -165,8 +165,9 @@ def configure_platform(root):
         link = root / 'etc/systemd/system' / unit
         link.unlink(missing_ok=True)
         link.symlink_to('/dev/null')
-    # Keep systemd's standard UDC activation target, with the shared Piano
-    # gadget service instead of Frame's ADB and FunctionFS setup.
+    # Keep systemd's standard UDC target, without Frame's ADB/FunctionFS.
+    # Type-C partner attachment starts Piano's gadget after orientation is
+    # applied; the UDC target fires before that information is available.
     gadget = root / 'etc/systemd/system/usb-gadget.target'
     if gadget.is_symlink() and str(gadget.readlink()) == '/dev/null':
         gadget.unlink()
@@ -177,7 +178,6 @@ def configure_platform(root):
         (wants / name).unlink(missing_ok=True)
     link = wants / 'piano-usb.service'
     link.unlink(missing_ok=True)
-    link.symlink_to('/usr/lib/systemd/system/piano-usb.service')
     # The Frame module parameter is absent from mainline ath12k. A same-name
     # local config shadows the headset-only reorder policy across upgrades.
     put(root, 'etc/modprobe.d/ath12k.conf',

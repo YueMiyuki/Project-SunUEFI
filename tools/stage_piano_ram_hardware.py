@@ -116,6 +116,31 @@ def adapt(name, data):
             else:
                 probe = GUARD + scope + wait
             text = replace_once(text, before, preparation + probe + '\n\n' + before)
+        if name == 'adsp-start':
+            text = replace_once(
+                text, 'modprobe pmic_glink || say "WARN pmic_glink"\n',
+                'modprobe pmic_glink || { say "FAIL pmic_glink"; exit 1; }\n'
+                '# One standard owner switches QMP before acknowledging USB-C events.\n'
+                'modprobe pmic_glink_altmode || { say "FAIL pmic_glink_altmode"; exit 1; }\n'
+                '# UCSI reads the real GPIO61 cable polarity and drives the role switch.\n'
+                'modprobe ucsi_glink || { say "FAIL ucsi_glink"; exit 1; }\n')
+            text = replace_once(text, 'pan_ack="$CHARGE_PAN"', 'pan_ack=0')
+            # Charging remains configurable, but USB-C event handling now
+            # belongs to the standard kernel driver, independent of charging.
+            text = text.replace(
+                '#                 ADSP\'s ~0.5 A fallback; pan_ack: the ADSP\'s USB-C port\n'
+                '#                 notifications are acknowledged, without which its PD state\n'
+                '#                 machine waits 13 s per notification and a source attached\n'
+                '#                 at boot gets its PD contract only after 70-80 s;\n',
+                '#                 ADSP\'s ~0.5 A fallback. USB-C notifications and QMP\n'
+                '#                 orientation use the standard pmic_glink_altmode driver;\n')
+            text = text.replace(
+                '# CHARGE_CURRENT=0 to keep 5 V / the ADSP\'s charge current, CHARGE_PAN=0\n'
+                '# to leave the port notifications unacknowledged, CHARGE_MIPPS=0 to skip\n'
+                '# the Xiaomi charger authentication, or CHARGE_CP=0 to stay on the buck\n',
+                '# CHARGE_CURRENT=0 to keep 5 V / the ADSP\'s charge current, CHARGE_MIPPS=0\n'
+                '# to skip Xiaomi charger authentication, or CHARGE_CP=0 to stay on the buck\n')
+            text = replace_once(text, 'CHARGE_PAN=1\n', '')
     if name in ('adsp-start', 'audio-start'):
         # A failed oneshot must not be reported successful by systemd.
         text = text.replace('; exit 0; }', '; exit 1; }')
@@ -163,12 +188,14 @@ def build(output, source, rootfs=None):
                      'etc/modules-load.d/piano-bluetooth.conf',
                      'etc/modules-load.d/piano-pen-dock.conf',
                      'etc/udev/rules.d/79-piano-pen-charger.rules',
+                     'etc/udev/rules.d/79-piano-usb.rules',
                      'usr/lib/piano/bluetooth-address.py',
                      'usr/lib/piano/usb-network',
                      'usr/share/piano/pen/p81c-radio.json',
                      'usr/share/piano/pen/calibration/piano-boe.ini',
                      'usr/share/piano/pen/calibration/piano-csot.ini',
                      'usr/lib/systemd/system/piano-touch.service',
+                     'usr/lib/systemd/system/piano-usb.service',
                      'etc/pipewire/client.conf.d/60-piano-audio.conf',
                      'etc/pipewire/pipewire-pulse.conf.d/60-piano-audio.conf',
                      'etc/wireplumber/wireplumber.conf.d/50-piano-audio.conf',
@@ -236,6 +263,10 @@ def build(output, source, rootfs=None):
             dest = safe_destination(rootfs, Path(name))
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(output / name, dest)
+        # Type-C attachment, rather than multi-user.target, starts the gadget.
+        # No missing-cable device job should hold up boot or Wi-Fi SSH.
+        (rootfs / 'etc/systemd/system/multi-user.target.wants/piano-usb.service').unlink(missing_ok=True)
+        (rootfs / 'usr/lib/systemd/system/piano-usb.service.d/20-typec.conf').unlink(missing_ok=True)
         manifest = rootfs / 'usr/share/piano-provenance/ram-hardware.json'
         manifest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(output / 'manifest.json', manifest)

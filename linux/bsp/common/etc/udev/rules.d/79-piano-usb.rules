@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: MIT
+# Start the gadget after Type-C has applied the real connector orientation.
+ACTION=="add", SUBSYSTEM=="typec", KERNEL=="port0-partner", TAG+="systemd", ENV{SYSTEMD_ALIAS}="/sys/subsystem/typec/devices/%k", ENV{SYSTEMD_WANTS}+="piano-usb.service"

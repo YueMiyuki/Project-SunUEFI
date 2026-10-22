@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "28adb1cb8ddd7264526601e8e35177820d8434af",
-  "original_target_commit": "cd9cceac5bdd293a5372b272c94ab73303c3a817",
+  "target_tree": "8629e18d01c0a8607c22b0946647593e5146b220",
+  "original_target_commit": "37817d0275707f2ec3d62725f769befa9dc2a7a0",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -151,6 +151,30 @@
       "original_parent": "6b9029bb823f582b5dd70bd4bb715ed1abb7b239",
       "committer_date": "2026-10-22T10:18:53+08:00",
       "tree": "28adb1cb8ddd7264526601e8e35177820d8434af"
+    },
+    {
+      "file": "0019-pmic-glink-altmode-connector-children.patch",
+      "sha256": "cb0dd641af13647717520f0b7f89f5d872b9193d72570205e92e8c1b1c0a1275",
+      "original_commit": "a37030e54e258222c175a8738c4a2d645816c289",
+      "original_parent": "cd9cceac5bdd293a5372b272c94ab73303c3a817",
+      "committer_date": "2026-10-22T11:23:20+08:00",
+      "tree": "629d9bfa1ca3af9bb0618a937f9ecaa2e96b7bb6"
+    },
+    {
+      "file": "0020-ucsi-glink-connector-children.patch",
+      "sha256": "7baf194d0f77234036b14ef3a31246773495ba3f3072b8cc1be8b47461bab500",
+      "original_commit": "b113b8f42c73c695d7d54255e783193122aa2173",
+      "original_parent": "a37030e54e258222c175a8738c4a2d645816c289",
+      "committer_date": "2026-10-22T11:42:46+08:00",
+      "tree": "08ab72fffa4229ce59d67cda74051dffc278a53d"
+    },
+    {
+      "file": "0021-ucsi-prefer-numbered-connectors.patch",
+      "sha256": "cb7e8aa267b5a28d56569700fe63c4435c0e2f7f768058d9160b77a7ed99300c",
+      "original_commit": "37817d0275707f2ec3d62725f769befa9dc2a7a0",
+      "original_parent": "b113b8f42c73c695d7d54255e783193122aa2173",
+      "committer_date": "2026-10-22T11:52:43+08:00",
+      "tree": "8629e18d01c0a8607c22b0946647593e5146b220"
     }
   ],
   "provenance": {

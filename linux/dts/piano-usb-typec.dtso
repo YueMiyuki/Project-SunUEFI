@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: GPL-2.0-only OR BSD-2-Clause
+/dts-v1/;
+/plugin/;
+
+/* ADSP supplies the real cable orientation through USBC_PAN. The standard
+ * PMIC GLINK driver forwards it to QMP's Type-C switch and mode mux. */
+/ {
+	fragment@0 {
+		target-path = "/soc/qcom,pmic_glink";
+		__overlay__ {
+			compatible = "qcom,sm8750-pmic-glink",
+				     "qcom,sm8550-pmic-glink",
+				     "qcom,pmic-glink";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			/* Factory GPIO61 is the physical CC polarity signal,
+			 * also used by the SM8750 reference board's UCSI driver.
+			 */
+			orientation-gpios = <&piano_tlmm_ml 61 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&piano_typec_orientation>;
+
+			connector@0 {
+				compatible = "usb-c-connector";
+				reg = <0>;
+				power-role = "dual";
+				data-role = "dual";
+
+				ports {
+					#address-cells = <1>;
+					#size-cells = <0>;
+					port@0 {
+						reg = <0>;
+						piano_typec_hs: endpoint {
+							remote-endpoint = <&piano_usb_hs>;
+						};
+					};
+					port@1 {
+						reg = <1>;
+						piano_typec_ss: endpoint {
+							remote-endpoint = <&piano_qmp_out>;
+						};
+					};
+				};
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/soc/ssphy@88e8000";
+		__overlay__ {
+			orientation-switch;
+			mode-switch;
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					piano_qmp_out: endpoint {
+						remote-endpoint = <&piano_typec_ss>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					piano_qmp_in: endpoint {
+						remote-endpoint = <&piano_usb_ss>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@2 {
+		target-path = "/soc/ssusb@a600000";
+		__overlay__ {
+			/* UCSI needs a real role-switch provider. A permanently
+			 * peripheral controller never registers that provider.
+			 * Keep the debug gadget as the disconnected default.
+			 */
+			dr_mode = "otg";
+			role-switch-default-mode = "peripheral";
+			maximum-speed = "super-speed";
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					piano_usb_hs: endpoint {
+						remote-endpoint = <&piano_typec_hs>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					piano_usb_ss: endpoint {
+						remote-endpoint = <&piano_qmp_in>;
+					};
+				};
+			};
+		};
+	};
+
+	fragment@3 {
+		target-path = "/soc/pinctrl@f100000";
+		__overlay__ {
+			piano_typec_orientation: typec-orientation-state {
+				pins = "gpio61";
+				function = "gpio";
+				bias-pull-down;
+				drive-strength = <2>;
+				input-enable;
+			};
+		};
+	};
+};

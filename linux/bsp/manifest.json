@@ -490,6 +490,48 @@
       "source_sha256": "afb943393b9e4f69ce23810562eef7c29ac67412146a56fb8690d2059ebcc396",
       "source_git_mode": "100644",
       "license": "MIT"
+    },
+    {
+      "group": "common",
+      "path": "usr/lib/piano/usb-network",
+      "type": "file",
+      "mode": "0755",
+      "uid": 0,
+      "gid": 0,
+      "source": "linux/bsp/common/usr/lib/piano/usb-network",
+      "source_component": "Project SunUEFI",
+      "source_git_mode": "100644",
+      "license": "MIT",
+      "sha256": "4c1b10146434d2623a3291b49df7fcbbf61c4e5979e6f50089828fcabd39e008",
+      "source_sha256": "4c1b10146434d2623a3291b49df7fcbbf61c4e5979e6f50089828fcabd39e008"
+    },
+    {
+      "group": "common",
+      "path": "usr/lib/systemd/system/piano-usb.service",
+      "type": "file",
+      "mode": "0644",
+      "uid": 0,
+      "gid": 0,
+      "source": "linux/bsp/common/usr/lib/systemd/system/piano-usb.service",
+      "source_component": "Project SunUEFI",
+      "source_git_mode": "100644",
+      "license": "MIT",
+      "sha256": "daee2e3a68ef8609274a751f38ff682eefc6c66d543c708330999ee94899cf34",
+      "source_sha256": "daee2e3a68ef8609274a751f38ff682eefc6c66d543c708330999ee94899cf34"
+    },
+    {
+      "group": "common",
+      "path": "etc/udev/rules.d/79-piano-usb.rules",
+      "type": "file",
+      "mode": "0644",
+      "uid": 0,
+      "gid": 0,
+      "source": "linux/bsp/common/etc/udev/rules.d/79-piano-usb.rules",
+      "source_component": "Project SunUEFI",
+      "source_git_mode": "100644",
+      "license": "MIT",
+      "sha256": "4137f013cd62f253c195257c7c6d4c0199bf78c489bcb4c491126f8de7fa1143",
+      "source_sha256": "4137f013cd62f253c195257c7c6d4c0199bf78c489bcb4c491126f8de7fa1143"
     }
   ],
   "excluded": [

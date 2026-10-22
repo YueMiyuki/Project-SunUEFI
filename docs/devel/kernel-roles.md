@@ -78,7 +78,7 @@ Gunyah 虚拟机运行仍需实机验证，不能以设备节点出现代替。
 原厂在本板同样无法探测的四个可选 PMIC，以及不属于 AP 的两个硬件投票 RSC
 节点，在最终树中禁用；AP 的 `rsc@16500000` 和实际外设供电保持启用。
 `piano-platform.config` 排除 NXP 的 SCMI 扩展，保留 Qualcomm 使用的标准协议。
-USB PHY 没有连接显示拓扑时不创建空的 DRM 桥，USB PHY 本身照常工作。
+USB PHY 通过真实的 USB-C 连接器拓扑接入标准方向和模式切换接口。
 
 这套配置已从正常启动的内核日志核对：上述引用、SPMI、SCMI、DRM 桥及 RSC
 报错消失，ADSP、音频、键盘、蓝牙和 USB 调试连接保持工作。
@@ -90,3 +90,27 @@ USB PHY 没有连接显示拓扑时不创建空的 DRM 桥，USB PHY 本身照�
 相机和视频初始化脚本在内存映射已经为 `DMA` 或 `DMA-FQ` 时直接沿用，
 可以正常重启服务。驱动绑定后重复写 IOMMU group 的类型会被内核拒绝，
 不能把这类服务重启失败误判为相机硬件故障，更不能解绑正在使用的映射。
+
+## USB Type-C
+
+[`piano-usb-typec.dtso`](../../linux/dts/piano-usb-typec.dtso) 连接 PMIC GLINK、
+QMP PHY 和 DWC3 的标准端点，参照高通上游的
+[`sm8750-qrd.dts`](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sm8750-qrd.dts)。
+同机 HyperOS 4 的实际配置和引脚状态确认，GPIO61 是插头方向输入；
+UCSI 读取该信号，通过 Type-C switch 控制 QMP，而不是在设备树中固定方向。
+原厂 DWC3 的速率上限为 SuperSpeed，也就是 5 Gbit/s。
+
+DWC3 使用双角色模式并注册 USB role switch，默认仍为设备模式，
+供现有 USB 调试网络使用。固定为 `peripheral` 时，即使设备树声明了
+`usb-role-switch`，驱动也不会创建角色切换提供者，UCSI 无法取得该接口。
+
+PMIC GLINK 下同时存在 USB 连接器和手写笔稳压器。内核补丁 0019、0020
+使 GLINK 的模式和 UCSI 驱动只枚举连接器；0021 使 UCSI 核心优先匹配明确的
+`reg` 端口编号，随后才使用旧固件的顺序回退。否则排在前面的稳压器会被当成
+端口，界面虽然能报告方向，实际却没有取得 PHY 的方向开关。
+
+ADSP 初始化加载标准 `pmic_glink_altmode` 和 `ucsi_glink`，MCA 只处理
+小米充电协议，其 `pan_ack` 关闭，避免两个驱动重复确认同一组通知。
+现有 USB 网络服务由 Type-C 伙伴设备的 udev 事件启动，并随该设备移除而停止。
+伙伴设备在方向设置完成后才注册，因此首次连接不会抢在 PHY 方向初始化之前；
+未插线开机也不等待 USB 设备。服务名称保持 `piano-usb.service`，没有新增常驻服务。
