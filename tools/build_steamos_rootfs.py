@@ -77,9 +77,11 @@ def sensor_recipes(output, source):
             shutil.copy2(patch, recipe / patch.name)
 
 
-def kde_recipes(output):
-    """Build missing desktop components against Valve's Qt/Plasma ABI."""
+def kde_recipes(output, root):
+    """Build Qt-sensitive desktop components against Valve's current Qt ABI."""
     packages = json.loads((ROOT / 'config/steamos.json').read_text())['kde_packages']
+    qt_version = subprocess.check_output(
+        ['chroot', root, 'pacman', '-Q', 'qt6-base'], text=True).split()[1]
     for item in packages:
         folder = output / item['name']
         folder.mkdir(parents=True, exist_ok=True)
@@ -92,12 +94,17 @@ def kde_recipes(output):
         prepare_commands = ''.join(
             f'  patch --batch --fuzz=0 -p1 -i "$srcdir/{p.name}"\n'
             for p in patches)
+        license = ' '.join(q(p) for p in item.get(
+            'license', ['GPL-2.0-or-later', 'LGPL-2.1-or-later']))
         (folder / 'PKGBUILD').write_text(
-            f"pkgname={q(item['name'])}\npkgver={q(item['version'])}\npkgrel=1.1\n"
+            f"# Qt ABI used for this build: {qt_version}\n"
+            f"pkgname={q(item['name'])}\npkgver={q(item['version'])}"
+            f"\npkgrel={q(item.get('pkgrel', '1.2'))}\n"
             "pkgdesc='KDE desktop component for SteamOS ARM64'\narch=(aarch64)\n"
-            "url='https://kde.org/'\nlicense=('GPL-2.0-or-later' 'LGPL-2.1-or-later')\n"
+            f"url='https://kde.org/'\nlicense=({license})\n"
             f"depends=({' '.join(q(p) for p in item['depends'])})\n"
-            "makedepends=(base-devel cmake ninja extra-cmake-modules kdoctools)\n"
+            f"makedepends=(base-devel cmake ninja extra-cmake-modules kdoctools"
+            f"{''.join(' ' + q(p) for p in item.get('makedepends', []))})\n"
             "options=(!lto !debug)\n"
             f"source=({' '.join(q(p) for p in sources)})\n"
             f"sha256sums=({' '.join(q(p) for p in checksums)})\n"
@@ -107,11 +114,26 @@ def kde_recipes(output):
             '-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr '
             '-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBEXECDIR=lib '
             '-DBUILD_TESTING=OFF -DBUILD_QCH=OFF\n'
-            '  cmake --build build -j6\n}\n'
+            '  cmake --build build -j4\n}\n'
             'package() {\n  DESTDIR="$pkgdir" cmake --install build\n'
             '  install -d "$pkgdir/usr/share/licenses/$pkgname"\n'
             '  cp -a "$pkgname-$pkgver/LICENSES/." "$pkgdir/usr/share/licenses/$pkgname/"\n}\n')
     return [item['name'] for item in packages]
+
+
+def kde_package_is_current(package_dir, recipe):
+    manifest = package_dir / 'manifest.json'
+    if not manifest.is_file():
+        return False
+    try:
+        record = json.loads(manifest.read_text())
+    except (OSError, json.JSONDecodeError):
+        return False
+    return (record.get('recipe_sha256') == digest(recipe / 'PKGBUILD') and
+            all((package_dir / name).is_file() and
+                digest(package_dir / name) == row.get('sha256')
+                for name, row in record.get('packages', {}).items()) and
+            bool(record.get('packages')))
 
 
 def build(args):
@@ -200,10 +222,15 @@ def build(args):
         locale = root / 'etc/locale.gen'
         locale.write_text('en_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\n')
         guest(['locale-gen'])
-    for name in kde_recipes(output / 'kde-recipes'):
+    for name in kde_recipes(output / 'kde-recipes', root):
+        recipe = output / 'kde-recipes' / name
         packages = output / 'packages' / name
-        if not (packages / 'manifest.json').is_file():
-            build_arch_package.build(root, output / 'kde-recipes' / name, packages)
+        if not kde_package_is_current(packages, recipe):
+            for stale in packages.glob('*.pkg.tar.*'):
+                stale.unlink()
+            build_arch_package.build(root, recipe, packages)
+        else:
+            build_arch_package.install_cached(root, packages)
     power_profiles = output / 'packages/power-profiles-daemon'
     if not (power_profiles / 'manifest.json').is_file():
         build_arch_package.build(

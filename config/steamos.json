@@ -39,6 +39,29 @@
   },
   "kde_packages": [
     {
+      "name": "libkscreen",
+      "version": "6.6.3",
+      "pkgrel": "3",
+      "url": "https://download.kde.org/stable/plasma/6.6.3/libkscreen-6.6.3.tar.xz",
+      "sha256": "408110fc5342a8fe1ff43f026613e0b5ad94e925e85c195a24eac142e74fd179",
+      "patches": [],
+      "license": [
+        "LGPL-2.0-or-later"
+      ],
+      "depends": [
+        "gcc-libs",
+        "glibc",
+        "libxcb",
+        "qt6-base",
+        "wayland"
+      ],
+      "makedepends": [
+        "extra-cmake-modules",
+        "plasma-wayland-protocols",
+        "qt6-tools"
+      ]
+    },
+    {
       "name": "kscreen",
       "version": "6.6.3",
       "url": "https://download.kde.org/stable/plasma/6.6.3/kscreen-6.6.3.tar.xz",
@@ -46,12 +69,114 @@
       "patches": [
         "patches/steamos/0001-kscreen-find-qt-before-qml-helper.patch"
       ],
+      "license": [
+        "LGPL-2.0-or-later"
+      ],
       "depends": [
         "libkscreen",
         "libplasma",
         "kirigami",
         "kcmutils",
         "layer-shell-qt"
+      ]
+    },
+    {
+      "name": "kidletime",
+      "version": "6.24.0",
+      "pkgrel": "3",
+      "url": "https://download.kde.org/stable/frameworks/6.24/kidletime-6.24.0.tar.xz",
+      "sha256": "be8ce0c791900a1f55e9973bf5faefbe172740424ac9f254ba541552ba3ccb06",
+      "patches": [],
+      "license": [
+        "LGPL-2.0-only",
+        "LGPL-3.0-only"
+      ],
+      "depends": [
+        "gcc-libs",
+        "glibc",
+        "qt6-base"
+      ],
+      "makedepends": [
+        "doxygen",
+        "extra-cmake-modules",
+        "libxss",
+        "plasma-wayland-protocols",
+        "qt6-tools",
+        "wayland-protocols"
+      ]
+    },
+    {
+      "name": "kwindowsystem",
+      "version": "6.24.0",
+      "pkgrel": "3",
+      "url": "https://download.kde.org/stable/frameworks/6.24/kwindowsystem-6.24.0.tar.xz",
+      "sha256": "2291d95836e8b81263ceea0c1ffa7cfd92773130d6edd130b439874169f13e58",
+      "patches": [],
+      "license": [
+        "LGPL-2.0-only",
+        "LGPL-3.0-only"
+      ],
+      "depends": [
+        "gcc-libs",
+        "glibc",
+        "libx11",
+        "libxcb",
+        "libxfixes",
+        "qt6-base",
+        "wayland",
+        "xcb-util-keysyms"
+      ],
+      "makedepends": [
+        "plasma-wayland-protocols",
+        "qt6-declarative",
+        "qt6-tools",
+        "wayland-protocols"
+      ]
+    },
+    {
+      "name": "powerdevil",
+      "version": "6.6.3",
+      "pkgrel": "2",
+      "url": "https://download.kde.org/stable/plasma/6.6.3/powerdevil-6.6.3.tar.xz",
+      "sha256": "73e9b85dbf9791fcf22c01d67b3cf024e23fea170476f09ff8fd91b4034480e9",
+      "patches": [],
+      "license": [
+        "LGPL-2.0-or-later"
+      ],
+      "depends": [
+        "ddcutil",
+        "gcc-libs",
+        "glibc",
+        "plasma-activities",
+        "kauth",
+        "kcmutils",
+        "kconfig",
+        "kcoreaddons",
+        "kcrash",
+        "kdbusaddons",
+        "kglobalaccel",
+        "ki18n",
+        "kidletime",
+        "kirigami",
+        "kitemmodels",
+        "knotifications",
+        "kservice",
+        "kwindowsystem",
+        "kxmlgui",
+        "libkscreen",
+        "libplasma",
+        "libxcb",
+        "plasma-workspace",
+        "qcoro",
+        "qt6-base",
+        "qt6-declarative",
+        "solid",
+        "systemd-libs",
+        "wayland"
+      ],
+      "makedepends": [
+        "plasma-wayland-protocols",
+        "qt6-tools"
       ]
     }
   ]

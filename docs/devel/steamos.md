@@ -14,8 +14,10 @@ root 镜像容量为 16 GiB，独立 root 分区至少需要相同容量。账�
 
 Steam 的系统更新入口使用 pacman 软件包更新，与 KDE Discover 共用软件源；
 不调用 Valve 的 A/B 镜像更新。设备专用的 Mesa、Gamescope、FFmpeg、
-传感器和平台管理包随 BSP 镜像更新，避免被不含平板适配的原包覆盖。
-内核与 BSP 更新仍通过 SunUEFI 助手刷写镜像。Steam 客户端自身的更新保留。
+传感器和平台管理包目前由 `IgnorePkg` 保留，随 BSP 镜像更新。
+这只是开发阶段避免覆盖适配的措施，尚不构成完整的滚动更新支持：
+其他库升级后，本地包仍可能需要重编。内核与 BSP 更新仍通过 SunUEFI
+助手刷写镜像。Steam 客户端自身的更新保留。
 
 默认提供 IBus 拼音，按 `Ctrl+空格` 切换中英文；KDE 与游戏模式使用
 标准 GTK、Qt、XIM 和 SDL 输入接口。
@@ -54,6 +56,13 @@ Fastboot 分块传输。`fastboot -S` 本身只限制传输量，处理大型原
 16 GiB root 时，修正后的 Fastboot 峰值内存约 69 MiB，ESP 约 103 MiB。
 
 `tools/build_steamos_rootfs.py` 组装根系统，`tools/stage_arch_piano.py` 与 Nyarch 共用固件、内核模块和设备服务。`tools/stage_steamos_desktop.py` 处理 KDE、Gamescope 和头显专用服务的差异。原来的 VR 会话及其自动删除游戏的磁盘清理逻辑不启用。
+
+ARM64 包构建和包管理命令使用独立的进程命名空间；命令退出时，内核会回收
+其后台子进程，随后正常卸载临时挂载。这样也能处理改变根目录或保留 `/dev`
+文件描述符的包脚本。构建环境显式设置 `SYSTEMD_IN_CHROOT=1`，避免新进程
+空间内的 PID 1 被误认为已启动的系统。实机 CI 曾在完整升级和 locale 生成后
+因 `/dev` 仍被占用而退出；本地已检查密钥环安装、locale 生成、后台子进程
+回收和原生 ARM64 软件包构建安装，完整 CI 结果另行记录。
 
 原设备的 `steamos-dump-info.service` 同样停用。它会把头显 EEPROM、电池、
 A/B 槽位和 U-Boot 环境查询结果写入内核日志，在平板上产生“没有电池”
@@ -136,10 +145,29 @@ Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接�
 基础镜像是 Valve `VARIANT_ID=vr`，不是 Steam Deck 的桌面镜像。对照
 [Steam Deck 3.9.3 官方包清单](https://steamdeck-images.steamos.cloud/steamdeck/20261015.100/steamdeck-20261015.100-3.9.3.manifest.pacman)，
 补充 Bluetooth、NetworkManager 的 KDE 界面、显示设置和系统信息。
-当前底包为 Valve ARM64 0.6.0，构建时先通过公开软件源完整升级，再安装
-配套的 Plasma 6.6 与 Qt 6.11 组件。大部分桌面组件直接使用同一软件源的
-原生包；软件源缺少的显示设置组件按 `config/steamos.json` 编译，不再
-混用旧版 Plasma 6.2 的组件。
+当前底包为 Valve ARM64 0.6.0，构建时先通过 Valve 公开滚动软件源完整升级。
+`[core]` 和 `[extra]` 实际来自
+`holo-packages.steamos.cloud/archlinux-deckard/archlinux/main`，不是 Arch Linux ARM
+软件源；`nyarch-gnome` 才使用 Arch Linux ARM 作为基础。公开滚动源也不同于
+底包原先固定到某次构建的快照源，不能假定其中所有包已按同一版库重编。
+
+2026-10-22 的仓库包 `.BUILDINFO` 记录表明，`libkscreen 6.6.3-2`、
+`kidletime 6.24.0-2`、`kwindowsystem 6.24.0-2` 和 `powerdevil 6.6.3-1`
+均使用 Qt 6.10.2 编译，而完整升级后的 Qt 为 6.11.0。Wayland 私有接口
+因此出现版本不匹配：亮度服务没有内屏，电源设置在窗口插件中触发 `SIGBUS`。
+这些组件按 `config/steamos.json` 使用同版 KDE 官方源码和当前 Qt 重编为
+pacman 包；`kscreen` 另有构建顺序补丁。缓存同时核对配方、补丁、Qt 包版本
+和输出包摘要；恢复构建时也会重新安装缓存包，避免被前面的基础升级替换。
+
+实机更新后，`kscreen-doctor` 正常识别内屏，标准亮度接口设置 50% 后背光
+请求值与实际值均为 `1024/2047`。电源管理页面可以重复打开，截图显示正常
+的睡眠选项和 2 分钟熄屏／接电 10 分钟挂起。调试期间的 sleep inhibitor
+会让新版 logind 返回 `inhibited`，KDE 据此暂时隐藏睡眠；停止临时限制后
+能力查询恢复为 `yes`，无需更改桌面配置或伪造硬件能力。
+
+本地重编只解决当前组合。面向日常 `pacman -Syu` 的最终方案需要统一的基础
+软件源，以及随依赖升级重编、签名发布的 Piano 适配仓库。直接让 Arch Linux
+ARM 与 Valve 两套基础库互相覆盖，不会自动迁移不同包名、版本和私有接口。
 
 `stage_steamos_desktop.py` 禁用头显专用服务、原设备 MAC 地址设置、
 `by-partsets/shared/home` 和 offload 挂载，桌面入口改为原生 Plasma Wayland。

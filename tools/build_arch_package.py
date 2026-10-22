@@ -8,9 +8,33 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from build_nyarch_apps import ROOT, guest_environment, run
 from build_release_rootfs import build_resolver
+
+
+def install_cached(root, output):
+    """Restore cached packages after the base repository upgrade replaced them."""
+    root, output = root.resolve(), output.resolve()
+    if os.geteuid() or not root.is_relative_to(ROOT / 'build/distros'):
+        raise ValueError('Use root and a project-built ARM64 rootfs')
+    record = json.loads((output / 'manifest.json').read_text())
+    with tempfile.TemporaryDirectory(prefix='sunuefi-package-install-',
+                                     dir=root / 'var/tmp') as folder:
+        work = Path(folder)
+        packages = []
+        for name, row in record['packages'].items():
+            path = output / name
+            if (Path(name).name != name or
+                    hashlib.sha256(path.read_bytes()).hexdigest() != row['sha256']):
+                raise ValueError('Invalid cached package: ' + name)
+            shutil.copy2(path, work / name)
+            packages.append('/' + str((work / name).relative_to(root)))
+        if not packages:
+            raise ValueError('The cache contains no binary packages')
+        with build_resolver(root), guest_environment(root) as guest:
+            guest(['pacman', '-U', '--noconfirm', *packages])
 
 
 def build(root, recipe, output, resume=False):
