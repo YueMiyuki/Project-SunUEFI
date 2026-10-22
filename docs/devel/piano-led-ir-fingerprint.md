@@ -80,8 +80,11 @@ Linux 已完成供电、复位和关闭，完整认证仍需实现。
 实际打开与关闭均已正常完成。不要为适应档位把原厂电压上限放宽。
 
 Goodix 客户端的设备信息命令为路由 1、命令 1000，128 字节请求、
-64 字节响应，另带传感器共享缓冲区。Linux 能加载并正常关闭安全程序，
-但该查询仍返回安全服务错误，尚未取得传感器信息。完整命令协议和
+64 字节响应，另带传感器共享缓冲区。Linux 能加载并正常关闭安全程序。
+QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
+不能按外层固件的 ELF32 封装选择地址宽度。修正后传输层返回成功，
+但响应中的缓冲区状态仍为 `-1`；原厂四个传感器检测候选均未取得
+设备信息。临时启用文件和时间监听服务也未改变结果。完整命令协议和
 libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。
 
 随后bde3普通重启发现，虽然modules-load文件已安装，旧modprobe黑名单仍使systemd把LPG记为deny-listed。已仅移除 `leds_qcom_lpg` 这一条，并让完整root stager与通用BSP使用同一份tracked modprobe配置。重新启动标准modules-load后实际插入LPG并出现三个接口，随后一次完整正常重启也已确认三个接口自动出现。当前证据在 `bde3-rgb-startup.txt` 与 `bde3-rgb-policy-fixed.txt`，不能用之前手动modprobe结果替代启动策略验证。
