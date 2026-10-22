@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "444fbef54cbc07eb2db6165eb648b99cca2236b5",
-  "original_target_commit": "57b1e6db5a831d416ad438b7490144e6f8ee6af9",
+  "target_tree": "4a5923915b4214f850287fc51c658781dc54a195",
+  "original_target_commit": "220cdeac7e4ec4e1a8bc4c2400c71fa00b21b084",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -191,6 +191,14 @@
       "original_parent": "03070a4d1f8910f4e1bb74af65366f45fe8d14c3",
       "committer_date": "2026-10-22T17:59:50+08:00",
       "tree": "444fbef54cbc07eb2db6165eb648b99cca2236b5"
+    },
+    {
+      "file": "0024-hid-nanosic-feature-and-release.patch",
+      "sha256": "ac1d6cea90ad81e2115dc7d758d22be5c6598e9f3c088748b7854b63709cd9a7",
+      "original_commit": "220cdeac7e4ec4e1a8bc4c2400c71fa00b21b084",
+      "original_parent": "57b1e6db5a831d416ad438b7490144e6f8ee6af9",
+      "committer_date": "2026-10-22T18:25:53+08:00",
+      "tree": "4a5923915b4214f850287fc51c658781dc54a195"
     }
   ],
   "provenance": {
