@@ -55,6 +55,11 @@ Fastboot 分块传输。`fastboot -S` 本身只限制传输量，处理大型原
 
 `tools/build_steamos_rootfs.py` 组装根系统，`tools/stage_arch_piano.py` 与 Nyarch 共用固件、内核模块和设备服务。`tools/stage_steamos_desktop.py` 处理 KDE、Gamescope 和头显专用服务的差异。原来的 VR 会话及其自动删除游戏的磁盘清理逻辑不启用。
 
+原设备的 `steamos-dump-info.service` 同样停用。它会把头显 EEPROM、电池、
+A/B 槽位和 U-Boot 环境查询结果写入内核日志，在平板上产生“没有电池”
+和“分区不存在”等误导信息。平板的实际电池由标准 `power_supply` 和 UPower
+报告，启动使用 SunUEFI 的 ESP 与独立 root 分区。
+
 `/etc/piano/linux-debug.conf` 中的 `usb=acm-ncm` 同时提供 USB 网络和
 ACM 串口。串口用于独立采集内核日志；适配位于公共 BSP 的
 `usr/lib/piano/usb-network`，不额外启动登录 shell 或常驻日志服务。

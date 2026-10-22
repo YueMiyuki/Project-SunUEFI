@@ -81,6 +81,17 @@ def adapt(name, data):
                             '                through normal kernel consumer attachment')
     elif name in ('video-start', 'camera-start'):
         scope = name.removesuffix('-start')
+        device, label = ('CODEC', 'codec') if name == 'video-start' else ('CAMSS', 'CAMSS')
+        text = replace_once(
+            text,
+            f'echo DMA > "${device}/iommu_group/type" || die '
+            f"'cannot switch the {label} IOMMU group to DMA'\n",
+            '# A bound driver already owns this domain on service restart.\n'
+            f'case "$(cat "${device}/iommu_group/type")" in\n'
+            '    DMA|DMA-FQ) ;;\n'
+            f'    *) echo DMA > "${device}/iommu_group/type" || die '
+            f"'cannot switch the {label} IOMMU group to DMA' ;;\n"
+            'esac\n')
         observation = ('# The normal driver owns its DMA domain; readback adds diagnostics only.\n'
                        + '/usr/lib/piano/piano-ram-hardware-prepare --observe-scope ' + scope + ' ||\n'
                        + '    say "WARN ' + scope + ' context observation unavailable; driver remains bound"\n')

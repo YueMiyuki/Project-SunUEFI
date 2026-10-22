@@ -37,6 +37,9 @@ FRAME_UNITS = (
     'steamos-devkit-service.service', 'steam-web-debug-portforward.service',
     'steamvr-web-debug-portforward.service',
     'steamos-log-submitter.service',
+    # This dumps Frame EEPROM, A/B slots and U-Boot environment failures
+    # into /dev/kmsg. Piano uses standard power_supply and a single root.
+    'steamos-dump-info.service',
 )
 
 

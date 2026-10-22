@@ -85,6 +85,48 @@ def normalize_mainline_bindings(board):
         if path in tree and tree[path].get('status') != b'disabled\0':
             tree[path]['status'] = b'disabled\0'
             changes.append(path + ':status')
+    # Folded Android trees also retain devices superseded by mainline
+    # nodes. Do not let their drivers wait on the old downstream TLMM, or
+    # compete for the same GPIOs with the active display/camera supplies.
+    replaced = {
+        '/soc/display_gpio_regulator_vsp': '/panel-avdd-ml',
+        '/soc/display_gpio_regulator_vsn': '/panel-avee-ml',
+        '/soc/gpio-regulator@0': '/cam-wide-avdd-ml',
+        '/soc/gpio-regulator@1': '/cam-front-avdd-ml',
+        '/soc/qcom,cci0@ac7b000': '/soc/cci-ml@ac7b000',
+        '/soc/qcom,dsi-display-primary': '/soc/display-subsystem@ae00000',
+    }
+    unused = (
+        '/soc/qcom,cci1@ac7c000', '/soc/qcom,cci2@ac7d000',
+        '/soc/qcom,qupv3_1_geni_se@ac0000/qcom,qup_uart@a9c000',
+        '/soc/touch_avdd_vreg', '/soc/usb_nop_phy',
+    )
+    for path in (*replaced, *unused):
+        replacement = tree.get(replaced.get(path))
+        if path in replaced and (replacement is None or
+                replacement.get('status', b'okay\0') not in (b'ok\0', b'okay\0')):
+            continue
+        if path in tree and tree[path].get('status') != b'disabled\0':
+            tree[path]['status'] = b'disabled\0'
+            changes.append(path + ':status')
+    for path in ('/reserved-memory/demura_region_0',
+                 '/reserved-memory/demura_region_1'):
+        props = tree.get(path, {})
+        # Zero-length placeholders are not reserved memory. Leave any real
+        # allocation supplied by the bootloader intact.
+        if props.get('reg') == bytes(16) and props.get('status') != b'disabled\0':
+            props['status'] = b'disabled\0'
+            changes.append(path + ':status')
+    path = '/soc/qcom,spmi@c42d000/qcom,pmk8550@0/sdam@7000/sm1510_present@5d'
+    props = tree.get(path, {})
+    if (props.get('reg') == struct.pack('>II', 0x5d, 1) and
+            props.get('bits') == struct.pack('>II', 5, 5)):
+        # The captured field exceeds its one-byte cell (5 + 5 > 8).
+        # No mainline consumer uses this vendor flag. Keep the raw byte
+        # readable without guessing a bit width; otherwise the invalid
+        # slice prevents registration of the entire SDAM, including OCP.
+        del props['bits']
+        changes.append(path + ':bits')
     if changes:
         board.write_bytes(write_fdt(parsed))
     return {'changes': changes, 'sha256': sha(board)}
