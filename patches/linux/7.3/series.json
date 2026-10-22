@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "399d075608845683187ed3b6776a118e35851a39",
-  "original_target_commit": "03070a4d1f8910f4e1bb74af65366f45fe8d14c3",
+  "target_tree": "444fbef54cbc07eb2db6165eb648b99cca2236b5",
+  "original_target_commit": "57b1e6db5a831d416ad438b7490144e6f8ee6af9",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -183,6 +183,14 @@
       "original_parent": "37817d0275707f2ec3d62725f769befa9dc2a7a0",
       "committer_date": "2026-10-22T12:27:17+08:00",
       "tree": "399d075608845683187ed3b6776a118e35851a39"
+    },
+    {
+      "file": "0023-dpu-shared-video-ctl.patch",
+      "sha256": "4688bc62a99bcabab40f40eb32faf010fe892e1ef5a4116dbb07727ec86f9353",
+      "original_commit": "57b1e6db5a831d416ad438b7490144e6f8ee6af9",
+      "original_parent": "03070a4d1f8910f4e1bb74af65366f45fe8d14c3",
+      "committer_date": "2026-10-22T17:59:50+08:00",
+      "tree": "444fbef54cbc07eb2db6165eb648b99cca2236b5"
     }
   ],
   "provenance": {
