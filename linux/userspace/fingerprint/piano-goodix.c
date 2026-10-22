@@ -67,10 +67,20 @@ _Static_assert(sizeof(struct goodix_request) == 128, "Goodix request ABI");
 struct sensor_geometry {
 	uint32_t rows, columns, nav_rows, nav_columns;
 	uint32_t chip_type, sensor_type;
+	uint32_t max_templates;
 	uint32_t model_required;
 	uint8_t anti_spoof_required;
 	uint8_t anti_spoof_variant;
 	int models_loaded;
+};
+
+struct template_entry {
+	uint32_t group, id;
+};
+
+struct template_list {
+	struct template_entry entries[10];
+	size_t count;
 };
 
 static int sensor_command(struct client *client, uint32_t command, size_t size);
@@ -433,6 +443,7 @@ static int initialize_sensor(struct client *client, struct sensor_geometry *geom
 	if (geometry->sensor_type != 5)
 		return -EOPNOTSUPP;
 	memcpy(&geometry->chip_type, payload + 0x70, sizeof(uint32_t));
+	memcpy(&geometry->max_templates, payload + 0x7c, sizeof(uint32_t));
 	memcpy(&geometry->model_required, payload + 0x1ec, sizeof(uint32_t));
 	geometry->anti_spoof_required = payload[0x20d];
 	geometry->anti_spoof_variant = payload[0x212];
@@ -471,6 +482,50 @@ static int initialize_sensor(struct client *client, struct sensor_geometry *geom
 	memset(client->shared, 0, client->shared_size);
 	/* Factory default interaction policy, without Android debug overrides. */
 	return sensor_command(client, 1109, 0xc0);
+}
+
+static int select_linux_group(struct client *client, uint32_t user_id)
+{
+	const char *parents[] = { "/var/lib/piano-goodix" };
+	char path[128];
+
+	for (size_t i = 0; i < sizeof(parents) / sizeof(parents[0]); i++) {
+		if (mkdir(parents[i], 0700) && errno != EEXIST)
+			return -errno;
+	}
+	snprintf(path, sizeof(path), "/var/lib/piano-goodix/%u", user_id);
+	if (mkdir(path, 0700) && errno != EEXIST)
+		return -errno;
+	/* The native profile is entirely on the Linux root filesystem.
+	 * No factory Android directory, mount or template is used.
+	 */
+	memset(client->shared, 0, client->shared_size);
+	memcpy((uint8_t *)client->shared + 0x6c, &user_id, sizeof(user_id));
+	memcpy((uint8_t *)client->shared + 0x70, path, strlen(path) + 1);
+	return sensor_command(client, 1014, 0x270);
+}
+
+static int enumerate_templates(struct client *client, uint32_t maximum,
+			       struct template_list *list)
+{
+	uint8_t *payload = client->shared;
+	int result;
+
+	if (!maximum || maximum > sizeof(list->entries) / sizeof(list->entries[0]))
+		return -EPROTO;
+	memset(payload, 0, client->shared_size);
+	result = sensor_command(client, 1015, 0xc0);
+	if (result)
+		return result;
+	for (size_t i = 0; i < maximum; i++) {
+		struct template_entry entry;
+
+		memcpy(&entry.group, payload + 0x70 + i * 4, sizeof(uint32_t));
+		memcpy(&entry.id, payload + 0x98 + i * 4, sizeof(uint32_t));
+		if (entry.id)
+			list->entries[list->count++] = entry;
+	}
+	return 0;
 }
 
 static int watch_events(struct client *client, unsigned int seconds)
@@ -533,21 +588,26 @@ int main(int argc, char **argv)
 {
 	struct client client = { .controller = -1 };
 	struct sensor_geometry geometry = {0};
+	struct template_list templates = {0};
 	uint32_t sensor_type = 0;
 	int watch = argc >= 2 && !strcmp(argv[1], "watch");
-	int initialize = argc >= 2 && (!strcmp(argv[1], "initialize") || watch);
+	int list = argc >= 2 && !strcmp(argv[1], "list");
+	int initialize = argc >= 2 && (!strcmp(argv[1], "initialize") || watch || list);
 	unsigned int seconds = 30;
+	uint32_t user_id = 0;
 	int result;
 
 	if (argc == 1 || (argc == 2 && !strcmp(argv[1], "--help"))) {
-		puts("Usage: piano-fingerprint-ctl info|initialize|watch [seconds]\n"
+		puts("Usage: piano-fingerprint-ctl info|initialize|watch [seconds]|list <uid>\n"
 		     "Query the real Goodix sensor through UIO and QTEE.\n"
 		     "initialize also reads the sensor's geometry and calibration.\n"
 		     "watch reports sensor event flags for 1-120 seconds (default 30).\n"
+		     "list queries templates in an isolated Linux user profile.\n"
 		     "Enrollment and authentication are not implemented yet.");
 		return 0;
 	}
-	if ((argc != 2 && !(watch && argc == 3)) ||
+	if ((list && argc != 3) ||
+	    (argc != 2 && !((watch || list) && argc == 3)) ||
 	    (!initialize && strcmp(argv[1], "info"))) {
 		fputs("Use --help for supported operations.\n", stderr);
 		return 2;
@@ -561,6 +621,16 @@ int main(int argc, char **argv)
 		}
 		seconds = value;
 	}
+	if (list) {
+		char *end;
+		errno = 0;
+		unsigned long value = strtoul(argv[2], &end, 10);
+		if (errno || !*argv[2] || *end || value >= UINT32_MAX) {
+			fputs("User ID must be an unsigned 32-bit Linux UID.\n", stderr);
+			return 2;
+		}
+		user_id = value;
+	}
 	result = open_client(&client);
 	if (!result)
 		result = device_info(&client, &sensor_type);
@@ -570,16 +640,27 @@ int main(int argc, char **argv)
 	}
 	if (!result && watch)
 		result = watch_events(&client, seconds);
+	if (!result && list)
+		result = select_linux_group(&client, user_id);
+	if (!result && list)
+		result = enumerate_templates(&client, geometry.max_templates, &templates);
 	int closed = close_client(&client);
 	if (!result)
 		result = closed;
-	if (!result && initialize)
+	if (!result && list) {
+		printf("{\"user_id\":%u,\"template_count\":%zu,\"templates\":[",
+		       user_id, templates.count);
+		for (size_t i = 0; i < templates.count; i++)
+			printf("%s{\"group\":%u,\"id\":%u}", i ? "," : "",
+			       templates.entries[i].group, templates.entries[i].id);
+		puts("]}");
+	} else if (!result && initialize)
 		printf("{\"sensor\":\"Goodix\",\"sensor_type\":%u,"
-		       "\"chip_type\":%u,\"rows\":%u,\"columns\":%u,"
+		       "\"chip_type\":%u,\"max_templates\":%u,\"rows\":%u,\"columns\":%u,"
 		       "\"nav_rows\":%u,\"nav_columns\":%u,"
 		       "\"model_required\":%u,\"anti_spoof_required\":%u,"
 		       "\"models_loaded\":%s,\"sensor_initialized\":true}\n",
-		       geometry.sensor_type, geometry.chip_type, geometry.rows,
+		       geometry.sensor_type, geometry.chip_type, geometry.max_templates, geometry.rows,
 		       geometry.columns, geometry.nav_rows, geometry.nav_columns,
 		       geometry.model_required, geometry.anti_spoof_required,
 		       geometry.models_loaded ? "true" : "false");

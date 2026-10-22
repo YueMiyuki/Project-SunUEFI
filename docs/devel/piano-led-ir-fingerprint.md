@@ -131,6 +131,22 @@ QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
 不保存或输出图像、模板和认证令牌。启动与待机过程已收到真实中断并完成确认；
 这不等于手指检测、匹配或解锁已经完成。Ctrl+C 可正常结束并释放硬件。
 
+`sudo piano-fingerprint-ctl list 1000` 通过命令 1014 选择 Linux UID 1000 的
+独立分组，再通过 1015 枚举模板。原生状态目录为
+`/var/lib/piano-goodix/<uid>`，不复用 Android 路径，也不读取或修改原厂模板。
+新建分组已正常返回空列表；最大模板数量取自设备信息，并按真实响应容量解析。
+标准 fprintd 用户元数据仍由后续的 libfprint 集成管理。
+
+原厂 CA 在录入前通过 Keymaster 请求令牌绑定数据，再传给 Goodix。
+Linux 已能查到原厂加载的 64 位 `keymaster64`，版本为 API 5.3／TA 5.3000，
+并能生成、结束 Goodix 录入挑战。当前 Keymaster 的绑定数据请求返回
+`-10020`；同机 Android 通过原厂 CA 执行相同请求成功，说明仍需核对
+Linux 侧的安全服务和初始化流程。没有保存或输出绑定数据、密钥或令牌。
+
+另已补齐安全程序实际使用的
+[旧 GPFS 文件命令](../../linux/bsp/patches/qtee/README.md)，当前仅作为待集成源码保留，
+不增加默认后台服务。诊断使用的 RPMB 提供者拒绝写入，未修改原厂安全存储。
+
 完整命令协议和 libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。
 
 随后bde3普通重启发现，虽然modules-load文件已安装，旧modprobe黑名单仍使systemd把LPG记为deny-listed。已仅移除 `leds_qcom_lpg` 这一条，并让完整root stager与通用BSP使用同一份tracked modprobe配置。重新启动标准modules-load后实际插入LPG并出现三个接口，随后一次完整正常重启也已确认三个接口自动出现。当前证据在 `bde3-rgb-startup.txt` 与 `bde3-rgb-policy-fixed.txt`，不能用之前手动modprobe结果替代启动策略验证。
