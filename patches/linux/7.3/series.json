@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "438c9dcd6bd566c6f5d165e7b8c1ae14ae779185",
-  "original_target_commit": "199a927f4743ebb98784073132ddd42cbcf793ea",
+  "target_tree": "6b7976cb4ee3bf8d66680c06e208bd73fabc8fe9",
+  "original_target_commit": "6b9029bb823f582b5dd70bd4bb715ed1abb7b239",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -135,6 +135,14 @@
       "original_parent": "c2d32344450463b6a6b2bfafec0b55b3ac568656",
       "committer_date": "2026-10-22T08:11:04+08:00",
       "tree": "438c9dcd6bd566c6f5d165e7b8c1ae14ae779185"
+    },
+    {
+      "file": "0017-uio-piano-fingerprint-control.patch",
+      "sha256": "5bb219c6e9070f45400224f4889399baee435ff0fc9871c04d731850fb38330f",
+      "original_commit": "6b9029bb823f582b5dd70bd4bb715ed1abb7b239",
+      "original_parent": "199a927f4743ebb98784073132ddd42cbcf793ea",
+      "committer_date": "2026-10-22T09:07:21+08:00",
+      "tree": "6b7976cb4ee3bf8d66680c06e208bd73fabc8fe9"
     }
   ],
   "provenance": {

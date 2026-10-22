@@ -38,6 +38,16 @@ def normalize_mainline_bindings(board):
         '/soc/spf_core_platform',
     )
     for path, props in tree.items():
+        if (path == '/soc/xiaomi_fingerprint' and
+                props.get('compatible') == b'xiaomi,piano-goodix-control\0'):
+            # The new controller uses the real mainline supply and GPIOs.
+            # Retained vendor suppliers would make fw_devlink wait forever
+            # for downstream-only pinctrl and regulator drivers.
+            for key in ('fp_3v3_vreg-supply', 'pinctrl-1', 'pinctrl-2',
+                        'xiaomi,gpio_irq', 'xiaomi,vendor_names', 'netlink-event'):
+                if key in props:
+                    del props[key]
+                    changes.append(path + ':' + key)
         downstream = any(path == root or path.startswith(root + '/') for root in legacy)
         # qcom_q6v5_pas does not consume the downstream ICC property. Its
         # firmware/power-domain resources remain intact. QTB nodes belong to

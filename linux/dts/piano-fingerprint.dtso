@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/soc/rsc@16500000/regulators-4";
+		__overlay__ {
+			piano_fp_vdd: ldo9 {
+				regulator-name = "piano_fp_vdd";
+				/* Stay below the factory 3.3 V ceiling. The active
+				 * PLDO grid's nearest lower selector is 3.296 V.
+				 */
+				regulator-min-microvolt = <3296000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-initial-mode = <3>;
+			};
+		};
+	};
+
+	fragment@1 {
+		target-path = "/soc/xiaomi_fingerprint";
+		__overlay__ {
+			compatible = "xiaomi,piano-goodix-control";
+			status = "okay";
+			vdd-supply = <&piano_fp_vdd>;
+			reset-gpios = <&piano_tlmm_ml 73 1>;
+			irq-gpios = <&piano_tlmm_ml 85 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&piano_fp_irq>;
+		};
+	};
+
+	fragment@2 {
+		target-path = "/soc/pinctrl@f100000";
+		__overlay__ {
+			piano_fp_irq: fingerprint-irq-state {
+				pins = "gpio85";
+				function = "gpio";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+};

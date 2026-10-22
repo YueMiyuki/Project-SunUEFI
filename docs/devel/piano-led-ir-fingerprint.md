@@ -63,11 +63,25 @@ Linux 7.3 的 `qcomtee` 驱动提供标准 `/dev/tee0`。
 扩大到 256 MiB，保留原厂允许的分配地址范围。这部分内存空闲时仍能
 供 Linux 使用，不是永久划走的固件内存。
 
-传感器控制仍需实现。[固定 MiCode 驱动](https://github.com/MiCode/Xiaomi_Kernel_OpenSource/blob/45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71/drivers/input/fingerprint/mi_fp/fp_driver.c)
+传感器控制依据[固定 MiCode 驱动](https://github.com/MiCode/Xiaomi_Kernel_OpenSource/blob/45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71/drivers/input/fingerprint/mi_fp/fp_driver.c)
 提供供电、复位和中断：原厂 DT 指定 GPIO73 复位、GPIO85 IRQ，
 `fp_3v3_vreg-supply` 指向 PM-HUMU L9。认证数据由安全服务处理；
 Goodix 客户端使用 `QSEECom_send_modified_cmd()` 发送请求。
-目前尚未接通这些控制、完整命令协议和 libfprint 后端，因此还不能在
-Linux 中录入或验证指纹。
+[`0017-uio-piano-fingerprint-control.patch`](../../patches/linux/7.3/0017-uio-piano-fingerprint-control.patch)
+提供内核供电、复位和中断控制，设备树位于
+[`piano-fingerprint.dtso`](../../linux/dts/piano-fingerprint.dtso)。
+打开 `piano-goodix` UIO 设备时打开供电并释放复位，关闭时停止中断、
+拉低复位并归还电源引用；没有 MMIO 映射，也不把中断当成认证结果。
+Linux 已完成供电、复位和关闭，完整认证仍需实现。
+
+原厂 `pm_humu_l9` 为 3.300 V。现有主线 PLDO 使用不同的离散电压档位；
+必须选择不超过原厂上限的 3.296 V。此前上取整到 3.304 V 时，
+`regulator_enable()` 尚未返回就发生系统复位；改用较低档位后，
+实际打开与关闭均已正常完成。不要为适应档位把原厂电压上限放宽。
+
+Goodix 客户端的设备信息命令为路由 1、命令 1000，128 字节请求、
+64 字节响应，另带传感器共享缓冲区。Linux 能加载并正常关闭安全程序，
+但该查询仍返回安全服务错误，尚未取得传感器信息。完整命令协议和
+libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。
 
 随后bde3普通重启发现，虽然modules-load文件已安装，旧modprobe黑名单仍使systemd把LPG记为deny-listed。已仅移除 `leds_qcom_lpg` 这一条，并让完整root stager与通用BSP使用同一份tracked modprobe配置。重新启动标准modules-load后实际插入LPG并出现三个接口，随后一次完整正常重启也已确认三个接口自动出现。当前证据在 `bde3-rgb-startup.txt` 与 `bde3-rgb-policy-fixed.txt`，不能用之前手动modprobe结果替代启动策略验证。
