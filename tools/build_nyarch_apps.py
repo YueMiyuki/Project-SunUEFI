@@ -98,7 +98,14 @@ def guest_environment(root):
                 # without Landlock. Do not change the installed policy.
                 args = [args[0], '--config', '/run/pacman-build.conf',
                         *sandbox_args, *args[1:]]
-            return run(['chroot', root, '/usr/bin/env', 'SYSTEMD_OFFLINE=1',
+            # Package hooks can daemonize, change root or retain an fd into
+            # /dev. Give each command its own process namespace so those
+            # descendants cannot outlive the command and pin the build mounts.
+            # systemd must still treat PID 1 in this namespace as a build chroot.
+            return run(['unshare', '--pid', '--fork', '--kill-child',
+                        '--mount-proc=' + str(root / 'proc'),
+                        'chroot', root, '/usr/bin/env',
+                        'SYSTEMD_OFFLINE=1', 'SYSTEMD_IN_CHROOT=1',
                         'PATH=/usr/bin:/usr/sbin:/bin:/sbin', *args], **kwargs)
 
         yield guest
