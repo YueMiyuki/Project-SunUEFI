@@ -46,6 +46,7 @@
 | 触控笔 | 默认 120 Hz 下可定位和压感绘画，使用标准手写笔输入；轻捏与震动可用。内核支持磁吸识别、发射器供电、笔电量和充满停电；跨系统配对失效时自动重新配对 | 首次连接延迟、144 Hz 笔输入、完整掌压、低电量无线充电及睡眠期间取放仍需完善，见[笔协议](devel/piano-pen-protocol.md) |
 | Wi-Fi | 可用 | 新系统需自行保存网络连接 |
 | 蓝牙 | 可用，启动时自动读取本机原厂地址，手工刷通用 ESP 也可初始化 | 原厂地址缺失时提供稳定硬件标识派生方案，见[蓝牙地址](devel/piano-bluetooth.md) |
+| Linux USB 3 | 标准 Type-C 方向和角色切换、5 Gbit/s USB 调试网络 | 首次连接时序继续核对，见[USB Type-C](devel/kernel-roles.md#usb-type-c) |
 | 扬声器 | 四路都能发声，沿用原厂功放增益 235 | 睡眠恢复未测 |
 | 麦克风 | 录音、原生单声道 ALSA / PipeWire 输入，硬件增益 +40 dB | 睡眠恢复未完成 |
 | 相机 | 前后路预览、录像，CAMSS/TFE 硬件 ISP | 曝光、对焦和首帧处理仍在改善；3A 为软件实现，与原厂画质有差距。见[相机与闪光灯](devel/piano-camera-flash.md)，手动接口见[相机控制](devel/piano-camera-controls.md) |
@@ -55,7 +56,7 @@
 | 自动亮度 | GNOME 策略包沿用原厂 lux 阈值与延迟，传感器数据不做修改 | 依赖传感器联动完成度，见[自动亮度](devel/piano-auto-brightness.md) |
 | 夜灯 / 色温 | GNOME 夜灯可用，自动生成内置屏幕的颜色配置 | 通用 sRGB 配置，不是原厂校准 |
 | 电源 | 双电池、基础 PD 充电、UPower；合盖和短按电源锁屏熄屏；2 分钟空闲熄屏，电池 5 分钟、外接电源 10 分钟自动挂起；RTC 和电源键唤醒 | 待机耗电仍需优化，休眠未启用。见[电源键](devel/piano-power-button.md) |
-| 指纹 | Linux QTEE 已能加载原厂签名的 Goodix 安全程序 | 传感器控制、录入、认证及 libfprint 后端尚未完成 |
+| 指纹 | 原厂 Goodix 安全程序、传感器供电复位及设备信息查询已接通 | 录入、认证及 libfprint 后端尚未完成 |
 | 红外 / RGB 灯 | RGB 灯接口出现，红外 LIRC 候选已准备 | 红外发射未验证 |
 | 默认桌面 | 中文界面、拼音输入法、Chromium 浏览器，GNOME 动画开启 | — |
 | Windows / WinPE | 目标 | 未启动 |
