@@ -108,7 +108,14 @@ def guest_environment(root):
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         stop_helpers(root)
         for path in reversed(mounted):
-            run(['umount', path])
+            # Package hooks may mount devpts/shm below the temporary /dev.
+            # Remove children first; do not lazily detach a busy build tree.
+            try:
+                run(['umount', '--recursive', path])
+            except subprocess.CalledProcessError:
+                subprocess.run(['findmnt', '--submounts', '--target', path],
+                               check=False)
+                raise
 
 
 def build(root, sources, output, resume=False):
