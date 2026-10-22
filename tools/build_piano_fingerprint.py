@@ -103,7 +103,7 @@ def build(output, flags, emulator=None):
         'source_files': {str(p.relative_to(ROOT)): digest(p) for p in originals},
         'firmware': json.loads(
             (ROOT / 'vendor/firmware/hyperos4-fingerprint/manifest.json').read_text())['files'],
-        'operations': ['info', 'initialize', 'watch', 'list'],
+        'operations': ['info', 'initialize', 'prepare-auth', 'watch', 'list'],
         'enrollment_supported': False, 'authentication_supported': False,
     }
     if source_inputs() != inputs:

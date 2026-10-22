@@ -4,8 +4,9 @@
  *
  * Native Piano Goodix control client. The application interface follows the
  * factory libgf_ca/QSEECom calls; transport is Qualcomm's public MinkIPC API.
- * Device information and sensor initialization are implemented. Enrollment
- * and authentication still require the Goodix command protocol and libfprint.
+ * Device information, sensor initialization and Keymaster binding are
+ * implemented. Enrollment and authentication still require their Goodix
+ * command protocol and a libfprint backend.
  */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
@@ -24,6 +25,9 @@
 #include <unistd.h>
 
 #include "MinkCom.h"
+#include <qcbor/qcbor_decode.h>
+#include <qcbor/qcbor_encode.h>
+#include <qcbor/qcbor_spiffy_decode.h>
 
 #define FIRMWARE "/usr/lib/firmware/gfpia.elf"
 #define FIRMWARE_LIMIT (32U * 1024U * 1024U)
@@ -244,7 +248,8 @@ static int open_client(struct client *client)
 	return client->shared_size >= SHARED_SIZE ? 0 : -EMSGSIZE;
 }
 
-static int sensor_command(struct client *client, uint32_t command, size_t size)
+static int application_command(struct client *client, uint32_t route,
+			       uint32_t command, size_t size)
 {
 	struct goodix_request request = {0};
 	int32_t response[16] = {0};
@@ -254,17 +259,11 @@ static int sensor_command(struct client *client, uint32_t command, size_t size)
 	struct tm local;
 	int result;
 
-	if (size < 0x6c || size > client->shared_size)
+	if (!size || size > client->shared_size)
 		return -EMSGSIZE;
-	memcpy((uint8_t *)client->shared + 0x44, &client->sequence,
-	       sizeof(client->sequence));
 	localtime_r(&now, &local);
-	/* The Milan HAL supplies this bounded timestamp in its common header.
-	 * It is descriptive metadata, not an authentication token.
-	 */
-	strftime((char *)client->shared + 0x4c, 0x20, "%Y-%m-%d %H:%M:%S", &local);
 	request.sequence = ++client->sequence;
-	request.route = 1;
+	request.route = route;
 	request.command = command;
 	request.payload_size = size;
 	request.milliseconds = (uint64_t)(local.tm_hour * 3600 +
@@ -292,6 +291,219 @@ static int sensor_command(struct client *client, uint32_t command, size_t size)
 		return -EREMOTEIO;
 	}
 	return 0;
+}
+
+static int sensor_command(struct client *client, uint32_t command, size_t size)
+{
+	time_t now = time(NULL);
+	struct tm local;
+
+	if (size < 0x6c || size > client->shared_size)
+		return -EMSGSIZE;
+	memcpy((uint8_t *)client->shared + 0x44, &client->sequence,
+	       sizeof(client->sequence));
+	localtime_r(&now, &local);
+	/* Descriptive factory metadata, unrelated to authentication tokens. */
+	strftime((char *)client->shared + 0x4c, 0x20, "%Y-%m-%d %H:%M:%S", &local);
+	return application_command(client, 1, command, size);
+}
+
+static void clear_sensitive(void *buffer, size_t size)
+{
+	volatile uint8_t *bytes = buffer;
+
+	while (size--)
+		*bytes++ = 0;
+}
+
+static int keymaster_native_command(Object app, const void *request, size_t size,
+				    uint8_t *response, size_t capacity, size_t *actual)
+{
+	ObjectArg args[] = {
+		{ .bi = {request, size} }, { .b = {response, capacity} },
+	};
+	int32_t status;
+	int result = invoke(app, 0, args, ObjectCounts_pack(1, 1, 0, 0));
+
+	if (result)
+		return result;
+	if (args[1].b.size < sizeof(status) || args[1].b.size > capacity)
+		return -EMSGSIZE;
+	memcpy(&status, response, sizeof(status));
+	if (status) {
+		fprintf(stderr, "Keymaster native command %#x: status=%d\n",
+			*(const uint32_t *)request, status);
+		return -EREMOTEIO;
+	}
+	*actual = args[1].b.size;
+	return 0;
+}
+
+static int keymaster_sharing_init(struct client *client)
+{
+	const char name[] = "keymaster64";
+	Object opener = Object_NULL, environment = Object_NULL, app = Object_NULL;
+	uint32_t uid = 151, length, version = 0x200;
+	uint32_t handshake[] = {0x207, 4, 5, 4, 5, 0};
+	uint32_t get = 0x220e, compute = 0x220f;
+	uint8_t response[512] = {0}, request[128] = {0}, parameters[64] = {0};
+	size_t actual = 0;
+	UsefulBufC seed = NULLUsefulBufC, nonce = NULLUsefulBufC, encoded;
+	QCBORDecodeContext decoder;
+	QCBOREncodeContext encoder;
+	int result;
+	ObjectArg service[] = {
+		{ .bi = {&uid, sizeof(uid)} }, { .o = Object_NULL },
+	};
+
+	/* Native Keymaster interface recovered from this ROM's KeymasterUtils:
+	 * client-env service 151 opens the named app environment; service 150
+	 * inside it exposes command input/output buffers without QSEECOMPAT.
+	 */
+	result = invoke(client->env, 0, service, ObjectCounts_pack(1, 0, 0, 1));
+	if (result)
+		goto done;
+	opener = service[1].o;
+	ObjectArg open[] = {
+		{ .bi = {name, sizeof(name) - 1} }, { .o = Object_NULL },
+	};
+	result = invoke(opener, 0, open, ObjectCounts_pack(1, 0, 0, 1));
+	if (result)
+		goto done;
+	environment = open[1].o;
+	uid = 150;
+	service[1].o = Object_NULL;
+	result = invoke(environment, 0, service, ObjectCounts_pack(1, 0, 0, 1));
+	if (result)
+		goto done;
+	app = service[1].o;
+	result = keymaster_native_command(app, &version, sizeof(version),
+					 response, sizeof(response), &actual);
+	if (!result)
+		result = keymaster_native_command(app, handshake, sizeof(handshake),
+						 response, sizeof(response), &actual);
+	if (!result)
+		result = keymaster_native_command(app, &get, sizeof(get),
+						 response, sizeof(response), &actual);
+	if (result)
+		goto done;
+	if (actual < 8) {
+		result = -EMSGSIZE;
+		goto done;
+	}
+	memcpy(&length, response + 4, sizeof(length));
+	if (length > actual - 8) {
+		result = -EMSGSIZE;
+		goto done;
+	}
+	QCBORDecode_Init(&decoder, (UsefulBufC){response + 8, length},
+			 QCBOR_DECODE_MODE_NORMAL);
+	QCBORDecode_EnterMap(&decoder, NULL);
+	QCBORDecode_GetByteStringInMapN(&decoder, 41, &seed);
+	QCBORDecode_GetByteStringInMapN(&decoder, 42, &nonce);
+	QCBORDecode_ExitMap(&decoder);
+	if (QCBORDecode_Finish(&decoder) || seed.len != 32 || nonce.len != 32) {
+		result = -EBADMSG;
+		goto done;
+	}
+	memcpy(parameters, seed.ptr, 32);
+	memcpy(parameters + 32, nonce.ptr, 32);
+	clear_sensitive(response, sizeof(response));
+	memcpy(request, &compute, sizeof(compute));
+	QCBOREncode_Init(&encoder, (UsefulBuf){request + 4, sizeof(request) - 4});
+	QCBOREncode_OpenMap(&encoder);
+	QCBOREncode_AddBytesToMapN(&encoder, 43, (UsefulBufC){parameters, sizeof(parameters)});
+	QCBOREncode_CloseMap(&encoder);
+	if (QCBOREncode_Finish(&encoder, &encoded)) {
+		result = -EMSGSIZE;
+		goto done;
+	}
+	/* Preserve the exact CBOR length; padding is not part of this protocol. */
+	result = keymaster_native_command(app, request, encoded.len + 4,
+					 response, sizeof(response), &actual);
+done:
+	clear_sensitive(response, sizeof(response));
+	clear_sensitive(request, sizeof(request));
+	clear_sensitive(parameters, sizeof(parameters));
+	Object_RELEASE_IF(app);
+	Object_RELEASE_IF(environment);
+	Object_RELEASE_IF(opener);
+	return result;
+}
+
+static int keymaster_binding(Object app, uint32_t wide, uint8_t response[256])
+{
+	uint32_t request[] = {0x205, 2}, offsets[4] = {0};
+	int32_t status;
+	ObjectArg args[] = {
+		{ .bi = {request, sizeof(request)} },
+		{ .bi = {response, 256} },
+		{ .bi = {offsets, sizeof(offsets)} },
+		{ .bi = {&wide, sizeof(wide)} },
+		{ .b = {request, sizeof(request)} }, { .b = {response, 256} },
+		{ .o = Object_NULL }, { .o = Object_NULL },
+		{ .o = Object_NULL }, { .o = Object_NULL },
+	};
+	int result = invoke(app, 0, args, ObjectCounts_pack(4, 2, 4, 0));
+
+	if (result)
+		return result;
+	if (args[5].b.size != 256)
+		return -EMSGSIZE;
+	memcpy(&status, response, sizeof(status));
+	return status;
+}
+
+static int prepare_authentication(struct client *client)
+{
+	const char name[] = "keymaster64";
+	uint32_t architecture = 0, offset, length;
+	uint8_t binding[256] = {0};
+	Object app = Object_NULL;
+	ObjectArg lookup[] = {
+		{ .bi = {name, sizeof(name) - 1} },
+		{ .b = {&architecture, sizeof(architecture)} },
+		{ .o = Object_NULL },
+	};
+	int result = invoke(client->loader, 2, lookup, ObjectCounts_pack(1, 1, 0, 1));
+
+	if (result)
+		goto done;
+	app = lookup[2].o;
+	if (architecture != 1 && architecture != 2) {
+		result = -EOPNOTSUPP;
+		goto done;
+	}
+	/* Keep Goodix loaded before requesting a blob encrypted for its TA.
+	 * Initialize this boot's sharing key only if Keymaster reports it absent,
+	 * so another Linux client cannot accidentally rekey an active session.
+	 */
+	result = keymaster_binding(app, architecture == 2, binding);
+	if (result == -10020) {
+		result = keymaster_sharing_init(client);
+		if (!result)
+			result = keymaster_binding(app, architecture == 2, binding);
+	}
+	if (result) {
+		fprintf(stderr, "Keymaster binding request: status=%d\n", result);
+		result = -EREMOTEIO;
+		goto done;
+	}
+	memcpy(&offset, binding + 4, sizeof(offset));
+	memcpy(&length, binding + 8, sizeof(length));
+	if (offset < 12 || offset > sizeof(binding) || !length ||
+	    length > sizeof(binding) - offset) {
+		result = -EBADMSG;
+		goto done;
+	}
+	memcpy(client->shared, binding, sizeof(binding));
+	result = application_command(client, 2, 109, sizeof(binding));
+done:
+	clear_sensitive(binding, sizeof(binding));
+	if (client->shared)
+		clear_sensitive(client->shared, client->shared_size);
+	Object_RELEASE_IF(app);
+	return result;
 }
 
 static int device_info(struct client *client, uint32_t *sensor_type)
@@ -592,17 +804,20 @@ int main(int argc, char **argv)
 	uint32_t sensor_type = 0;
 	int watch = argc >= 2 && !strcmp(argv[1], "watch");
 	int list = argc >= 2 && !strcmp(argv[1], "list");
-	int initialize = argc >= 2 && (!strcmp(argv[1], "initialize") || watch || list);
+	int auth_ready = argc >= 2 && !strcmp(argv[1], "prepare-auth");
+	int initialize = argc >= 2 && (!strcmp(argv[1], "initialize") ||
+				       watch || list || auth_ready);
 	unsigned int seconds = 30;
 	uint32_t user_id = 0;
 	int result;
 
 	if (argc == 1 || (argc == 2 && !strcmp(argv[1], "--help"))) {
-		puts("Usage: piano-fingerprint-ctl info|initialize|watch [seconds]|list <uid>\n"
+		puts("Usage: piano-fingerprint-ctl info|initialize|prepare-auth|watch [seconds]|list <uid>\n"
 		     "Query the real Goodix sensor through UIO and QTEE.\n"
 		     "initialize also reads the sensor's geometry and calibration.\n"
 		     "watch reports sensor event flags for 1-120 seconds (default 30).\n"
 		     "list queries templates in an isolated Linux user profile.\n"
+		     "prepare-auth initializes Keymaster sharing when needed and binds Goodix.\n"
 		     "Enrollment and authentication are not implemented yet.");
 		return 0;
 	}
@@ -638,6 +853,8 @@ int main(int argc, char **argv)
 		geometry.sensor_type = sensor_type;
 		result = initialize_sensor(&client, &geometry);
 	}
+	if (!result && auth_ready)
+		result = prepare_authentication(&client);
 	if (!result && watch)
 		result = watch_events(&client, seconds);
 	if (!result && list)
@@ -654,7 +871,11 @@ int main(int argc, char **argv)
 			printf("%s{\"group\":%u,\"id\":%u}", i ? "," : "",
 			       templates.entries[i].group, templates.entries[i].id);
 		puts("]}");
-	} else if (!result && initialize)
+	} else if (!result && auth_ready)
+		puts("{\"sensor\":\"Goodix\",\"sensor_initialized\":true,"
+		     "\"keymaster_binding_ready\":true,\"enrollment_supported\":false,"
+		     "\"authentication_supported\":false}");
+	else if (!result && initialize)
 		printf("{\"sensor\":\"Goodix\",\"sensor_type\":%u,"
 		       "\"chip_type\":%u,\"max_templates\":%u,\"rows\":%u,\"columns\":%u,"
 		       "\"nav_rows\":%u,\"nav_columns\":%u,"

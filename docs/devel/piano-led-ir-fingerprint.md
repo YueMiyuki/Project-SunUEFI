@@ -137,11 +137,22 @@ QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
 新建分组已正常返回空列表；最大模板数量取自设备信息，并按真实响应容量解析。
 标准 fprintd 用户元数据仍由后续的 libfprint 集成管理。
 
-原厂 CA 在录入前通过 Keymaster 请求令牌绑定数据，再传给 Goodix。
-Linux 已能查到原厂加载的 64 位 `keymaster64`，版本为 API 5.3／TA 5.3000，
-并能生成、结束 Goodix 录入挑战。当前 Keymaster 的绑定数据请求返回
-`-10020`；同机 Android 通过原厂 CA 执行相同请求成功，说明仍需核对
-Linux 侧的安全服务和初始化流程。没有保存或输出绑定数据、密钥或令牌。
+`sudo piano-fingerprint-ctl prepare-auth` 初始化传感器并完成 Keymaster 到
+Goodix 的认证数据绑定。没有录入或认证操作，也不输出绑定数据。
+这一步已在重新启动后的 Linux 上独立完成，不依赖 Android 先运行指纹服务。
+
+原厂加载的 64 位 `keymaster64` 报告 API 5.3／TA 5.3000。
+同版 `libkeymasterdeviceutils.so` 和 `libqtikeymint.so` 表明，原生服务 151
+打开指定安全应用的环境，应用内服务 150 提供命令接口。客户端执行
+`0x200`／`0x207` 协商；需要时通过 `0x220e` 取得本次启动的共享参数，
+用 `0x220f` 完成 HMAC sharing。请求保留准确 CBOR 长度，不把对齐填充算入协议。
+
+绑定请求仍沿用原厂 CA 的 `0x205, 2` 和 256 字节响应，再通过 Goodix 路由 2、
+命令 109 传入签名安全程序。Goodix 必须先加载并初始化；此前在它尚未加载时
+查询，会得到另一个错误。只有明确返回 `-10020` 时才初始化本次启动的
+sharing key，已有绑定可用时直接使用，避免重置其他客户端的有效会话。
+响应的偏移和长度均检查边界，临时参数和加密绑定数据在结束时清零。
+没有把密钥、令牌或指纹模板保存到普通文件。
 
 另已补齐安全程序实际使用的
 [旧 GPFS 文件命令](../../linux/bsp/patches/qtee/README.md)，当前仅作为待集成源码保留，
