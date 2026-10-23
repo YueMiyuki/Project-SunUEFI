@@ -207,6 +207,14 @@ def build(args):
         if missing.returncode:
             guest(['pacman', '-S', '--needed', '--noconfirm',
                    *missing.stdout.splitlines()])
+        # kscreen's QML module needs Qt6QmlModels. A partially extracted
+        # qt6-declarative leaves Qt6Quick unable to resolve that dependency in
+        # a fresh build tree, so restore the package before the KDE rebuild.
+        qt_qml_models = root / 'usr/lib/cmake/Qt6QmlModels/Qt6QmlModelsConfig.cmake'
+        if not qt_qml_models.is_file():
+            guest(['pacman', '-S', '--noconfirm', 'qt6-declarative'])
+        if not qt_qml_models.is_file():
+            raise ValueError('qt6-declarative is missing the Qt6QmlModels CMake package')
         if not (root / 'usr/share/ibus/component/pinyin.xml').is_file():
             raise ValueError('The Valve base image must include its native IBus Pinyin engine')
         if subprocess.run(['chroot', root, 'id', 'piano'], capture_output=True).returncode:

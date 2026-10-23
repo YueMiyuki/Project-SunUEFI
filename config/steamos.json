@@ -78,6 +78,9 @@
         "kirigami",
         "kcmutils",
         "layer-shell-qt"
+      ],
+      "makedepends": [
+        "qt6-declarative"
       ]
     },
     {
