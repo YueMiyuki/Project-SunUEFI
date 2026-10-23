@@ -63,8 +63,9 @@ def prepare(root, output):
         f'\t\t\t"manifest" "{item["manifest"]}"\n'
         f'\t\t\t"size" "{item["installed_bytes"]}"\n'
         '\t\t}\n\t}\n}\n')
-    # Steam reads the default mapping before the user has an account/config.
-    # Subsequent explicit per-game choices remain under Steam's own control.
+    # A default has priority 75. Priority 250 is an explicit per-application
+    # override and would force even native Linux runtime tools through Proton,
+    # causing Steam to deselect and remove their Linux depots on first launch.
     config = steam / 'config/config.vdf'
     config.parent.mkdir(parents=True, exist_ok=True)
     default = (
@@ -72,7 +73,7 @@ def prepare(root, output):
         '\t\t\t"Steam"\n\t\t\t{\n\t\t\t\t"CompatToolMapping"\n\t\t\t\t{\n'
         '\t\t\t\t\t"0"\n\t\t\t\t\t{\n'
         f'\t\t\t\t\t\t"name" "{cfg["proton"]["directory"]}"\n'
-        '\t\t\t\t\t\t"config" ""\n\t\t\t\t\t\t"priority" "250"\n'
+        '\t\t\t\t\t\t"config" ""\n\t\t\t\t\t\t"priority" "75"\n'
         '\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n')
     if config.exists() and config.read_text() != default:
         raise ValueError('Set the runtime default before any Steam account configuration')
