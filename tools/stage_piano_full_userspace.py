@@ -96,6 +96,14 @@ def stage(rootfs, source, desktop='gnome'):
             if target.is_symlink():raise ValueError('Refuse writing through guest symlink')
             shutil.copy2(path,target)
             copied[name.as_posix()]=hashlib.sha256(path.read_bytes()).hexdigest()
+    # Apply the language after the public overlay so its upstream en_US
+    # default cannot overwrite the product's Simplified Chinese default.
+    for name, contents in (
+            ('etc/locale.conf', 'LANG=zh_CN.UTF-8\nLANGUAGE=zh_CN:zh\n'),
+            ('etc/default/locale', 'LANG=zh_CN.UTF-8\nLANGUAGE=zh_CN:zh\n')):
+        target = guest_resolve(rootfs, name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(contents)
     if desktop == 'gnome':
         copied.update(stage_gnome_power(rootfs))
     # Use the same camera BSP module policy in the complete default release.

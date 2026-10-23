@@ -7,13 +7,16 @@ GNOME_PACKAGES = {
     'gdm3', 'gnome-control-center', 'gnome-session', 'gnome-settings-daemon',
     'gnome-shell', 'gnome-system-monitor', 'gnome-terminal', 'gnome-text-editor',
     'nautilus', 'evolution-data-server', 'ibus', 'ibus-libpinyin',
+    'task-chinese-s-gnome-desktop',
 }
 KDE_PACKAGES = [
     'task-kde-desktop', 'plasma-workspace', 'sddm', 'dolphin', 'konsole',
     'systemsettings', 'powerdevil', 'plasma-nm', 'plasma-pa', 'kscreen',
-    'xdg-desktop-portal-kde', 'fcitx5', 'fcitx5-chinese-addons',
+    'task-chinese-s-kde-desktop',
+    'fonts-noto', 'poppler-data', 'xdg-desktop-portal-kde',
+    'fcitx5', 'fcitx5-chinese-addons',
     'fcitx5-frontend-gtk3', 'fcitx5-frontend-qt6', 'kde-config-fcitx5',
-    'maliit-keyboard',
+    'fcitx5-frontend-qt5', 'maliit-keyboard',
 ]
 GNOME_PATHS = (
     'etc/gdm3', 'etc/dconf', 'usr/share/glib-2.0/schemas/90_piano.gschema.override',
@@ -56,7 +59,7 @@ def prepare(public, output, desktop):
     return destination
 
 
-def configure(rootfs, run):
+def configure(rootfs, run, input_method='fcitx'):
     sessions = sorted((rootfs / 'usr/share/wayland-sessions').glob('*plasma*.desktop'))
     if len(sessions) != 1:
         raise ValueError('Expected one installed Plasma Wayland session')
@@ -67,7 +70,30 @@ def configure(rootfs, run):
     config = rootfs / 'home/piano/.config'
     config.mkdir(parents=True, exist_ok=True)
     (config / 'kdeglobals').write_text('[KDE]\nAnimationDurationFactor=1\n'
-                                     '[Locale]\nLanguage=zh_CN\n')
+                                     '[Locale]\nLanguage=zh_CN:zh\n')
+    (config / 'plasma-localerc').write_text(
+        '[Formats]\nLANG=zh_CN.UTF-8\n\n'
+        '[Translations]\nLANGUAGE=zh_CN:zh\n')
+    if input_method == 'fcitx':
+        (config / 'fcitx5/profile').parent.mkdir(parents=True, exist_ok=True)
+        (config / 'fcitx5/profile').write_text(
+            '[Groups/0]\nName=Default\nDefault Layout=us\nDefaultIM=pinyin\n\n'
+            '[Groups/0/Items/0]\nName=keyboard-us\nLayout=\n\n'
+            '[Groups/0/Items/1]\nName=pinyin\nLayout=\n\n'
+            '[GroupOrder]\n0=Default\n')
+    elif input_method != 'ibus':
+        raise ValueError('Unsupported input method: ' + input_method)
+    input_environment = rootfs / 'etc/environment.d/60-piano-input-method.conf'
+    input_environment.parent.mkdir(parents=True, exist_ok=True)
+    input_environment.write_text(
+        f'GTK_IM_MODULE={input_method}\nQT_IM_MODULE={input_method}\n'
+        f'XMODIFIERS=@im={input_method}\nSDL_IM_MODULE={input_method}\n')
+    if input_method == 'fcitx':
+        autostart = rootfs / 'etc/xdg/autostart/piano-fcitx5.desktop'
+        autostart.parent.mkdir(parents=True, exist_ok=True)
+        autostart.write_text(
+            '[Desktop Entry]\nType=Application\nName=Fcitx 5\n'
+            'Exec=fcitx5 -d --replace\nOnlyShowIn=KDE;\nNoDisplay=true\n')
     overlay = Path(__file__).resolve().parents[1] / 'linux/desktops/kde/config'
     for source in sorted(overlay.iterdir()):
         shutil.copyfile(source, config / source.name)

@@ -50,7 +50,8 @@ def plan(kernel, source, output, mesa_dir=None, runtime_dir=None, kernel_build=N
         raise ValueError('Release desktop must be gnome or kde')
     if desktop == 'kde':
         from prepare_debian_desktop import KDE_PACKAGES
-        gnome = {'gnome', 'task-gnome-desktop', 'ibus', 'ibus-libpinyin', 'ibus-gtk', 'ibus-gtk3', 'ibus-gtk4'}
+        gnome = {'gnome', 'task-gnome-desktop', 'task-chinese-s-gnome-desktop',
+                 'ibus', 'ibus-libpinyin', 'ibus-gtk', 'ibus-gtk3', 'ibus-gtk4'}
         config['debian']['extra_packages'] = [p for p in config['debian']['extra_packages'] if p not in gnome] + KDE_PACKAGES
     if config['debian']['apt_policy'] != 'mutable-recorded' or config['debian']['snapshot'] is not None:
         raise ValueError('Only signed mutable APT with recorded metadata is implemented; snapshot mode is not configured')

@@ -40,6 +40,8 @@ def stage(root, source, extensions=None):
         "[org/gnome/desktop/interface]\n"
         "gtk-theme='adw-gtk3'\nicon-theme='Tela-circle-MaterialYou'\n"
         "color-scheme='prefer-dark'\nenable-animations=true\n\n"
+        "[org/gnome/desktop/input-sources]\n"
+        "sources=[('xkb', 'us'), ('ibus', 'libpinyin')]\n\n"
         "[org/gnome/desktop/background]\npicture-options='zoom'\n"
         "picture-uri='file:///usr/share/backgrounds/Nyarch_Wallpaper.png'\n"
         "picture-uri-dark='file:///usr/share/backgrounds/Nyarch_Wallpaper.png'\n\n"
@@ -104,7 +106,20 @@ def stage(root, source, extensions=None):
                        'PRETTY_NAME="Nyarch Linux (SunUEFI ARM64)"\n'
                        'VARIANT="Piano GNOME"\nVARIANT_ID=sunuefi\n')
     (root / 'etc/locale.gen').write_text('en_US.UTF-8 UTF-8\nzh_CN.UTF-8 UTF-8\n')
-    (root / 'etc/locale.conf').write_text('LANG=zh_CN.UTF-8\n')
+    (root / 'etc/locale.conf').write_text(
+        'LANG=zh_CN.UTF-8\nLANGUAGE=zh_CN:zh\n')
+    locale_environment = root / 'etc/environment.d/60-piano-locale.conf'
+    locale_environment.parent.mkdir(parents=True, exist_ok=True)
+    locale_environment.write_text('LANGUAGE=zh_CN:zh\n')
+    input_environment = root / 'etc/environment.d/60-piano-input-method.conf'
+    input_environment.parent.mkdir(parents=True, exist_ok=True)
+    input_environment.write_text(
+        'GTK_IM_MODULE=ibus\nQT_IM_MODULE=ibus\n'
+        'XMODIFIERS=@im=ibus\nSDL_IM_MODULE=ibus\n')
+    (root / 'etc/xdg/autostart/piano-ibus.desktop').write_text(
+        '[Desktop Entry]\nType=Application\nName=IBus\n'
+        'Exec=ibus-daemon --replace --xim\nOnlyShowIn=GNOME;\n'
+        'NoDisplay=true\n')
     (root / 'etc/hostname').write_text('piano\n')
     (root / 'etc/gdm/custom.conf').write_text(
         '[daemon]\nAutomaticLoginEnable=true\nAutomaticLogin=piano\n')

@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import json
 import os
+import re
 import shlex
 from datetime import datetime, timezone
 from pathlib import Path
@@ -70,7 +71,8 @@ def configure_input_method(root):
     # Use the installed IBus engine and its ordinary XIM/Qt/GTK interfaces.
     put(root, 'etc/environment.d/60-piano-input-method.conf',
         'GTK_IM_MODULE=ibus\nQT_IM_MODULE=ibus\n'
-        'XMODIFIERS=@im=ibus\nSDL_IM_MODULE=ibus\n')
+        'XMODIFIERS=@im=ibus\nSDL_IM_MODULE=ibus\n'
+        'LANG=zh_CN.UTF-8\nLANGUAGE=zh_CN:zh\n')
     put(root, 'etc/xdg/autostart/piano-ibus.desktop',
         '[Desktop Entry]\nType=Application\nName=IBus\n'
         'Exec=ibus-daemon --replace --xim\n'
@@ -84,6 +86,21 @@ def configure_input_method(root):
         "engines-order=['xkb:us::eng', 'pinyin']\n"
         "[desktop/ibus/general/hotkey]\ntriggers=['<Control>space']\n")
     subprocess.run(['chroot', root, 'dconf', 'update'], check=True)
+    config = root / 'home/piano/.config'
+    config.mkdir(parents=True, exist_ok=True)
+    (config / 'plasma-localerc').write_text(
+        '[Formats]\nLANG=zh_CN.UTF-8\n\n'
+        '[Translations]\nLANGUAGE=zh_CN:zh\n')
+    globals_file = config / 'kdeglobals'
+    text = globals_file.read_text() if globals_file.exists() else ''
+    if '[Locale]' in text:
+        text = re.sub(r'(?ms)^\[Locale\]\n.*?(?=^\[|\Z)',
+                      '[Locale]\nLanguage=zh_CN:zh\n', text)
+    else:
+        text = text.rstrip() + '\n\n[Locale]\nLanguage=zh_CN:zh\n'
+    globals_file.write_text(text)
+    for path in (config / 'plasma-localerc', globals_file):
+        os.chown(path, 1000, 1000)
 
 
 def configure_identity(root, base, build_id):
@@ -214,7 +231,7 @@ def configure_platform(root):
     if autostart.is_file():
         text = autostart.read_text()
         autostart.write_text('\n'.join(
-            'Exec=/usr/bin/steam -silent %U' if line.startswith('Exec=') else line
+            'Exec=/usr/bin/steam -silent -language schinese %U' if line.startswith('Exec=') else line
             for line in text.splitlines()) + '\n')
     # CPU policy is already configured by Piano. Do not load Valve's LAVD
     # sched_ext scheduler over the selected BORE/EEVDF kernel scheduler.
@@ -268,7 +285,8 @@ def configure(root):
     # Keep the native client and translation runtime. Do not reuse Frame's
     # VR session, including its low-space game deletion policy.
     bsp = Path(__file__).resolve().parents[1] / 'linux/bsp/steamos'
-    for name in ('piano-gamescope-session', 'piano-gamescope-run', 'piano-gamescope-steam'):
+    for name in ('piano-gamescope-session', 'piano-gamescope-run',
+                 'piano-gamescope-steam'):
         put(root, 'usr/local/bin/' + name, (bsp / name).read_text(), 0o755)
     for name in ('gamescope-session.service', 'gamescope-session.target'):
         put(root, 'etc/systemd/user/' + name, (bsp / name).read_text())
@@ -276,7 +294,7 @@ def configure(root):
         '[Desktop Entry]\nName=Steam Gaming Mode\n'
         'Exec=/usr/local/bin/piano-gamescope-session\n'
         'Type=Application\nDesktopNames=gamescope\n')
-    configure_kde(root, subprocess.run)
+    configure_kde(root, subprocess.run, input_method='ibus')
     project = Path(__file__).resolve().parents[1]
     base = json.loads((project / 'config/steamos.json').read_text())['base']
     commit = subprocess.check_output(
@@ -291,7 +309,7 @@ def configure(root):
     # switching modes. Relogin lets SDDM follow it after the old session exits.
     put(root, 'etc/sddm.conf.d/10-sunuefi.conf',
         '[Autologin]\nUser=piano\nSession=gamescope-wayland.desktop\nRelogin=true\n')
-    put(root, 'etc/locale.conf', 'LANG=zh_CN.UTF-8\n')
+    put(root, 'etc/locale.conf', 'LANG=zh_CN.UTF-8\nLANGUAGE=zh_CN:zh\n')
     # Steam keeps its own language preference, separate from LANG. Seed the
     # ordinary client registry in the fresh image; later user choices persist.
     registry = root / 'home/piano/.steam/registry.vdf'

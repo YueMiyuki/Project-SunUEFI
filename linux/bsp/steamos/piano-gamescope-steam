@@ -1,13 +1,20 @@
 #!/bin/sh
 set -eu
+export LANG=zh_CN.UTF-8
+export LANGUAGE=zh_CN:zh
+export GTK_IM_MODULE=ibus
+export QT_IM_MODULE=ibus
+export XMODIFIERS=@im=ibus
+export SDL_IM_MODULE=ibus
 export GAMESCOPE_WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-gamescope-0}"
 export QT_QPA_PLATFORM=xcb
 export STEAM_ENABLE_VOLUME_HANDLER=1
 unset WAYLAND_DISPLAY XDG_SESSION_TYPE
 dbus-update-activation-environment --systemd \
-    DISPLAY GAMESCOPE_WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR SteamDeck
+    DISPLAY GAMESCOPE_WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR \
+    LANG LANGUAGE GTK_IM_MODULE QT_IM_MODULE XMODIFIERS SDL_IM_MODULE SteamDeck
 if ! ibus-daemon --daemonize --replace --xim; then
     printf '%s\n' 'IBus could not start; continuing Steam without Chinese input.' >&2
 fi
 systemd-notify --ready
-exec steam -steamdeck -steamos3 -gamepadui
+exec steam -steamdeck -steamos3 -gamepadui -language schinese
