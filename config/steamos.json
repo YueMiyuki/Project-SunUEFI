@@ -80,6 +80,7 @@
         "layer-shell-qt"
       ],
       "makedepends": [
+        "libglvnd",
         "qt6-declarative"
       ]
     },

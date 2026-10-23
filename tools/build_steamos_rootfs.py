@@ -192,7 +192,7 @@ def build(args):
                'sddm', 'openssh', 'bluez', 'bluez-utils', 'networkmanager', 'wpa_supplicant',
                'alsa-utils', 'pipewire', 'pipewire-pulse', 'wireplumber',
                'python', 'python-gobject', 'polkit', 'erofs-utils', 'rsync', 'chromium',
-               'protobuf-c',
+               'protobuf-c', 'libglvnd',
                'bluez-qt', 'networkmanager-qt', 'modemmanager-qt',
                'bluedevil', 'plasma-nm', 'kinfocenter', 'powerdevil',
                'discover', 'packagekit', 'packagekit-qt6', 'pacman-contrib',
@@ -215,6 +215,13 @@ def build(args):
             guest(['pacman', '-S', '--noconfirm', 'qt6-declarative'])
         if not qt_qml_models.is_file():
             raise ValueError('qt6-declarative is missing the Qt6QmlModels CMake package')
+        # Qt6Gui resolves OpenGL through libglvnd's unversioned link libraries.
+        # Restore the package if those files are missing before building kscreen.
+        opengl_links = [root / 'usr/lib/libOpenGL.so', root / 'usr/lib/libGLX.so']
+        if not all(path.exists() for path in opengl_links):
+            guest(['pacman', '-S', '--noconfirm', 'libglvnd'])
+        if not all(path.exists() for path in opengl_links):
+            raise ValueError('libglvnd is missing the OpenGL link libraries')
         if not (root / 'usr/share/ibus/component/pinyin.xml').is_file():
             raise ValueError('The Valve base image must include its native IBus Pinyin engine')
         if subprocess.run(['chroot', root, 'id', 'piano'], capture_output=True).returncode:
