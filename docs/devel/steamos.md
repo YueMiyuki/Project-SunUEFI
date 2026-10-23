@@ -99,6 +99,11 @@ GPU 节点负责渲染，实际支持 KMS 的 DPU 节点负责输出。游戏模
 登录后菜单与游戏模式、KDE 桌面的来回切换均可用。Milthm 已通过
 ARM64 Proton 启动并使用 Adreno 渲染。
 
+原神国服 7.1.0 可通过官方启动器进入游戏世界。启动时需要在 Proton 环境设置
+`STEAM_FEX_MULTIBLOCK=0`，否则场景加载后的线程挂起会与 FEX 的块内自旋互相等待，
+画面停在用户协议页。原因与验证过程见
+[Proton/FEX 协作挂起](steamos-proton-fex-suspend.md)。
+
 镜像预装 GE-Proton11-11 ARM64 和 Steam Linux Runtime 4.0 ARM64，
 工具文件在构建时完整解包，默认兼容工具已配置。Proton 内含 FEX、
 DXVK 和 vkd3d-proton，不依赖首次启动游戏时才下载一套运行时。

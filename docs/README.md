@@ -18,7 +18,7 @@
 * [构建手册](devel/building.md)、[公开构建链](devel/public-build.md)、[测试](devel/testing.md)、[发布要求](devel/release.md)
 * [仓库地图](devel/repository-map.md)、[本地输入](devel/local-inputs.md)、[内核角色](devel/kernel-roles.md)、[补丁登记](devel/patches.md)
 * 启动状态与切换：[启动请求](devel/reboot-request.md)、[Linux 下次启动](devel/linux-next-boot.md)、[Recovery 入口](devel/recovery-entry.md)、[原生 BOOT 重打包](devel/android-boot-repack.md)、[Android 模块](devel/android-module.md)
-* 多发行版：[BSP 配置包](../linux/bsp/README.md)、[发行版装配](../linux/rootfs/README.md)、[桌面配置](../linux/desktops/README.md)、[Linux 服务](devel/linux-services.md)
+* 多发行版：[BSP 配置包](../linux/bsp/README.md)、[发行版装配](../linux/rootfs/README.md)、[桌面配置](../linux/desktops/README.md)、[Linux 服务](devel/linux-services.md)、[Proton/FEX 协作挂起](devel/steamos-proton-fex-suspend.md)
 * [贡献指南](../CONTRIBUTING.md)、[第三方来源](../THIRD_PARTY.md)、[许可](../LICENSE.md)
 
 ## 硬件专题
