@@ -150,9 +150,9 @@ int main(int Argc,char **Argv){
   assert(Published==(cold_case==37?EFI_OUT_OF_RESOURCES:EFI_SUCCESS)&&cold_loads==ColdBefore);
   if(cold_case==37)early_case=0;
   else{assert(!memcmp(&early_hob.Report,R,sizeof(*R)));frozen=early_hob.Report;Tamper(&early_hob.Report);}
-  assert(!calls&&!loads);assert(PianoProductObserveSmem()==EFI_NOT_READY&&!PianoProductSmemRetained());
   BOOLEAN Accepted=cold_case<14||cold_case==38||cold_case==50||cold_case==57;
   EFI_STATUS Expected=cold_case==37?EFI_NOT_FOUND:Accepted?EFI_SUCCESS:EFI_COMPROMISED_DATA;
+  assert(!calls&&!loads);assert(PianoProductCaptureEarlySmem()==Expected&&!PianoProductSmemRetained()&&!calls&&!loads);
   assert(PianoProductEarlySmemStatus()==Expected&&early_log_status==Expected);CheckRaw(Accepted);
   UINTN HobGets=early_gets;memset(&early_hob,0,sizeof(early_hob));memset(smem,0x5a,sizeof(smem));
   // Lost early log prefix and overwritten source/HOB cannot lose the already

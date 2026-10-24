@@ -200,6 +200,11 @@ STATIC BOOLEAN ServicesAlive(VOID *Context) {
 }
 BOOLEAN PianoProductSmemRetained(VOID) { return mRetained; }
 
+EFI_STATUS PianoProductCaptureEarlySmem(VOID) {
+  if(mAttempted)return EFI_ALREADY_STARTED;
+  mAttempted=TRUE;CaptureEarly();ReemitEarly();return mEarlyStatus;
+}
+
 EFI_STATUS PianoProductObserveSmem(VOID) {
   if(mAttempted)return EFI_ALREADY_STARTED;
   mAttempted=TRUE;mPhase=TRUE;mBoot=gBS;
@@ -258,6 +263,7 @@ EFI_STATUS PianoProductSmemReemit(VOID *Context) {
   if(!mAttempted || mPhase)return EFI_NOT_READY;
   if(mRetained)return EFI_ABORTED;
   ReemitEarly();
+  if(mObservationStatus==EFI_NOT_STARTED)return EFI_SUCCESS;
   // This is our saved report, not the mutable singleton guard report which a
   // later safe-read session may replace. No native/BS/device callback occurs.
   DEBUG((DEBUG_WARN,"PIANO_PRODUCT_SMEM_SNAPSHOT status=%r parsed=%u major=%u ramver=%u reason=%u\n",

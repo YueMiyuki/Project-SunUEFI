@@ -249,12 +249,9 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
   mDisplayStartup=(PIANO_PRODUCT_DISPLAY_STARTUP_REPORT){.Revision=1,.KnownNoSideEffects=TRUE,.Status=EFI_NOT_STARTED};
   DEBUG((DEBUG_WARN,"PIANO_PRODUCT_DISPLAY_START status=%r inherited_gop=1 display_owner_refs=0 unused_cesta_media_startup_deferred=1 dcd_startup_dependencies_deferred=1 runtime_clock_api_preserved=1\n",mDisplayStartup.Status));
   ObserveDisplay("after-display-lease");
-  // Real protected SMEM observations precede product DMA owners. Failure with
-  // exact handler cleanup leaves data unknown; retained ownership cannot be
-  // carried into UFS/USB bring-up. DXE evidence never changes the early map.
-  BootLogStage("SMEM",EFI_NOT_STARTED);
-  Status=PianoProductObserveSmem();BootLogStage("SMEM",Status);
-  if(PianoProductSmemRetained())FailStop(Status);
+  // SEC already captured SMEM before enabling translation. Keep that report
+  // for diagnostics; a second DXE read neither authorizes RAM nor gates boot.
+  (VOID)PianoProductCaptureEarlySmem();
   // Bind the exact native Env implementation before calling its audited ABI.
   // This is a DDR/preloaded inventory, never permission to map or allocate RAM.
   Status=PianoRamPartitionInventory(FALSE,&mRamInventory);

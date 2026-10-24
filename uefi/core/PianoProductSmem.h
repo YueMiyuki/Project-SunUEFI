@@ -2,7 +2,10 @@
 #pragma once
 #include <Uefi.h>
 
-// Actual bounded DXE observation, before product USB/UFS startup. It does not
+// Normal startup retains only the already captured SEC report. No SMEM reread,
+// exception handlers or visible progress item are needed in DXE.
+EFI_STATUS PianoProductCaptureEarlySmem(VOID);
+// Optional bounded DXE diagnostic, not part of normal startup. It does not
 // publish or authorize DDR. Unknown exception-handler ownership is terminal.
 EFI_STATUS PianoProductObserveSmem(VOID);
 BOOLEAN PianoProductSmemRetained(VOID);

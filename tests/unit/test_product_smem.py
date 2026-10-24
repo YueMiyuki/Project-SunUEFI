@@ -31,5 +31,6 @@ class ProductSmemTests(unittest.TestCase):
  def test_wrapper_actual_aarch64_syntax_and_root_order(self):
   inc=BASE/'MdePkg/Include';flags=['-I'+str(inc),'-I'+str(inc/'AArch64'),'-I'+str(ROOT/'uefi/components/guarded-read'),'-I'+str(ROOT/'uefi/handoff/early-memory')]
   subprocess.run([str(ROOT/'build/host-tools/usr/bin/clang'),'--target=aarch64-windows-msvc','-ffreestanding','-fshort-wchar','-fsyntax-only','-Wall','-Wextra','-Werror',*flags,str(ROOT/'uefi/core/PianoProductSmem.c')],check=True)
-  core=(ROOT/'uefi/core/PianoProductCore.c').read_text();self.assertLess(core.index('PianoProbeFoundation();'),core.index('Status=PianoProductObserveSmem();'));self.assertLess(core.index('Status=PianoProductObserveSmem();'),core.index('PianoUfsSetProbeAction(InitUfs)'))
+  core=(ROOT/'uefi/core/PianoProductCore.c').read_text();self.assertLess(core.index('PianoProbeFoundation();'),core.index('PianoProductCaptureEarlySmem();'));self.assertLess(core.index('PianoProductCaptureEarlySmem();'),core.index('PianoUfsSetProbeAction(InitUfs)'))
+  self.assertNotIn('PianoProductObserveSmem();',core);self.assertNotIn('BootLogStage("SMEM"',core)
 if __name__=='__main__':unittest.main()
