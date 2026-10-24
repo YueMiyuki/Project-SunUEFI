@@ -3,8 +3,16 @@
 这一目标使用 Valve SteamOS ARM64 根系统，沿用 SunUEFI 的合体 BOOT、UEFI、内核、设备树和独立存储分区。无需替换 ABL，也不使用 SteamOS-ARM-Port 的掌机分区安装器。
 
 这是实验构建目标。默认启动入口为 **Steam Gaming Mode**，KDE 作为桌面模式。
-游戏模式的完整显示与输入、模式切换、Proton/FEX 游戏兼容性仍在调试；
-有 ARM64 客户端不代表所有 Windows 游戏都能运行。
+游戏模式显示、输入以及 KDE 之间的模式切换可用。Milthm 与原神可运行；
+Proton/FEX 的兼容性仍按游戏区分，不能据此认为所有 Windows 游戏都能运行。
+
+## 实机画面
+
+| Steam 游戏模式 | 原神游戏内 |
+| --- | --- |
+| ![中文 Steam 游戏模式与游戏库](../assets/gallery/steamos-gaming-mode.webp) | ![原神角色进入游戏世界](../assets/gallery/steamos-genshin-world.webp) |
+| **原神官方启动器** | **魔法少女的魔女审判** |
+| ![原神官方启动器](../assets/gallery/steamos-genshin-launcher.webp) | ![魔法少女的魔女审判剧情画面](../assets/gallery/steamos-witch-trial.webp) |
 
 ## 下载与安装
 
@@ -61,8 +69,10 @@ ARM64 包构建和包管理命令使用独立的进程命名空间；命令退�
 其后台子进程，随后正常卸载临时挂载。这样也能处理改变根目录或保留 `/dev`
 文件描述符的包脚本。构建环境显式设置 `SYSTEMD_IN_CHROOT=1`，避免新进程
 空间内的 PID 1 被误认为已启动的系统。实机 CI 曾在完整升级和 locale 生成后
-因 `/dev` 仍被占用而退出；本地已检查密钥环安装、locale 生成、后台子进程
-回收和原生 ARM64 软件包构建安装，完整 CI 结果另行记录。
+因 `/dev` 仍被占用而退出，该退出路径已修正。后台进程退出后还会移除
+`/etc/pacman.d/gnupg/S.*` 中残留的 Unix 套接字，保留密钥和信任数据；
+否则所有包构建成功后，最终镜像扫描仍会拒绝 `S.gpg-agent` 特殊文件。
+本地已有包缓存、补装依赖或手工打包的成功结果不能替代 CI 的完整装配与打包。
 
 原设备的 `steamos-dump-info.service` 同样停用。它会把头显 EEPROM、电池、
 A/B 槽位和 U-Boot 环境查询结果写入内核日志，在平板上产生“没有电池”

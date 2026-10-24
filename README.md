@@ -20,17 +20,19 @@
 
 从内部磁盘启动的 Debian 13 / GNOME 已经可以：
 
-* 用 Adreno GPU 加速绘制桌面，屏幕以 3200×2136、默认 120 Hz 显示，可以手动调亮度。
+* 用 Adreno GPU 加速绘制桌面，屏幕以 3200×2136、默认 120 Hz 显示，支持刷新率切换、自动亮度和 HDR 内容播放。
 * 用手指点按、拖动窗口、长按弹出菜单和使用手势。
 * 接上官方磁吸键盘打字、使用触控板，键盘背光可以通过 GNOME 的标准选项调节。
 * 官方键盘的 **右 Ctrl + `1`～`0`、`-`、`=`** 对应 **F1–F12**，见[键盘快捷键与 UEFI 接入进度](docs/user/keyboard.md)。
 * 使用 Wi-Fi 和蓝牙。
 * 用四个扬声器播放声音，并用 GNOME 夜灯调整屏幕色温。
 * 打开前后相机预览并录像，摄像头工作时亮起实体绿色隐私灯。
+* 使用麦克风录音、自动旋转和传感器；合盖、熄屏、挂起后可以正常恢复。
+* 使用触控笔定位、压感绘画、轻捏和震动，及磁吸连接恢复。
 * 使用默认中文界面、拼音输入法和 Chromium 浏览器，GNOME 动画默认开启。
 * 在 Linux 和原厂 Android 之间来回切换。
 
-目前仍需完善的是 144 Hz 下的显示与手写笔、首次连接延迟、HDR 和待机耗电。合盖会锁屏并关闭显示，打开后恢复锁屏界面。启动过程中仍可能长时间灰屏或白屏，缺少清楚的进度提示。完整列表见下文[功能与已知问题](#功能与已知问题)。
+UEFI 显示硬件初始化进度，Linux 启动正常有日志提示。仍存在的限制集中列在下文[功能与已知问题](#功能与已知问题)。
 
 ## 实机画面
 
@@ -45,6 +47,14 @@
 | ![原版 Minecraft 26.3 Vulkan 实机画面](docs/assets/gallery/minecraft-vulkan.webp) | ![原版 Minecraft 26.3 OpenGL 实机画面](docs/assets/gallery/minecraft-opengl.webp) |
 
 两张均为原版 Minecraft 26.3，无优化模组，在平板 3K 屏幕上运行。照片分别显示约 446 FPS 和 174 FPS，为不同场景的瞬时读数。Vulkan 的分辨率显示差异可能与驱动 bug 或 Wayland 缩放有关。
+
+### SteamOS 与游戏
+
+| Steam 游戏模式 | 原神 · 游戏内 |
+| --- | --- |
+| ![小米平板 8 Pro 上的中文 Steam 游戏模式](docs/assets/gallery/steamos-gaming-mode.webp) | ![小米平板 8 Pro 运行原神，角色已进入游戏世界](docs/assets/gallery/steamos-genshin-world.webp) |
+| **原神 · 官方启动器** | **魔法少女的魔女审判** |
+| ![SteamOS 中的原神官方启动器](docs/assets/gallery/steamos-genshin-launcher.webp) | ![小米平板 8 Pro 运行魔法少女的魔女审判剧情画面](docs/assets/gallery/steamos-witch-trial.webp) |
 
 ## 开始使用
 
@@ -69,7 +79,7 @@ Root 提供 `debian-gnome`、`debian-kde`、`nyarch-gnome` 和 `steamos` 四种�
 
 在登录页面选择 `piano`，输入密码 `piano123456` 即可进入桌面。系统默认自动登录；锁屏解锁和 `sudo` 也使用这个密码，可在系统设置中修改。
 
-当前 Linux 内核和系统服务启动约 39 秒，不含开机选择页与 UEFI；首次启动可能更久。
+首次启动需要生成部分设备配置，可能比后续启动更久。
 
 仅临时运行 UEFI 时，另下载 **`SunUEFI-UEFI-Fastboot`**，解压后执行 `fastboot boot SunUEFI-UEFI-Fastboot.img`。这是不含原厂 Android 内核的独立镜像，与助手里的 UEFI 使用同一核心；不会安装 Linux 或改写 BOOT。操作说明见[临时启动固件](docs/user/temporary-boot.md)。
 
@@ -131,38 +141,36 @@ SunUEFI 运行时在后台提供一个 USB Fastboot 服务，设备名为 `SunUE
 | 磁盘启动 Linux | 从合体 BOOT 经 UEFI 进入内部 ESP 和 ext4 系统，普通重启沿用选择 |
 | 返回原厂 Android | Android 路线直通，Linux 里可以一条命令切回 |
 | GNOME 桌面与 GPU 加速 | 原生双 DSI 显示、Adreno 加速 |
-| 屏幕显示与亮度 | 3200×2136、默认 120 Hz 显示，手动亮度 |
+| 屏幕显示与亮度 | 3200×2136、默认 120 Hz，刷新率切换、手动及自动亮度 |
 | 触屏 | 点按、拖动、长按、手势，报告速率约 144 Hz |
 | 官方键盘与触控板 | 打字、指针、点击、键盘背光 |
 | Wi-Fi | 扫描并联网 |
 | 蓝牙 | 可用 |
-| 触控笔 | 默认 120 Hz 下定位与压感绘画，轻捏按键和笔端震动 |
+| 触控笔 | 定位与压感绘画、笔输入、轻捏按键、笔端震动和磁吸连接恢复 |
 | 四扬声器 | 沿用原厂功放增益，音量可调 |
 | 夜灯 | GNOME 夜灯调整色温 |
-| 前后相机 | 预览和录像；画质问题见下表 |
-| 电池与充电状态 | 双电池、基础 PD 充电和 UPower 状态 |
+| HDR 内容 | 可播放；当前显示传输为十位，12-bit／FRC 与连续 VRR 的实现范围见[显示说明](docs/devel/piano-display-depth.md) |
+| 前后相机 | 预览、录像、自动曝光／对焦／白平衡及实体隐私灯 |
+| 麦克风 | 原生单声道录音，睡眠恢复 |
+| 传感器 | 自动旋转、光线、距离、罗盘及标准 SensorProxy 接口 |
+| 电源 | 双电池、PD 充电、锁屏、合盖、熄屏、挂起与唤醒；键盘背光默认 80% |
+| 默认省电设置 | 2 分钟熄屏，电池 5 分钟、外接电源 10 分钟自动挂起 |
+| 启动画面 | UEFI 硬件初始化进度及 Linux 启动提示 |
 | 默认桌面 | 中文界面、拼音输入法、Chromium 浏览器，GNOME 动画开启 |
 
 ### 可以使用，但有问题
 
 | 功能 | 能做到什么 | 现存问题 |
 | --- | --- | --- |
-| 刷新率 | 默认 120 Hz，30／48／50／60／120 Hz 可无缝切换 | 90／144 Hz 仍需完整重设显示，144 Hz 可能花屏；按内容自动选择刷新率仍在适配 |
-| 相机 | 前后摄像头预览与录像，走高通 CAMSS/TFE 硬件 ISP，3A（自动曝光 / 对焦 / 白平衡）由软件实现 | 首帧、曝光、对焦和画质仍在改善，与原厂有差距；完整专业模式尚未提供 |
-| 麦克风 | 录音、回放，原生单声道输入 | 睡眠后的恢复仍需适配 |
-| 传感器 | 加速度、光线、罗盘、距离等数据可读，并接入标准的 SensorProxy | 自动旋转、自动亮度曲线等桌面联动还在完善；陀螺仪等数据的单位和标准接口未全部完成 |
-| 电源 | 充电状态、基础 PD 充电、锁屏与熄屏恢复 | 待机和休眠仍在适配 |
-| 启动时间 | 当前 Linux 内核和系统服务约 39 秒，不含 UEFI | 启动过程中可能灰屏或白屏、没有进度提示；首次启动可能更久 |
 | UEFI 菜单 / 固件设置 | 中文菜单与放大的 TianoCore 设置页面，支持音量键移动、电源键确认和双音量键返回 | UEFI 阶段触屏和键盘尚未接通 |
 | UEFI Fastboot | 日志、截图、只读读取 | 冷启动 USB 初始化曾超时，部分后台场景未走通 |
 | 闪光灯 / RGB 灯 / 红外 | 闪光灯的标准 LED 接口已注册；RGB 灯接口已出现 | 闪光灯实际发光未观察；红外发射未验证 |
 
 ### 尚未完成
 
-* **触控笔的扩展功能**：磁吸识别、笔电量和失效配对自动恢复已接入；首次连接延迟、144 Hz 笔输入、完整掌压与低电量无线充电仍在完善。
-* **电源默认设置**：2 分钟熄屏，电池供电时 5 分钟、外接电源时 10 分钟自动挂起；键盘背光默认 80%。待机耗电仍在优化，休眠未启用。
-* **HDR、12-bit 色深、可变刷新率**：还在适配，不能作为可用功能。
-* **指纹解锁**：正在适配录入、认证和桌面集成。
+* **触控笔的扩展功能**：完整掌压、笔身滑动及应用快捷手势仍需完善。
+* **12-bit／FRC、连续可变刷新率**：不等同于十位传输、HDR 内容播放或固定刷新率切换，尚未提供完整支持。
+* **指纹解锁**：内核层面理论可用，正在适配录入、认证和桌面集成。
 * **Windows / WinPE**：目标，尚未启动。
 
 更详细的现状和设备记录见[项目状态](docs/status.md)，用户可见的问题和绕过办法见[已知问题](docs/user/known-issues.md)。
@@ -190,7 +198,7 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 
 完整的 Debian / GNOME 系统包需要 ARM64 构建机，以及允许 chroot 的 `--privileged` 容器，依次运行 `./build.sh linux`、`mesa`、`sensors`、`ffmpeg --install-dependencies`、`release-rootfs`、`package`、`installer`。需要主机检查时手动运行 `./build.sh check`，不用连接平板。完整流程、输入材料和各步骤的输出位置见[构建手册](docs/devel/building.md)与[公开构建链](docs/devel/public-build.md)。
 
-**SteamOS ARM64（实验版）**：新增 `steamos` 构建目标，使用 Valve 的 ARM64 根系统、Steam 客户端、KDE 与 Gamescope，保留 SunUEFI 的启动方式和硬件适配，默认安装带 V4L2 修正的 FFmpeg。安装仍通过助手选择 ESP 和 root 镜像。首版默认进入 KDE，游戏模式和游戏兼容性尚未完成实机验证，详见 [SteamOS 构建说明](docs/devel/steamos.md)。
+**SteamOS ARM64（实验版）**：使用 Valve ARM64 根系统、Steam 客户端、KDE 与 Gamescope，默认进入游戏模式，可以切换桌面模式。预装 ARM64 Proton／FEX、DXVK 和 vkd3d-proton，Milthm 与原神已运行；原神需单独设置 FEX 参数。安装仍通过助手选择 ESP 和 root 镜像，详见 [SteamOS 构建说明](docs/devel/steamos.md)。
 
 ## 项目站在哪些项目之上
 
