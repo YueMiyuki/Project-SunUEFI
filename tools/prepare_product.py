@@ -27,7 +27,7 @@ SOURCE_NAMES=(
     'PianoUfsProbe.c','PianoUfsReadOnlyDma.c','PianoUfsDmaLayout.c','PianoGpt.c','PianoReadOnlyBlock.c',
     'PianoUfsProductVolume.c','PianoUfsBoundedLayout.c',
     'PianoFastboot.c','PianoFastbootBlockRead.c','PianoFastbootBoot.c','PianoFastbootLaunch.c','PianoFastbootDownloadBlob.c','PianoRawLinuxBoot.c','PianoPanelSelection.c',
-    'PianoFastbootScreen.c','PianoDwc3Device.c','PianoUsbControl.c','PianoUsbController.c',
+    'PianoFastbootScreen.c','PianoDwc3Device.c','PianoUsbControl.c','PianoUsbController.c','PianoUsbPhy.c',
     'PianoPogoReport.c','PianoPogoInput.c','PianoPogoI2c.c','PianoPogoTransport.c','PianoGeniI2cPio.c','PianoUsbHostPci.c',
 )
 OS_BOOT_SOURCES=('PianoBootFileSource.c','PianoCpuImageLoan.c','PianoLinuxEfiSession.c','PianoCpuInput.c','PianoEspBootSource.c')
@@ -389,6 +389,22 @@ def prepare(root=ROOT):
     shutil.copytree(root/'uefi/components/product-support',target,dirs_exist_ok=True)
     app=target/'Applications/ProductCore';app.mkdir(parents=True)
     for name in SOURCE_NAMES:shutil.copyfile(source/name,app/name)
+    from compose_piano_dtb import read_fdt
+    nodes=read_fdt((root/vendor_inputs.XBL_DTB).read_bytes())['tree']
+    tables=[props['table'] for path,props in nodes.items()
+            if path.endswith('/usb0/ss_phy_cfg') and 'table' in props]
+    if len(tables)!=1 or len(tables[0])%8:raise ValueError('Expected one Piano XBL USB3 PHY table')
+    ss_pairs=[]
+    for address,value in struct.iter_unpack('>II',tables[0]):
+        if address==0 and value==0:break
+        if address<0x88e8000 or address>=0x88eb000 or address%4 or value>255:
+            raise ValueError('XBL USB3 PHY table is outside Piano QMP registers')
+        ss_pairs.append((address-0x88e8000,value))
+    if not ss_pairs:raise ValueError('Empty Piano XBL USB3 PHY table')
+    (app/'PianoUsbPhyConfig.h').write_text(
+        '// Generated from the fixed Piano XBL DTB; no per-device identity.\n'
+        'STATIC CONST struct {UINT32 Offset,Value;} mPianoUsbSsPhy[]={\n'+
+        ''.join(f'  {{0x{offset:x},0x{value:x}}},\n' for offset,value in ss_pairs)+'};\n')
     for path in source.iterdir():
         if path.is_file() and path.suffix in ('.h','.inc'):shutil.copyfile(path,app/path.name)
     shutil.copytree(source/'Protocol',app/'Protocol')

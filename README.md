@@ -124,7 +124,7 @@ SunUEFI 运行时在后台提供一个 USB Fastboot 服务，设备名为 `SunUE
 | UEFI Fastboot（本项目） | SunUEFI 运行期间 | 日志、截图、只读读取、请求启动；不支持刷写和擦除 |
 | Linux 的 USB 网络 / SSH | Linux 启动之后 | 普通的 Linux 远程登录与调试 |
 
-交接给 Linux 时 UEFI Fastboot 就会退出。从冷启动的合体 BOOT 进入时，USB 初始化曾经超时，所有后台场景也还没有走通，所以现在不能依赖它。命令见 [UEFI Fastboot](docs/user/fastboot.md)。
+服务在菜单、固件设置和 Shell 中保持连接，启动 Linux 或重启前安全退出。命令见 [UEFI Fastboot](docs/user/fastboot.md)。
 
 ### 同一个核心
 
@@ -157,13 +157,13 @@ SunUEFI 运行时在后台提供一个 USB Fastboot 服务，设备名为 `SunUE
 | 默认省电设置 | 2 分钟熄屏，电池 5 分钟、外接电源 10 分钟自动挂起 |
 | 启动画面 | UEFI 硬件初始化进度及 Linux 启动提示 |
 | 默认桌面 | 中文界面、拼音输入法、Chromium 浏览器，GNOME 动画开启 |
+| UEFI Fastboot | 菜单、固件设置和 Shell 中常驻，支持日志、截图和只读读取分区 |
 
 ### 可以使用，但有问题
 
 | 功能 | 能做到什么 | 现存问题 |
 | --- | --- | --- |
 | UEFI 菜单 / 固件设置 | 中文菜单与放大的 TianoCore 设置页面，支持音量键移动、电源键确认和双音量键返回 | UEFI 阶段触屏和键盘尚未接通 |
-| UEFI Fastboot | 日志、截图、只读读取 | 冷启动 USB 初始化曾超时，部分后台场景未走通 |
 | 闪光灯 / RGB 灯 / 红外 | 闪光灯的标准 LED 接口已注册；RGB 灯接口已出现 | 闪光灯实际发光未观察；红外发射未验证 |
 
 ### 尚未完成

@@ -9,7 +9,7 @@
 
 ## UEFI 菜单与 USB
 
-UEFI 菜单白屏已修复，SimpleInit 和 TianoCore 设置页面可以显示。设置页面的字号和输入仍在改善；合体 BOOT 冷启动进入 UEFI 时，USB 调试接口仍可能无法连接。
+SimpleInit 和 TianoCore 设置页面可以显示，支持实体按键导航；触屏和磁吸键盘输入仍在接入。UEFI Fastboot 在菜单、固件设置和 Shell 中常驻。
 
 如果电脑能识别 UEFI 设备，可以查询固件：
 

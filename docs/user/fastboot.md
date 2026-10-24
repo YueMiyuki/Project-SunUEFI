@@ -12,7 +12,7 @@ SunUEFI 运行期间在后台提供一个 USB Fastboot 服务，用来调试和�
 
 下面所有命令都带 `-s SunUEFI-piano`，确保操作的是 UEFI 服务而不是原厂 Bootloader。
 
-> 目前，从冷启动的合体 BOOT 进入 UEFI 时，USB 初始化曾经超时，服务不一定出现。这条路径还在修。
+服务在 UEFI 菜单、固件设置和 Shell 中保持连接，切换页面不会退出。正常开机进入 UEFI 和临时 Fastboot 启动使用同一套 USB 初始化。
 
 ## 状态
 
@@ -49,8 +49,8 @@ fastboot -s SunUEFI-piano fetch 分区名 文件
 | --- | --- |
 | `oem boot-stable` | 读取 ESP 中的 `\EFI\Piano\stable\boot.img` 并启动 Linux |
 | `oem setup` / `oem shell` / `oem simpleinit` | 切换到 UEFI 设置、Shell 或 SimpleInit 菜单 |
-| `reboot` | 清理资源后冷重启，回到 Android |
-| `continue` | 同样冷重启，不会继续启动 Linux |
+| `reboot` | 清理资源后重启，沿用已保存的启动路线 |
+| `continue` | 同样重启，不会改变启动选择或直接启动 Linux |
 | `stage 文件` | 下载到内存，上限 64 MiB（目标是 1 GiB） |
 | `oem sha256`、`oem discard` | 对暂存数据计算哈希或丢弃 |
 
@@ -59,4 +59,3 @@ fastboot -s SunUEFI-piano fetch 分区名 文件
 * `flash`、`erase`、`flashing`、槽位切换和未知的 `oem` 命令一律拒绝。
 * `oem log` 不存在，用 `oem ramlog`。
 * `boot 文件` 还不是通用的系统 / EFI 启动入口。
-* 菜单切换命令已接入，但物理屏幕白屏时无法直接确认画面。

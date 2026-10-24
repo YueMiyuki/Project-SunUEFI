@@ -59,6 +59,8 @@ CONST VOID *EFIAPI FdtGetProp(CONST VOID *Fdt,INT32 Node,CONST CHAR8 *Name,INT32
   assert(Fdt==(VOID *)123 && Node==1);if(!strcmp(Name,"reg")){*Bytes=16;return Reg;}assert(!strcmp(Name,"iommus"));*Bytes=12;return Iommu;
 }
 VOID PianoProbeUsbPower(CONST VOID *Fdt){assert(Fdt==(VOID *)123);}
+EFI_STATUS PianoUsbPhyStart(EFI_CLOCK_PROTOCOL *Clock){assert(Clock==&clock);return EFI_SUCCESS;}
+EFI_STATUS PianoUsbPhyStop(VOID){return EFI_SUCCESS;}
 static EFI_STATUS EFIAPI locate_clock(EFI_GUID *Guid,VOID *Registration,VOID **Interface){*Interface=&clock;return EFI_SUCCESS;}
 static EFI_STATUS EFIAPI clock_id(EFI_CLOCK_PROTOCOL *C,CONST CHAR8 *Name,UINTN *Id){assert(C==&clock);*Id=!strcmp(Name,"gcc_usb30_prim_gdsc")?100:!strcmp(Name,"gcc_usb3_phy_gdsc")?101:next_clock++;return EFI_SUCCESS;}
 static EFI_STATUS EFIAPI clock_enable(EFI_CLOCK_PROTOCOL *C,UINTN Id){assert(C==&clock);if(Id==100)domain=TRUE;else if(Id==101){assert(domain);phy_domain=TRUE;}else {assert(Id<PIANO_USB_CLOCK_COUNT && domain && phy_domain);held|=1U<<Id;}return EFI_SUCCESS;}
@@ -361,6 +363,7 @@ static UINTN reset_elapsed,reset_sync,reset_case;
 static VOID reset_tick(UINTN Us){
   if(Us==50000){reset_sync+=Us;return;}
   if(Us!=20000 || !(regs[0xC704/4]&BIT30))return;
+  assert(!(regs[0xC200/4]&(BIT6|BIT8)) && !(regs[0xC2C0/4]&BIT17));
   reset_elapsed+=Us;
   if(reset_case<=2 && reset_elapsed>=150000)regs[0xC704/4]&=~BIT30;
   if(reset_case==4 && reset_elapsed==200000){ran=TRUE;failed_halt=TRUE;}
@@ -392,9 +395,10 @@ static VOID run_reset(UINTN Test){
   EFI_STATUS S=PianoUsbControllerServiceStart((VOID *)123,&C);
   if(Test<=2){
     assert(S==EFI_SUCCESS && mService.State.Started && allocations==10 && reset_elapsed==160000);
-    assert(reset_sync==(Test==0?0:50000) && regs[0xC200/4]==0x00102500 && regs[0xC2C0/4]==0x030c1002);
+    assert(reset_sync==(Test==0?0:50000) && regs[0xC200/4]==0x00102400 && regs[0xC2C0/4]==0x030c1002);
     assert(PianoDwc3GetStartupFailureEvidence(&E)==EFI_NOT_READY);
     PIANO_USB_SERVICE_RETIRE_REPORT R;assert(PianoUsbControllerServiceStop(EFI_SUCCESS,&R)==EFI_SUCCESS && R.Clean && R.DmaBuffersFreed==9);
+    assert(regs[0xC200/4]==0x00102500 && regs[0xC2C0/4]==0x030c1002);
   }else if(Test==3||Test==9){
     assert(S==EFI_TIMEOUT && reset_elapsed==200000 && !reset_sync && allocations==1 && !mPersistent.Started && !mService.DmaBuffersAllocated);
     assert(PianoDwc3GetStartupFailureEvidence(&E)==EFI_SUCCESS && E.CsftrstTimeoutPreDma && E.ServiceNeverStarted && E.DeviceHalted && E.DmaFreed);

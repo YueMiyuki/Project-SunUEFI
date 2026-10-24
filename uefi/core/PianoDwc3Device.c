@@ -807,8 +807,8 @@ STATIC struct {
   PIANO_OWNED_SMMU *Context;PIANO_DMA_DEVICE *Device;PIANO_DWC3_SERVICE_CONFIG Config;
   PIANO_DWC3_SERVICE_STATUS State;
   UINT32 Events[SERVICE_EVENTS];UINTN Head,Count;
-  UINT32 OldGctl,OldDcfg,OldSize,OldLow,OldHigh,OldSessionHs,OldSessionSs;
-  BOOLEAN SessionSet,Uncertain;
+  UINT32 OldGctl,OldDcfg,OldSize,OldLow,OldHigh,OldSessionHs,OldSessionSs,OldGusb2,OldPipe;
+  BOOLEAN SessionSet,Uncertain,PhyAwake;
   BOOLEAN CsftrstTimeoutPreDma,EverStarted,CleanupCompleted,RegistersProgrammed,ResetOnlyRetired;
   UINT32 OldEventCount,OldEventsEnabled,OldEndpointsEnabled;
   EFI_STATUS StartStatus,CleanupStatus;
@@ -909,6 +909,14 @@ STATIC EFI_STATUS ServiceReset(BOOLEAN *CsftrstTimeout) {
   mService.ResetDiagnostic.Pipe=Dr(0xC2C0);mService.ResetDiagnostic.Status=EFI_NOT_READY;
   DEBUG((DEBUG_WARN,"SUNUEFI_USB_SERVICE_RESET phase=begin gsnpsid=%08x ver_number=%08x ver_type=%08x limit_us=%lu sync_us=%lu dctl=%08x gusb2=%08x pipe=%08x\n",
     Id,Revision,Type,(UINT64)Limit,(UINT64)Sync,Dr(0xC704),Dr(0xC200),Dr(0xC2C0)));
+  // ABL's USB shutdown can leave ENBLSLPM set even with RUN_STOP clear.
+  // Wake both core/PHY interfaces before CSFTRST: reset needs their clocks.
+  // This mirrors DWC3 PHY interface setup, not a reset of the calibrated PHY.
+  mService.OldGusb2=Dr(0xC200);mService.OldPipe=Dr(0xC2C0);mService.PhyAwake=TRUE;
+  Dw(0xC200,mService.OldGusb2&~(BIT6|BIT8));
+  Dw(0xC2C0,mService.OldPipe&~BIT17);
+  if(Dr(0xC200)!=(mService.OldGusb2&~(BIT6|BIT8)) || Dr(0xC2C0)!=(mService.OldPipe&~BIT17))return EFI_DEVICE_ERROR;
+  EFI_STATUS Awake=gBS->Stall(1000);if(Awake!=EFI_SUCCESS)return EFI_ERROR(Awake)?Awake:EFI_DEVICE_ERROR;
   Dw(0xC704,(Dr(0xC704)&~(BIT31|(0xfU<<5)))|BIT30);
   for(;;) {
     if(mService.State.ServicesLost)return EFI_ABORTED;
@@ -1080,6 +1088,12 @@ EFI_STATUS PianoDwc3ServiceStop(EFI_STATUS Reason) {
     if(!Ss||!Hs){Status=Cleanup=EFI_DEVICE_ERROR;mService.Uncertain=TRUE;}
   }
   UINTN Retained=0,Freed=0;
+  if(mService.PhyAwake) {
+    Dw(0xC2C0,mService.OldPipe);Dw(0xC200,mService.OldGusb2);
+    if(!ServiceRestoreReadback(0xC2C0,mService.OldPipe) || !ServiceRestoreReadback(0xC200,mService.OldGusb2)) {
+      Status=Cleanup=EFI_DEVICE_ERROR;mService.Uncertain=TRUE;
+    }else mService.PhyAwake=FALSE;
+  }
   for(UINTN I=0;I<ARRAY_SIZE(mServiceBuffers);++I) {
     PIANO_DMA_BUFFER *B=mServiceBuffers[I];
     if(B->Active){S=PianoDmaComplete(B,EFI_SUCCESS,TRUE);if(S!=EFI_SUCCESS){B->Quarantined=TRUE;mService.Uncertain=TRUE;Status=Cleanup=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}}

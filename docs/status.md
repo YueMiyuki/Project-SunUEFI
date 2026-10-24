@@ -31,7 +31,7 @@
 | 显示 | 合体 BOOT 进入 UEFI 后可显示菜单；延后原厂 ClockDxe 的 CESTA/media 和 DCD 启动初始化，保留继承的显示状态。见[显示定位](devel/uefi-display-checkpoints.md) |
 | 菜单 / Setup / Shell | SimpleInit 菜单、TianoCore 中文设置页面与四倍字号可用；音量键移动、电源键确认、双音量键返回可用，见[设置页面](devel/uefi-console.md)；Shell 尚未完成实机验证 |
 | 触屏、键盘、USB Host | UEFI 阶段没有完成，不使用 Linux 的结果代替 |
-| UEFI Fastboot | 已实现：`oem status`、`oem ramlog`、`oem screenshot`、只读 `fetch`、`stage`（≤64 MiB）、`oem boot-stable`、`reboot`。拒绝 `flash`/`erase`。冷启动合体 BOOT 进入时 USB 初始化曾超时；完整命令见[UEFI Fastboot](user/fastboot.md) |
+| UEFI Fastboot | 在菜单、固件设置和 Shell 中常驻，正常 BOOT 进入时可连接；提供日志、截图、只读 `fetch`、`stage`（≤64 MiB）、`oem boot-stable` 和重启。拒绝 `flash`/`erase`；完整命令见[UEFI Fastboot](user/fastboot.md) |
 | EFI 变量 | 保存在内存，没有持久存储 |
 | 任意 `.img` / `.efi` 启动 | 没有完成，目前只启动 ESP 中的 Linux |
 

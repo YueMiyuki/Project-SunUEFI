@@ -2,6 +2,7 @@
 // Retained DWC3 controller state and USB0 owned DMA context, isolated from UFS.
 #include "PianoOwnedSmmu.h"
 #include "PianoUsbService.h"
+#include "PianoUsbPhy.h"
 #include <Protocol/EFIClock.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
@@ -324,6 +325,10 @@ STATIC EFI_STATUS RunController(CONST VOID *Fdt,BOOLEAN Deferred,BOOLEAN *Reboot
     MmioRead32(0x88E303C),MmioRead32(0x88E3054),MmioRead32(0x88E3064),MmioRead32(0x88E8008)));
   Status=UsbHalt();DEBUG((DEBUG_WARN,"SUNUEFI_USB_HALTED %r dsts=%08x\n",Status,UsbRead(0xC70C)));
   if(EFI_ERROR(Status)){SafeToDisable=FALSE;goto Exit;}
+  Status=PianoUsbPhyStart(Clock);
+  DEBUG((DEBUG_WARN,"SUNUEFI_USB_PHY_START %r\n",Status));
+  if(Status!=EFI_SUCCESS)goto Exit;
+  PianoProbeUsbPower(Fdt);
   mUsbDevice=(PIANO_DMA_DEVICE){.Name="usb",.StreamId=0x40,.AddressBits=32,.CacheLine=64};
   Status=PianoOwnedSmmuOpenUsb(Fdt,&mUsbContext,&mUsbDevice);
 #if PIANO_USB_SERVICE
@@ -488,6 +493,8 @@ Exit:
     DEBUG((DEBUG_WARN,"SUNUEFI_USB_CONTROLLER_RETAINED status=%r release_suppressed=1 clocks_held=%u domain_held=%u reboot_cancelled=%u\n",
       Status,(UINT32)Held,DomainHeld,RebootRequested));return Status;
   }
+  EFI_STATUS PhyStop=PianoUsbPhyStop();
+  if(PhyStop!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;return PhyStop;}
   while(Held) {
     --Held;EFI_STATUS Release=Clock->DisableClock(Clock,Ids[Held]);
     DEBUG((DEBUG_WARN,"SUNUEFI_USB_CLOCK_RELEASE %a %r\n",Names[Held],Release));
@@ -720,6 +727,9 @@ EFI_STATUS PianoUsbControllerServiceStop(EFI_STATUS Reason,PIANO_USB_SERVICE_RET
 #endif
   S=RemoveShutdown();if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;return Report->Status=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}
   if(mPersistent.ExitEvent!=NULL){S=gBS->CloseEvent(mPersistent.ExitEvent);if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;return Report->Status=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}mPersistent.ExitEvent=NULL;}
+  S=PianoUsbPhyStop();
+  DEBUG((DEBUG_WARN,"SUNUEFI_USB_PHY_STOP %r\n",S));
+  if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;return Report->Status=S;}
   while(mPersistent.Held) {
     UINTN Index=--mPersistent.Held;S=mPersistent.Clock->DisableClock(mPersistent.Clock,mPersistent.Ids[Index]);
     if(S!=EFI_SUCCESS){mUsbCleanupBlocked=TRUE;Report->Retained=TRUE;Report->Status=EFI_ERROR(S)?S:EFI_DEVICE_ERROR;}

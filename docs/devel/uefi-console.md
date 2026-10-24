@@ -27,8 +27,7 @@ SimpleInit 提供触摸尺寸的图形菜单；TianoCore 设置页面使用 UEFI
 2026-10-12，正式产品经合体 BOOT 进入设置页面，实机确认四倍字号、
 常用菜单中文、音量键移动、电源键确认与双音量键返回均可使用。
 此前使用同一缩放代码与生成字形导出 3200×2136 预览，检查了宽字符与英文混排。
-本次电脑未识别到 UEFI USB 接口，尚未取得设置应用的 Fastboot 截图；
-拔插数据线后仍未枚举，继续对照返回 SimpleInit 菜单后的连接状态。
+2026-10-25，正常开机进入 UEFI 后 USB 可连接，并完成菜单、设置和 Shell 之间的切换；Fastboot 全程保留。
 触屏、磁吸键盘及触控板的 UEFI 驱动尚未完成，Linux 下可用不等于 UEFI 下可用。
 
 ## 启动项与横屏
@@ -66,17 +65,15 @@ FAT 驱动返回 Unsupported，不发布 SimpleFileSystem。
 该修正已完成正式产品编译，并从菜单成功启动 Linux，GNOME 正常运行。
 标准 BIOS 启动列表的实际显示仍需单独确认。
 
-## USB 复位对照
+## USB 复位与供电
 
-冷启动实机记录 DWC31 2.00a 的 `DCTL.CSFTRST` 持续置位，等待 200 ms 后超时。
-服务 DMA 缓冲区尚未分配，回滚成功。对照原厂配置，在复位前禁用时钟门控、
-清除 USB2 的 SUSPHY／ENBLSLPM 后仍超时；原值在回滚时恢复，该无效改动已撤回。
-USB 根因仍未解决，不将菜单可操作或 Linux 文件发现修正当作 Fastboot 可用。
+此前正常 BOOT 进入 UEFI 时，ABL 已关闭 PHY，DWC31 2.00a 的 `DCTL.CSFTRST` 持续置位，200 ms 后超时；只开控制器时钟或清除 SUSPHY／ENBLSLPM 不能恢复。
 
-对照 SM8750 原厂配置后，初始化与退出流程已补齐 USB2／USB3 的 TCSR 参考时钟
-和独立 USB3 PHY 电源域；实机仍有复位超时。接下来需要核对 M31 eUSB2 PHY、
-外部 repeater 的供电与复位状态。`mu_wide_platforms` 的 Piano 平台采用原厂
-UsbInit／UsbConfig／Usbfn 驱动，可用于对照，不能直接把其 USB 可用结论套用到本项目。
+`PianoUsbPhy.c` 按同机 `mu_wide_platforms` 的 UsbConfigDxe 和原厂 XBL 表初始化 M31／QMP PHY，并通过原厂 RPMh 协议申请 `ldod2`、`ldog3`、`ldof1`、`ldob5`、`ldob15` 供电。中继器原先虽有使能位，但 `FD08=00`，缺少实际供电；补齐后正常 BOOT 可枚举，`CSFTRST` 在 20 ms 内完成。
+
+PHY 是 8 位寄存器，32 位读取会复制字节，例如写入 `1` 返回 `0x01010101`。退出时按有效位校验，不能把这种正常读回误报为失败。设备核心先停止 DMA、释放缓冲并撤销 SMMU，再停 PHY、恢复 RPMh 原投票和归还时钟；任何一步无法确认完成仍拒绝交接。
+
+本轮已从合体 BOOT 读取身份、日志及 3200×2136 截图，切换设置、Shell 后连接保留；Fastboot 重启后重新枚举，并成功启动原有 Linux。Linux 保留日志记录 PHY 停止、15 项供电恢复、UFS／USB 资源退出全部成功。
 
 正常文件读取不再逐块写入默认 RAM 日志：`BLOCKIO_READ` 的成功提交、完成和
 协议内容改为 `DEBUG_VERBOSE`，需要逐次 DMA 记录时可在调试构建中开启。
