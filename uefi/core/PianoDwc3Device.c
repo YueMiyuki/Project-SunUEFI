@@ -438,7 +438,13 @@ STATIC EFI_STATUS FinishConfiguration(VOID) {
 }
 STATIC EFI_STATUS BulkComplete(UINT8 Ep,UINT8 EventStatus) {
   if(!mPending[Ep])return mEnding[Ep] || !mBulkLive?EFI_SUCCESS:EFI_COMPROMISED_DATA;
-  EFI_STATUS S=CompleteEventDma(&mTrbs[Ep]);if(EFI_ERROR(S))return S;
+  // A queued completion may precede END/reset and refer to the old TRB.
+  // Inspect the current TRB without transferring DMA ownership to the CPU.
+  EFI_STATUS S=PianoDmaSyncForCpuQuiet(&mTrbs[Ep]);if(EFI_ERROR(S))return S;
+  if(((DWC_TRB *)mTrbs[Ep].Cpu)->Control&1){
+    DEBUG((DEBUG_WARN,"SUNUEFI_USB_STALE_COMPLETE ep=%u hwo=1 dma_retained=1\n",Ep));return EFI_SUCCESS;
+  }
+  S=CompleteEventDma(&mTrbs[Ep]);if(EFI_ERROR(S))return S;
   S=CompleteEventDma(mPayload[Ep]);if(EFI_ERROR(S))return S;
   DWC_TRB *T=mTrbs[Ep].Cpu;UINT32 Residual=T->Size&0xFFFFFF,Status=T->Size>>28;
   mPending[Ep]=FALSE;mPayload[Ep]=NULL;
@@ -485,8 +491,13 @@ STATIC EFI_STATUS BulkEnded(UINT8 Ep,UINT32 E) {
 }
 #endif
 STATIC EFI_STATUS Complete(UINT8 Ep) {
-  if(Ep>1 || !mPending[Ep])return EFI_COMPROMISED_DATA;
-  EFI_STATUS Dma=CompleteEventDma(&mTrbs[Ep]);if(EFI_ERROR(Dma))return Dma;
+  if(Ep>1)return EFI_INVALID_PARAMETER;
+  if(!mPending[Ep])return EFI_SUCCESS; // Completion queued before reset/END.
+  EFI_STATUS Dma=PianoDmaSyncForCpuQuiet(&mTrbs[Ep]);if(EFI_ERROR(Dma))return Dma;
+  if(((DWC_TRB *)mTrbs[Ep].Cpu)->Control&1){
+    DEBUG((DEBUG_WARN,"SUNUEFI_USB_STALE_COMPLETE ep=%u phase=%u hwo=1 dma_retained=1\n",Ep,mPhase));return EFI_SUCCESS;
+  }
+  Dma=CompleteEventDma(&mTrbs[Ep]);if(EFI_ERROR(Dma))return Dma;
   Dma=CompleteEventDma(mPayload[Ep]);if(EFI_ERROR(Dma))return Dma;
   DWC_TRB *T=mTrbs[Ep].Cpu;
   UINT32 Residual=T->Size&0xFFFFFF,Status=T->Size>>28;

@@ -359,6 +359,23 @@ static VOID run_idle_activity(VOID){
   PIANO_USB_SERVICE_RETIRE_REPORT R;assert(PianoUsbControllerServiceStop(EFI_SUCCESS,&R)==EFI_SUCCESS&&R.Clean);
   assert(PianoUsbControllerServiceGetStatus(&S)==EFI_SUCCESS&&!S.BulkActive);free_cold_model();
 }
+static VOID run_stale_completion(VOID){
+  setup_model();stall_hook=NULL;current_tpl=TPL_APPLICATION;scenario=0;fake_now=0;
+  bs.RaiseTPL=raise_tpl;bs.RestoreTPL=restore_tpl;bs.CreateEvent=create_event;bs.CreateEventEx=create_event_ex;bs.SetTimer=set_timer;bs.CloseEvent=close_event;
+  clock.DisableClock=clock.DisableClockPowerDomain=persistent_disable;
+  PIANO_DWC3_SERVICE_CONFIG C={.Context=(VOID *)0x55,.NowUs=now_us};
+  assert(PianoUsbControllerServiceStart((VOID *)123,&C)==EFI_SUCCESS);
+  UINTN Completed=completions;
+  service_event(0xC040); // Observed stale SETUP completion: new TRB still HWO.
+  assert(completions==Completed && mPending[0] && mTrbs[0].Active && mSetup.Active && mPhase==0);
+  service_enumerate();Completed=completions;
+  service_event(0xC044); // Same ownership rule for a reset-era bulk event.
+  assert(completions==Completed && mPending[2] && mTrbs[2].Active && mBulkRx.Active);
+  assert(mService.State.Phase==PianoUsbServiceListening && !mService.State.Retained);
+  service_out("getvar:version");service_ack();
+  PIANO_USB_SERVICE_RETIRE_REPORT R;assert(PianoUsbControllerServiceStop(EFI_SUCCESS,&R)==EFI_SUCCESS && R.Clean);
+  free_cold_model();
+}
 static UINTN reset_elapsed,reset_sync,reset_case;
 static VOID reset_tick(UINTN Us){
   if(Us==50000){reset_sync+=Us;return;}
@@ -504,6 +521,7 @@ int USB_SERVICE_TEST_MAIN(void) {
 #if PIANO_USB_SERVICE
   for(UINTN I=0;I<15;++I){pid_t P=fork();assert(P>=0);if(!P){run_reset(I);_exit(0);}int S;assert(waitpid(P,&S,0)==P);if(!WIFEXITED(S)||WEXITSTATUS(S))return 1;}
   {pid_t P=fork();assert(P>=0);if(!P){run_idle_activity();_exit(0);}int S;assert(waitpid(P,&S,0)==P);if(!WIFEXITED(S)||WEXITSTATUS(S))return 1;}
+  {pid_t P=fork();assert(P>=0);if(!P){run_stale_completion();_exit(0);}int S;assert(waitpid(P,&S,0)==P);if(!WIFEXITED(S)||WEXITSTATUS(S))return 1;}
   for(UINTN I=0;I<21;++I){pid_t P=fork();assert(P>=0);if(P==0){run_service(I);_exit(0);}int Status;assert(waitpid(P,&Status,0)==P);if(!WIFEXITED(Status) || WEXITSTATUS(Status)){fprintf(stderr,"USB persistent service case %llu failed\n",(unsigned long long)I);return 1;}}
   for(UINTN I=0;I<11;++I){pid_t P=fork();assert(P>=0);if(P==0){run_navigation(I);_exit(0);}int Status;assert(waitpid(P,&Status,0)==P);if(!WIFEXITED(Status) || WEXITSTATUS(Status)){fprintf(stderr,"USB product navigation case %llu failed\n",(unsigned long long)I);return 1;}}
   for(UINTN I=0;I<8;++I){pid_t P=fork();assert(P>=0);if(P==0){run_ramlog(I);_exit(0);}int Status;assert(waitpid(P,&Status,0)==P);if(!WIFEXITED(Status) || WEXITSTATUS(Status)){fprintf(stderr,"USB before-ramlog case %llu failed\n",(unsigned long long)I);return 1;}}
