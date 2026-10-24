@@ -178,9 +178,20 @@ EFI_STATUS PianoProductBootLogStage(CONST CHAR8 *Name,EFI_STATUS Status,UINT64 E
   if(!Name)return EFI_INVALID_PARAMETER;
   if(!mCanvas.Gop||!mCanvas.Alive)return EFI_NOT_STARTED;
   if(mCanvas.Fault!=EFI_SUCCESS)return mCanvas.Fault;
+  CONST CHAR8 *Label=State(Status);
   UINT32 Row=0;while(Row<ARRAY_SIZE(mNames)&&!Equal(Name,mNames[Row]))++Row;
+  // Reuse the UFS row for a precise failure phase; do not add screen clutter.
+  STATIC CONST struct {CONST CHAR8 *Name,*Label;} UfsFailures[]={
+    {"UFS LINK","LINK FAILED"},{"UFS SMMU","SMMU FAILED"},
+    {"UFS DMA","DMA FAILED"},{"UFS NOP","NOP FAILED"},
+    {"UFS QUERY","QUERY FAILED"},{"UFS CAPACITY","CAPACITY FAIL"},
+    {"UFS GPT","GPT FAILED"},{"UFS BLOCKIO","BLOCKIO FAIL"},
+    {"UFS VOLUME","VOLUME FAIL"}};
+  if(Row==ARRAY_SIZE(mNames))for(UINTN I=0;I<ARRAY_SIZE(UfsFailures);++I) {
+    if(Equal(Name,UfsFailures[I].Name)){Row=4;Label=UfsFailures[I].Label;break;}
+  }
   if(Row==ARRAY_SIZE(mNames))return EFI_INVALID_PARAMETER;
   CHAR8 Elapsed[24],Code[19];Decimal(ElapsedMs,Elapsed);Hex(Status,Code);
-  return DrawRow(Row,State(Status),Elapsed,
+  return DrawRow(Row,Label,Elapsed,
     Status==EFI_SUCCESS||Status==EFI_NOT_STARTED?"--":Code);
 }

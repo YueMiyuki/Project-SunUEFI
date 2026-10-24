@@ -37,6 +37,7 @@ STATIC CONST TEST_GLYPH Alphabet[]={
   {'6',{0x3c,0x4a,0x49,0x49,0x30}},{'7',{0x01,0x71,0x09,0x05,0x03}},
   {'8',{0x36,0x49,0x49,0x49,0x36}},{'9',{0x06,0x49,0x49,0x29,0x1e}},
   {'A',{0x7e,0x11,0x11,0x11,0x7e}},{'B',{0x7f,0x49,0x49,0x49,0x36}},
+  {'C',{0x3e,0x41,0x41,0x41,0x22}},{'P',{0x7f,0x09,0x09,0x09,0x06}},
   {'D',{0x7f,0x41,0x41,0x22,0x1c}},{'E',{0x7f,0x49,0x49,0x49,0x41}},
   {'F',{0x7f,0x09,0x09,0x09,0x01}},{'I',{0x00,0x41,0x7f,0x41,0x00}},
   {'K',{0x7f,0x08,0x14,0x22,0x41}},{'L',{0x7f,0x40,0x40,0x40,0x40}},
@@ -86,6 +87,7 @@ int main(int Argc,char **Argv){
   assert(PianoProductBootLogStage("SMEM",EFI_NOT_READY,412)==EFI_SUCCESS);ExpectText(2,9,"NOT READY");ExpectText(2,23,"412 MS");ExpectCode(2,"412 MS","0X8000000000000006");
   assert(PianoProductBootLogStage("INPUT",EFI_NOT_STARTED,500)==EFI_SUCCESS);ExpectText(3,9,"WAIT");ExpectCode(3,"500 MS","--");
   assert(PianoProductBootLogStage("UFS",EFI_UNSUPPORTED,600)==EFI_SUCCESS);ExpectText(4,9,"UNAVAILABLE");ExpectCode(4,"600 MS","0X8000000000000003");
+  assert(PianoProductBootLogStage("UFS CAPACITY",EFI_DEVICE_ERROR,528)==EFI_SUCCESS);ExpectText(4,9,"CAPACITY FAIL");ExpectCode(4,"528 MS","0X8000000000000007");
   assert(PianoProductBootLogStage("USB",EFI_DEVICE_ERROR,710)==EFI_SUCCESS);ExpectText(5,9,"FAILED");ExpectCode(5,"710 MS","0X8000000000000007");
   assert(PianoProductBootLogStage("MENU",EFI_WARN_UNKNOWN_GLYPH,725)==EFI_SUCCESS);ExpectText(6,9,"FAILED");ExpectCode(6,"725 MS","0X0000000000000001");
   UINT32 Previous=Calls;assert(PianoProductBootLogStage("not-a-stage",EFI_SUCCESS,1)==EFI_INVALID_PARAMETER&&Calls==Previous);
@@ -93,7 +95,7 @@ int main(int Argc,char **Argv){
   if(Argc==2){
     assert(PianoProductBootLogStage("PAYLOAD",EFI_SUCCESS,18)==EFI_SUCCESS);
     assert(PianoProductBootLogStage("INPUT",EFI_SUCCESS,426)==EFI_SUCCESS);
-    assert(PianoProductBootLogStage("UFS",EFI_SUCCESS,967)==EFI_SUCCESS);
+    assert(PianoProductBootLogStage("UFS CAPACITY",EFI_DEVICE_ERROR,528)==EFI_SUCCESS);
     assert(PianoProductBootLogStage("USB",EFI_SUCCESS,1132)==EFI_SUCCESS);
     assert(PianoProductBootLogStage("MENU",EFI_NOT_STARTED,1140)==EFI_SUCCESS);Preview(Argv[1]);
   }

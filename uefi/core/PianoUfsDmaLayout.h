@@ -18,6 +18,8 @@ EFI_STATUS PianoUfsBuildReadCommand(VOID *Utrd,UINTN UtrdBytes,VOID *Ucd,UINTN U
                                   UINT64 UcdIova,UINT64 DataIova,UINT32 DataBytes,
                                   UINT8 Tag,UINT8 Lun,PIANO_UFS_READ_COMMAND Command,UINT32 Lba,UINT16 Blocks);
 EFI_STATUS PianoUfsCheckReadResponse(CONST VOID *Utrd,CONST VOID *Ucd,UINT8 Tag,UINT32 Requested,UINT32 *Transferred);
+// Completed, identity-matched read commands only. Never retry a transport error.
+BOOLEAN PianoUfsReadRetryable(CONST VOID *Utrd,CONST VOID *Ucd,UINT8 Tag,UINT8 Lun,UINT32 Requested);
 EFI_STATUS PianoUfsParseCacheMode(CONST VOID *Data,UINTN Bytes,BOOLEAN *WriteProtected,BOOLEAN *Fua,BOOLEAN *WriteCache,BOOLEAN *ReadCacheDisabled);
 EFI_STATUS PianoUfsBuildReadWriteProtectFlag(VOID *Utrd,UINTN UtrdBytes,VOID *Ucd,UINTN UcdBytes,UINT64 UcdIova,UINT8 Tag,UINT8 Idn);
 EFI_STATUS PianoUfsParseLuns(CONST VOID *Data,UINTN Bytes,UINT8 Luns[8],UINTN *Count);

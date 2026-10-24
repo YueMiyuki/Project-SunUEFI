@@ -51,6 +51,17 @@ int main(void){
   assert(PianoUfsCheckReadResponse(trd,ucd,11,4096,&transferred)==EFI_SUCCESS && transferred==96);
   r[1]=0;assert(PianoUfsCheckReadResponse(trd,ucd,11,4096,&transferred)==EFI_COMPROMISED_DATA);
   r[7]=2;assert(PianoUfsCheckReadResponse(trd,ucd,11,4096,&transferred)==EFI_DEVICE_ERROR);
+  r[2]=0;Be32(r+12,0);Be16(r+10,20);Be16(r+32,18);r[34]=0x70;r[36]=6;r[46]=0x29;
+  assert(PianoUfsReadRetryable(trd,ucd,11,0,4096));
+  assert(!PianoUfsReadRetryable(trd,ucd,12,0,4096));
+  assert(!PianoUfsReadRetryable(trd,ucd,11,1,4096));
+  Le32(trd+8,1);assert(!PianoUfsReadRetryable(trd,ucd,11,0,4096));Le32(trd+8,0);
+  r[36]=3;assert(!PianoUfsReadRetryable(trd,ucd,11,0,4096));
+  r[36]=2;r[46]=4;r[47]=1;assert(PianoUfsReadRetryable(trd,ucd,11,0,4096));
+  r[47]=2;assert(!PianoUfsReadRetryable(trd,ucd,11,0,4096));
+  Be16(r+32,30);assert(!PianoUfsReadRetryable(trd,ucd,11,0,4096));
+  Be16(r+10,10);Be16(r+32,8);r[34]=0x72;r[35]=6;
+  assert(PianoUfsReadRetryable(trd,ucd,11,0,4096));
   UINT8 data[4096],luns[8];UINTN count;ZeroMem(data,sizeof(data));Be32(data,24);
   data[9]=0;data[17]=2;data[24]=0xc1;data[25]=0x81;
   assert(PianoUfsParseLuns(data,sizeof(data),luns,&count)==EFI_SUCCESS && count==2 && luns[1]==2);

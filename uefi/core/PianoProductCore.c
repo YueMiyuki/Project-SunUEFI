@@ -31,6 +31,7 @@ VOID PianoNativeSetObserver(VOID (*Observer)(CONST CHAR8 *,BOOLEAN));
 VOID PianoProbeUfs(CONST VOID *Fdt);
 VOID PianoUfsSetProbeAction(EFI_STATUS (*Action)(CONST VOID *));
 EFI_STATUS PianoUfsReadOnlyDmaExperiment(CONST VOID *Fdt);
+CONST CHAR8 *PianoUfsStartupStage(VOID);
 EFI_STATUS PianoStartKeys(CONST VOID *Fdt);
 STATIC PIANO_PRODUCT_OWNERS mOwners;
 STATIC PIANO_LATE_HANDOFF mLateHandoff;
@@ -285,8 +286,9 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
   ObserveDisplay("after-ufs");
   if(mStartupTarget==1)(VOID)PianoProductDisplayCheckpoint("AFTER UFS",3);
   DEBUG((DEBUG_WARN,"PIANO_PRODUCT_UFS_START attempted=%u status=%r started=%u original_media_readonly=1\n",mUfsAttempted,mUfsStatus,mUfsStarted));
-  if(!mUfsAttempted || !mUfsStarted)FailStop(mUfsStatus);
+  if(!mUfsAttempted || !mUfsStarted){mBootLogStage=PianoUfsStartupStage();FailStop(mUfsStatus);}
   PIANO_UFS_WINDOW_IO ProductStorageIo={0};
+  mBootLogStage="UFS VOLUME";
   Status=PianoUfsProductTransportIo(&mProductVolume,&ProductStorageIo);
   if(Status!=EFI_SUCCESS)FailStop(Status);
   Status=PianoUfsProductVolumeOpen(&mProductVolume,&ProductStorageIo);
@@ -298,6 +300,7 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
     if(Status!=EFI_SUCCESS)FailStop(Status);
     DEBUG((DEBUG_WARN,"PIANO_PRODUCT_STORAGE_FAT_PUBLISHED writable=1 container_headers_excluded=1 nv_slots_private=1\n"));
   } else if(Status!=EFI_NOT_FOUND)FailStop(Status);
+  mBootLogStage="UFS";
   Status=PianoFastbootBlockReadInit();if(Status!=EFI_SUCCESS)FailStop(Status);
   CONST PIANO_FB_STORAGE *Storage=PianoFastbootBlockReadStorage();
   if(Storage==NULL || Storage->Ready(Storage->Context)!=EFI_SUCCESS)FailStop(EFI_NOT_READY);

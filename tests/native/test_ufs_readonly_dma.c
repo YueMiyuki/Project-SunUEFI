@@ -8,11 +8,13 @@
 EFI_BOOT_SERVICES *gBS;EFI_RUNTIME_SERVICES *gRT;
 static EFI_BOOT_SERVICES bs;static UINT8 trl[1024],ucd[1024],data[4096];static UINT32 bell,run,task_run;
 static unsigned begins,completes;static int timeout,bad_ocs;
+static unsigned unit_attentions,read_commands;
 static UINT32 uic_is,uic_result,tx_state=1,mem_config;
 BOOLEAN EFIAPI DebugPrintEnabled(VOID){return FALSE;}
 BOOLEAN EFIAPI DebugPrintLevelEnabled(UINTN Level){return FALSE;}
 VOID EFIAPI DebugPrint(UINTN Level,CONST CHAR8 *Format,...){ }
 VOID *EFIAPI ZeroMem(VOID *P,UINTN N){return memset(P,0,N);}
+INTN EFIAPI AsciiStrCmp(CONST CHAR8 *A,CONST CHAR8 *B){return strcmp(A,B);}
 VOID EFIAPI MemoryFence(VOID){ }
 VOID EFIAPI CpuPause(VOID){ }
 VOID EFIAPI CpuDeadLoop(VOID){assert(!"Unexpected reset fallthrough");}
@@ -46,6 +48,8 @@ UINT32 EFIAPI MmioWrite32(UINTN A,UINT32 Value){
     if(ucd[0]==0x16 && ucd[12]==1){r[12]=1;r[13]=0;r[10]=0;r[11]=0x40;r[32]=0x40;r[33]=0;r[38]=6;r[39]=4;}
     if(ucd[0]==0x16 && ucd[12]==3){r[12]=3;r[13]=2;Be32(r+20,0x33);}
     if(ucd[0]==1) {
+      ++read_commands;
+      if(unit_attentions){--unit_attentions;r[7]=2;Be16(r+10,20);Be16(r+32,18);r[34]=0x70;r[36]=6;r[46]=0x29;bell=0;return Value;}
       if(ucd[16]==0x1b){assert(ucd[2]==0xd0 && ucd[20]==0x10 && ReadLe32(trl+28)==0);}
       else {
         assert(ucd[1]==0x40 && ReadLe32(trl+28)==0x00400001);
@@ -58,7 +62,7 @@ UINT32 EFIAPI MmioWrite32(UINTN A,UINT32 Value){
   }
   return Value;
 }
-static EFI_STATUS EFIAPI stall(UINTN N){assert(N==10 || N==100);return EFI_SUCCESS;}
+static EFI_STATUS EFIAPI stall(UINTN N){assert(N==10 || N==100 || N==10000);return EFI_SUCCESS;}
 int main(void){
   gBS=&bs;bs.Stall=stall;mTrl.Cpu=trl;mTrl.Bytes=sizeof(trl);mTrl.DeviceAddress=0x40000000;
   assert(LinkReady()==EFI_SUCCESS && tx_state==2);
@@ -77,6 +81,11 @@ int main(void){
   assert(ReadScsi("REPORT_LUNS",10,0,PianoUfsReportLuns,0,4096)==EFI_SUCCESS && mTransferred==16);
   assert(begins==before+3 && completes==begins && !mData.Active);
   assert(ReadScsi("CAPACITY",11,0,PianoUfsReadCapacity16,0,32)==EFI_SUCCESS && mTransferred==32);
+  before=read_commands;unit_attentions=1;
+  assert(ReadScsi("CAPACITY",12,0,PianoUfsReadCapacity16,0,32)==EFI_SUCCESS && read_commands==before+2);
+  before=read_commands;unit_attentions=4;
+  assert(ReadScsi("CAPACITY",14,0,PianoUfsReadCapacity16,0,32)==EFI_DEVICE_ERROR && read_commands==before+3);
+  unit_attentions=0;
   bad_ocs=1;PianoUfsBuildNop(trl,1024,ucd,1024,mUcd.DeviceAddress,3);
   assert(Submit("BAD_OCS",3,TRUE)==EFI_DEVICE_ERROR);bad_ocs=0;timeout=1;
   PianoUfsBuildNop(trl,1024,ucd,1024,mUcd.DeviceAddress,4);
