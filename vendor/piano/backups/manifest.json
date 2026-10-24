@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "partition": "persist",
+  "capture_date": "2026-10-25",
+  "filesystem": "ext4",
+  "image": "persist-20261025.img",
+  "bytes": 33554432,
+  "sha256": "f47881ec2cacc08acbedbeb8af0110cdad08cf339644f3b301667896cc7ba5bc",
+  "source_and_host_hash_match": true,
+  "project_files_written_to_persist": false,
+  "product_input": false
+}
