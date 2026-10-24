@@ -17,7 +17,7 @@ import subprocess
 import sys
 import urllib.request
 
-from build_chroot import stop_helpers
+from build_chroot import remove_pacman_sockets, stop_helpers
 
 ROOT = Path(__file__).resolve().parents[1]
 APPS = ('NyarchCustomize', 'NyarchTour', 'NyarchWizard', 'NyarchScript')
@@ -114,6 +114,9 @@ def guest_environment(root):
                         '/etc/pacman.d/gnupg', '--kill', 'all'],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         stop_helpers(root)
+        # PID namespace teardown may SIGKILL a daemon before it unlinks its
+        # sockets. The files can also be inherited from Valve's base image.
+        remove_pacman_sockets(root)
         for path in reversed(mounted):
             # Package hooks may mount devpts/shm below the temporary /dev.
             # Remove children first; do not lazily detach a busy build tree.

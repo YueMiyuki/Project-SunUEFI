@@ -3,8 +3,17 @@ import os
 from pathlib import Path
 import select
 import signal
+import stat
 import sys
 import time
+
+
+def remove_pacman_sockets(root):
+    """Remove dead IPC endpoints, not pacman's keys, trust or package state."""
+    directory = Path(root) / 'etc/pacman.d/gnupg'
+    for path in directory.glob('S.*'):
+        if stat.S_ISSOCK(path.lstat().st_mode):
+            path.unlink()
 
 
 def stop_helpers(root):
