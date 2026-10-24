@@ -34,7 +34,7 @@ static int supers(int fd, uint64_t *count, uint64_t *section) {
         le32(a + 20) != 9 || !le32(a + 24)) { errno = EINVAL; return -1; }
     *count = le64(a + 36);
     *section = UINT64_C(512) * le32(a + 24);
-    if (!*count) { errno = EINVAL; return -1; }
+    if (!*count || *section > *count) { errno = EINVAL; return -1; }
     return 0;
 }
 static int path_block(const char *path, struct stat *st) {
@@ -183,11 +183,12 @@ int main(int argc, char **argv) {
             mapped_bytes == expected_bytes && !grow_pending;
         printf("{\"operation\":\"f2fs-status\",\"read_only\":true,\"mapping_verified\":true,\"mapped\":%s,\"f2fs_block_count\":%" PRIu64
                ",\"userdata_bytes\":%" PRIu64 ",\"mapped_bytes\":%" PRIu64 ",\"f2fs_bytes\":%" PRIu64
-               ",\"section_blocks\":%" PRIu64 ",\"both_superblocks_equal\":true,\"free_blocks\":%" PRIu64
+               ",\"section_blocks\":%" PRIu64 ",\"section_bytes\":%" PRIu64
+               ",\"both_superblocks_equal\":true,\"free_blocks\":%" PRIu64
                ",\"mapping_requires_reboot\":%s,\"grow_pending\":%s,\"expected_bytes\":%" PRIu64
                ",\"expansion_verified\":%s,\"gpt_written\":false}\n",
                direct ? "false" : "true", before, raw_bytes, mapped_bytes, filesystem_bytes,
-               section, (uint64_t)filesystem.f_bfree, mapping_requires_reboot ? "true" : "false",
+               section, section * BLOCK_BYTES, (uint64_t)filesystem.f_bfree, mapping_requires_reboot ? "true" : "false",
                grow_pending ? "true" : "false", expected_bytes, expansion_verified ? "true" : "false");
         close(data); close(mapper); close(raw); return expected_bytes && !expansion_verified ? 3 : 0;
     }

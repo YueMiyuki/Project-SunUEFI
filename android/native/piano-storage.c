@@ -320,6 +320,12 @@ static int sparse_scan(int fd, uint64_t bytes, uint64_t capacity,
        "稀疏镜像总长度或展开长度不一致。");
   return 1;
 }
+static void flash_progress(const char *kind, uint64_t done, uint64_t total) {
+  unsigned base = !strcmp(kind, "esp") ? 5 : 15;
+  unsigned span = !strcmp(kind, "esp") ? 10 : 80;
+  fprintf(stderr, "progress:%s:%" PRIu64 ":%" PRIu64 ":%u\n",
+          kind, done, total, base + (unsigned)(done * span / total));
+}
 static void sparse_stream(int src, int dst, const struct sparse_image *s,
                           const char *kind, unsigned char digest[32]) {
   unsigned char *buf = malloc(4 * MIB), c[12], fill[4];
@@ -382,8 +388,7 @@ static void sparse_stream(int src, int dst, const struct sparse_image *s,
         done += take;
         pos += take;
         if (dst >= 0)
-          fprintf(stderr, "progress:%s:%" PRIu64 ":%" PRIu64 "\n",
-                  kind, done, s->expanded);
+          flash_progress(kind, done, s->expanded);
       }
     }
     at += u32(c + 8);
@@ -1097,8 +1102,7 @@ static void flash(const struct plan *p) {
       io(src[i], buf, n, done, 0);
       io(dst[i], buf, n, done, 1);
       done += n;
-      fprintf(stderr, "progress:%s:%" PRIu64 ":%" PRIu64 "\n", kinds[i], done,
-              info[i].bytes);
+      flash_progress(kinds[i], done, info[i].bytes);
     }
     need(!fsync(dst[i]), "镜像写入同步失败。");
     unsigned char got[32];
@@ -1145,7 +1149,8 @@ int main(int argc, char **argv) {
     userdata_section_bytes = strtoull(argv[argc - 1], &end, 10);
     need(argv[argc - 1][0] >= '0' && argv[argc - 1][0] <= '9' && !*end &&
              !errno && userdata_section_bytes >= 2 * MIB &&
-             userdata_section_bytes % 4096 == 0,
+             userdata_section_bytes <= UINT64_C(512) * UINT32_MAX * 4096 &&
+             userdata_section_bytes % (2 * MIB) == 0,
          "F2FS section 大小无效。");
     argc -= 2;
   }
@@ -1204,13 +1209,13 @@ int main(int argc, char **argv) {
       puts("{\"plan_current\":true}");
     } else if (!strcmp(argv[1], "facts")) {
       need(argc == 3, "无效 facts 参数。");
-      printf("%u %u %u %u %" PRIu64 " %" PRIu64 " %" PRIu64 " %u\n",
+      uint64_t previous_root = p->root_index != UINT32_MAX && p->operation != CREATE
+                                   ? part_bytes(&p->before, p->root_index) : 0;
+      printf("%u %u %u %u %" PRIu64 " %" PRIu64 " %" PRIu64 " %u %u %u\n",
              p->operation, p->esp_index + 1, p->root_index + 1,
              p->userdata_index + 1, p->userdata_bytes, p->root_bytes,
-             p->root_index != UINT32_MAX && p->operation != CREATE
-                 ? part_bytes(&p->before, p->root_index)
-                 : 0,
-             p->before.sector);
+             previous_root, p->before.sector, p->root_gib,
+             p->root_bytes < previous_root);
     } else if (!strcmp(argv[1], "apply")) {
       need(argc == 5 && !strcmp(argv[4], "--execute"),
            "必须显式执行 GPT 操作。");
