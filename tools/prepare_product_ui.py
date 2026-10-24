@@ -255,7 +255,7 @@ hook(SI+'src/boot/bootdef.c', '\tgui_splash_set_text(true,_("Loading UEFI boot o
      '\t\t\t{.mode=BOOT_EXIT,.ident="piano-stable",.desc="启动 Piano Linux（Stable）",.save=false,.replace=true,.show=true,.enabled=true},\n'
      '\t\t\t{.mode=BOOT_EXIT,.ident="piano-setup",.desc="固件设置（BIOS）",.save=false,.replace=true,.show=true,.enabled=true},\n'
      '\t\t\t{.mode=BOOT_EXIT,.ident="piano-shell",.desc="进入 UEFI Shell",.save=false,.replace=true,.show=true,.enabled=true},\n'
-     '\t\t\t{.mode=BOOT_EXIT,.ident="continue",.desc="返回 Android（重启）",.save=false,.replace=true,.show=true,.enabled=true}\n'
+     '\t\t\t{.mode=BOOT_EXIT,.ident="continue",.desc="重启",.save=false,.replace=true,.show=true,.enabled=true}\n'
      '\t\t};\n'
      '\t\tfor(size_t n=0;n<sizeof(entries)/sizeof(entries[0]);n++)boot_create_config(&entries[n],NULL);\n'
      '\t}\n\tgui_splash_set_text(true,_("Loading UEFI boot options..."));')
@@ -267,7 +267,7 @@ hook(SI+'src/gui/interface/core/bootmenu.c', '\t#ifdef ENABLE_UEFI\n\tif(bi->cfg
      '\t\tif(strcmp(bi->cfg.ident,"continue")==0){\n'
      '\t\t\tEFI_STATUS status=PianoProductRequestContinue();\n'
      '\t\t\tif(status==EFI_SUCCESS)gui_run_and_exit(NULL);\n'
-     '\t\t\telse msgbox_alert("未能返回 Android，请稍后重试。");\n'
+     '\t\t\telse msgbox_alert("未能重启，请稍后重试。");\n'
      '\t\t\treturn;\n\t\t}\n'
      '\t\tUINT32 action=strcmp(bi->cfg.ident,"piano-setup")==0?PIANO_PRODUCT_ACTION_SETUP:\n'
      '\t\t\tstrcmp(bi->cfg.ident,"piano-stable")==0?PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE:\n'
@@ -308,12 +308,16 @@ hook(RESET_LIB+'Reset.c', '  if (ShellCommandLineGetFlag (Package, L"-fwui")) {'
 # embedded in Shell, where a compile-time "current=Setup" guess would be wrong.
 MENU_MIGRATIONS=[]
 for menu_path,menu_old,menu_new in HOOKS:
+    prior=menu_new.replace('.desc="重启"', '.desc="返回 Android（重启）"').replace(
+        '未能重启，请稍后重试。', '未能返回 Android，请稍后重试。')
+    if prior!=menu_new:MENU_MIGRATIONS.append((menu_path,prior,menu_new))
+for menu_path,menu_old,menu_new in HOOKS:
     prior=menu_new.replace('\t\t\t{.mode=BOOT_EXIT,.ident="piano-stable",.desc="启动 Piano Linux（Stable）",.save=false,.replace=true,.show=true,.enabled=true},\n','').replace('\t\t\tstrcmp(bi->cfg.ident,"piano-stable")==0?PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE:\n','')
     if prior!=menu_new:MENU_MIGRATIONS.append((menu_path,prior,menu_new))
 for menu_path,menu_old,menu_new in HOOKS:
     prior=menu_new
     if menu_path==SI+'src/boot/bootdef.c' and '.ident="continue"'in prior:
-        prior=prior.replace(',\n\t\t\t{.mode=BOOT_EXIT,.ident="continue",.desc="返回 Android（重启）",.save=false,.replace=true,.show=true,.enabled=true}', '')
+        prior=prior.replace(',\n\t\t\t{.mode=BOOT_EXIT,.ident="continue",.desc="重启",.save=false,.replace=true,.show=true,.enabled=true}', '')
     if menu_path==SI+'src/gui/interface/core/bootmenu.c':
         prior=prior.replace('#include"gui/msgbox.h"\n','')
         begin=prior.find('\t\tif(strcmp(bi->cfg.ident,"continue")==0){\n')

@@ -168,7 +168,7 @@ static VOID EFIAPI ResetSystem(EFI_RESET_TYPE Type,EFI_STATUS Status,UINTN Bytes
 static BOOLEAN PianoProductRebootManaged(VOID){return enabled;}
 static EFI_STATUS PianoProductRequestReboot(VOID){++reboot_requests;if(!enabled)return EFI_UNSUPPORTED;if(request_failure)return EFI_ACCESS_DENIED;pending=TRUE;return EFI_SUCCESS;}
 static EFI_STATUS PianoProductRequestContinue(VOID){++continue_requests;if(!enabled)return EFI_UNSUPPORTED;if(request_failure)return EFI_ACCESS_DENIED;pending=TRUE;return EFI_SUCCESS;}
-static VOID msgbox_alert(CONST char *message,...){assert(!strcmp(message,"未能返回 Android，请稍后重试。"));++message_errors;}
+static VOID msgbox_alert(CONST char *message,...){assert(!strcmp(message,"未能重启，请稍后重试。"));++message_errors;}
 #define MAX_STRING_LEN 100
 #define ERET(e) do{errno=(e);return -1;}while(0)
 enum reboot_cmd{REBOOT_HALT,REBOOT_POWEROFF,REBOOT_RESTART,REBOOT_COLD,REBOOT_WARM,REBOOT_RECOVERY,REBOOT_FASTBOOT,REBOOT_EDL,REBOOT_DATA};
@@ -270,7 +270,7 @@ int main(VOID){
   for(UINTN cmd=0;cmd<=REBOOT_DATA;++cmd)if(cmd!=REBOOT_COLD&&cmd!=REBOOT_RESTART){reset(TRUE);assert(adv_reboot((enum reboot_cmd)cmd,NULL)==-1&&errno==EOPNOTSUPP&&!reboot_requests&&!native_resets);}
   reset(FALSE);allow_native_reset=TRUE;assert(adv_reboot(REBOOT_COLD,NULL)==-1&&native_resets==1&&!reboot_requests);
   reset(TRUE);boot_config boot={.mode=BOOT_REBOOT};assert(run_boot_reboot(&boot)==0&&pending&&reboot_requests==1&&config_saves==1&&!reboot_warnings&&!native_resets);
-  reset(TRUE);boot_init_configs();assert(entry_count==4&&!strcmp(created_entries[0].ident,"piano-stable")&&!strcmp(created_entries[0].desc,"启动 Piano Linux（Stable）")&&!strcmp(created_entries[1].ident,"piano-setup")&&!strcmp(created_entries[2].ident,"piano-shell")&&created_entries[0].show&&created_entries[0].enabled&&!created_entries[0].save&&!strcmp(created_entries[3].ident,"continue")&&!strcmp(created_entries[3].desc,"返回 Android（重启）"));
+  reset(TRUE);boot_init_configs();assert(entry_count==4&&!strcmp(created_entries[0].ident,"piano-stable")&&!strcmp(created_entries[0].desc,"启动 Piano Linux（Stable）")&&!strcmp(created_entries[1].ident,"piano-setup")&&!strcmp(created_entries[2].ident,"piano-shell")&&created_entries[0].show&&created_entries[0].enabled&&!created_entries[0].save&&!strcmp(created_entries[3].ident,"continue")&&!strcmp(created_entries[3].desc,"重启"));
   struct bootmenu_item item={.cfg=created_entries[0]};struct bootmenu bm={.selected=&item};bootmenu_boot(&bm);assert(navigation_action==7&&navigation_requests==1&&gui_exits==1&&!legacy_boots&&!native_resets);
   item.cfg=created_entries[1];bootmenu_boot(&bm);assert(navigation_action==2&&navigation_requests==2&&gui_exits==2&&!legacy_boots&&!native_resets);
   item.cfg=created_entries[2];bootmenu_boot(&bm);assert(navigation_action==3&&navigation_requests==3&&gui_exits==3&&!legacy_boots&&!native_resets);
