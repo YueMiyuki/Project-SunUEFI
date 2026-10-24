@@ -235,7 +235,7 @@ def package(stock, product, output, uefi_request=False):
               'entry_kind': 'stock-gki-early-selector', 'android_header_version': 4,
               'stock_input': {'sha256': digest(source), **original}, 'layout': layout,
               'normal_path': 'inherited-framebuffer 3s picker then direct stock primary_entry; DTB/initrd unchanged; no header writes',
-              'recovery_path': 'original Mi Recovery has priority over NEXT and bypasses the picker',
+              'recovery_path': 'original Mi Recovery ignores saved NEXT and persistent UEFI bootargs; only an explicit early-picker choice overrides it',
               'uefi_entry': 'unique sunuefi.boot=uefi request; never inferred from the stock recovery mode',
               'diagnostic_persistent_request': uefi_request, 'one_shot_request_verified': False,
               'independent_recovery_install_supported': False, 'boot_partition_installed': False,

@@ -8,7 +8,10 @@
 
 普通重启进入持久Linux路线已有实机记录，不再以ABL `fastboot continue`作为必要入口：`private/provisioning/recovery-priority-20261008/deployment.json`记录实际请求、正常重启和Linux结果，同目录`linux-status.txt`保存请求页读回及活动服务。Linux USB网络上线不能证明UEFI USB core或全生命周期fastboot已正常；当前核心仅在USB启动失败且回滚已证实安全时允许继续ESP启动，USB完整初始化仍需单独验证。
 
-此前 Mi Recovery 检查使用target0（无Linux偏好）；**持久NEXT2与`reboot recovery`组合尚未实机验证，等待用户能退出 Mi Recovery 的物理配合**。新选择器已部署：准确、唯一的`bootmonitor.bootmode=recovery`会在读取NEXT请求页前返回未修改的原厂GKI入口，保留ABL提供的DTB/initrd，不清除Linux偏好。普通启动仍读取共享CRC请求；不能把旧target0结果当作新组合已通过。
+此前 Mi Recovery 检查使用 target0（无 Linux 偏好），持久 NEXT2 与
+`reboot recovery` 的组合没有由这次历史记录证明。当前选择器在读取
+NEXT 请求页前处理原厂 Recovery：默认交还原厂 GKI，保留 ABL 的 DTB／initrd
+和普通开机偏好；只有早期窗口中的主动按键选择才能改为进入 UEFI。
 
 标识依据是`private/provisioning/recovery-product-20261007/console-after-restore.txt:8`恢复内核命令行，以及`private/analysis/recovery-blackbox-v2-20261007/boot-region-2000000.txt:925/:928`的真实ABL Bootmode/MNTParam；`mtdoops.boot_mode=1`只作交叉证据，不加入猜测的识别别名。ABL同次记录同时Loaded Partition boot/recovery，不能简单假设Recovery必定绕过BOOT包装。主机必要检查使用完整捕获FDT与该真实Recovery命令行：普通路由返回CRC target2，Recovery路由返回原厂入口0；把NEXT两页设置不可读仍能返回，且内容不变。它是实际C分支检查，不是完整Recovery FDT捕获或实机重启，结果保存在`private/analysis/bootselect-recovery-priority-20261008/result.json`。
 
@@ -28,9 +31,15 @@
 
 ## 当前选择器
 
+原厂 Recovery 请求忽略保存的 UEFI／Linux／设置路线，默认跳回原厂 GKI，
+保留 ABL 提供的 Recovery DTB 与 initrd。早期选择窗口仍显示，用户主动
+按键选择 UEFI 时才覆盖这一默认值；不会清除原来保存的普通开机路线。
+
 前置选择器支持合体镜像自有区域中的请求页。两份 4 KiB 页位于原厂 GKI 工作区之后、selector 之前；每份含 64 字节记录：magic、版本、序号、目标、CRC32、当前 APP 标识和保留字节。最高有效序号决定目标；同序号冲突、旧载荷标识、两份均损坏时保留原厂路径。默认两份都是“无请求”。
 
-主机/QEMU 诊断仍接受 `/chosen/bootargs` 中唯一、准确的 `sunuefi.boot=uefi`；原厂 Recovery 标识优先直通。原生请求写入和磁盘 Linux 路线已实测，自动消费以及菜单/Setup实际显示仍未完成。打包器的 `--uefi-request` 是持久诊断请求，不是一次性请求。
+主机／QEMU 诊断仍接受 `/chosen/bootargs` 中唯一、准确的 `sunuefi.boot=uefi`；
+原厂 Recovery 标识优先于该参数和保存路线。原生请求写入和磁盘 Linux
+路线已有实机记录。打包器的 `--uefi-request` 是持久诊断请求，不是一次性请求。
 
 合体布局保留原厂 GKI 在入口位置，在其 `image_size` 工作区之后放请求页、选择器、独立栈、BootShim、同一份产品 FD 和带摘要的 APP。当前 NORMAL 直接跳原厂 code1 所指的 `primary_entry`，不修改代码页或绘制早期画面；保持 DTB、initrd、x0–x3、SP 和 DAIF。UEFI 请求进入 BootShim，APP 通过固定交接记录提供，不依赖原厂 init_boot/recovery ramdisk 包含 APP。
 

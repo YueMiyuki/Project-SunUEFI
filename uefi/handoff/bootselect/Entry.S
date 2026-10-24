@@ -55,7 +55,7 @@ _start:
   bl PianoBootSelectTrace
 .Ltrace_stock_done:
   // Enter the stock primary_entry directly after the inherited-framebuffer
-  // picker. Stock Recovery bypasses that picker. No executable kernel writes.
+  // picker. Stock Recovery is its default unless explicitly overridden by keys.
   ldr w8, [x20, #44]
   sbfx x8, x8, #0, #26
   add x4, x19, #4

@@ -227,9 +227,16 @@ int PianoBootSelectEntry(const PIANO_BOOT_SELECT_META *M, const void *Fdt, uint6
   R = Walk(Fdt, (size_t)(KERNEL_END - Address < PIANO_SELECT_MAX_FDT ? KERNEL_END - Address : PIANO_SELECT_MAX_FDT));
   if(!R.Valid || !PianoBootSelectRecoveryLayout(M, Base, SelectorBytes, Address, R.Total, R.Initrd, R.InitrdBytes))
     return PIANO_SELECT_NORMAL;
-  // NORMAL returns to the untouched original GKI entry with ABL's recovery
-  // DTB/initrd. Do not read, consume or clear NEXT pages on this route.
-  if(R.StockRecovery) { Trace(4,Base,Address); return PIANO_SELECT_NORMAL; }
+  // Recovery ignores the saved NEXT route and persistent UEFI bootarg. Keep
+  // the early picker so only a deliberate key choice can override Recovery.
+  if(R.StockRecovery) {
+    Trace(4,Base,Address);
+#if defined(__aarch64__) && defined(PIANO_EARLY_CHOOSER)
+    return PianoEarlyChoose(Fdt,PIANO_SELECT_NORMAL)?PIANO_SELECT_RECOVERY:PIANO_SELECT_NORMAL;
+#else
+    return PIANO_SELECT_NORMAL;
+#endif
+  }
   uint64_t Pages = (M->OriginalImageSize + 4095U) & ~4095ULL;
   if(Pages <= M->SelectorOffset && PIANO_BOOT_REQUEST_PAGES_BYTES <= M->SelectorOffset-Pages)
     Requested = PianoBootRequestSelect((const void *)(uintptr_t)(Base+Pages), M->AppSha256);
