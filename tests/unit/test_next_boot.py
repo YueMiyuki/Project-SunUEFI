@@ -1,6 +1,7 @@
 """Exercise the real native command only on a small temporary regular file."""
 import hashlib
 import json
+import runpy
 from pathlib import Path
 import shutil
 import struct
@@ -11,6 +12,7 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[2]
 GENERATION = hashlib.sha256(b'next-boot-host-fixture').digest()[:16]
+HELPER = runpy.run_path(str(ROOT/'linux/userspace/piano-next-boot-helper'))
 
 
 def fixture():
@@ -92,6 +94,45 @@ class NextBootTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('只读', result.stderr)
+
+    def test_gpt_slot_selection_and_corrupt_or_ambiguous_metadata(self):
+        for sector in (512, 4096):
+            with self.subTest(sector=sector):
+                disk = bytearray(sector * 256)
+                entries = bytearray(128 * 8)
+                def entry(index, name, first, last, attributes):
+                    at = index * 128
+                    entries[at:at+16] = b't' * 16
+                    entries[at+16:at+32] = bytes([index+1]) * 16
+                    struct.pack_into('<3Q', entries, at+32, first, last, attributes)
+                    entries[at+56:at+56+len(name)*2] = name.encode('utf-16le')
+                entry(0, 'boot_a', 32, 63, 0x00f3000000000000)
+                entry(1, 'boot_b', 64, 95, 0x0077000000000000)
+                blocks = (len(entries)+sector-1)//sector
+                for lba, alternate, table in ((1,255,2),(255,1,255-blocks)):
+                    h = bytearray(sector);h[:8] = b'EFI PART'
+                    struct.pack_into('<II', h, 8, 0x10000, 92)
+                    struct.pack_into('<4Q', h, 24, lba, alternate, 16, 240)
+                    h[56:72] = b'd'*16
+                    struct.pack_into('<Q3I', h, 72, table, 8, 128, zlib.crc32(entries))
+                    struct.pack_into('<I', h, 16, zlib.crc32(h[:92]))
+                    disk[lba*sector:(lba+1)*sector] = h
+                    disk[table*sector:table*sector+len(entries)] = entries
+                read = lambda size, offset: disk[offset:offset+size]
+                _, boots = HELPER['read_gpt'](read, sector, len(disk))
+                self.assertEqual(HELPER['select_active_boot'](boots), 'boot_b')
+                changed = dict(boots)
+                changed['boot_a'] = (*boots['boot_a'][:2], 0x0077000000000000, boots['boot_a'][3])
+                with self.assertRaises(ValueError):HELPER['select_active_boot'](changed)
+                changed['boot_b'] = (*boots['boot_b'][:2], 0x00f3000000000000, boots['boot_b'][3])
+                self.assertEqual(HELPER['select_active_boot'](changed), 'boot_a')
+                changed['boot_a'] = (*boots['boot_a'][:2], 0x0007000000000000, boots['boot_a'][3])
+                with self.assertRaises(ValueError):HELPER['select_active_boot'](changed)
+                disk[(255-blocks)*sector+48] ^= 1
+                with self.assertRaises(ValueError):HELPER['read_gpt'](read, sector, len(disk))
+                disk[(255-blocks)*sector+48] ^= 1
+                disk[sector+16] ^= 1
+                with self.assertRaises(ValueError):HELPER['read_gpt'](read, sector, len(disk))
 
 
 if __name__ == '__main__':

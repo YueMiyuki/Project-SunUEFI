@@ -14,7 +14,7 @@
 
 `piano-boot-request` 提供 `status`、`set`、`consume`，只读写合体 BOOT 自有的两份请求页，不重包原厂内核。Linux 安装路径为 `/usr/local/sbin/piano-boot-request`。本机已手动消费 Linux 请求、正常重启回 Android；当前明确保存的路线持续保留，普通启动沿用该选择。自动记录实际所选系统、一次性消费及 Android 模块按钮的完整联动尚未完成。
 
-面向普通 Linux 用户的新入口是 [`piano-next-boot`](linux-next-boot.md)：从安装配置读取实际使用的 BOOT 分区和 APP generation，默认只保存路线，显式 `--reboot` 才正常重启。release builder 已接线，研究设备的显式配置、授权查询、CLI 返回 Android 已验证；普通用户安装器自动生成配置和真实桌面点击仍待完成。不能给所有设备预填 `boot_a`。
+面向普通 Linux 用户的入口是 [`piano-next-boot`](linux-next-boot.md)：只读解析高通 GPT 的 A/B 属性确定活动 BOOT，再读取该分区的 APP generation。默认只保存路线，显式 `--reboot` 才正常重启；不依赖 ESP 配置文件，也不预填 `boot_a`。
 
 底层开发者命令仍为 `piano-boot-request status|set|consume --device 实际分区`；写入时可加 `--expect-generation HEX32`，产品 helper 总是使用这个检查。status 现输出 `app_generation`，不改变请求页。
 

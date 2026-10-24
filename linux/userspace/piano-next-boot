@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Schedule a configured next boot, with optional normal reboot or desktop UI."""
+"""Select the active SunUEFI BOOT route, with optional normal reboot or desktop UI."""
 import argparse
 import json
 import os

@@ -39,7 +39,7 @@ SukiSU 安装、模块激活和 WebUI 状态读取已在设备上使用。Kernel
 
 源码位于 `android/module/`，引导原生工具位于 `android/native/`，在线 F2FS 调整工具位于 `tools/android/`。`manager.sh` 连接 WebUI 与原生工具：轻量读取使用 `piano-boot-request`；完整检查、识别已有引导、更新、重新打包和改选使用 `piano-boot-repack`。
 
-已有 ESP 时，助手同时更新 `EFI/SunUEFI/boot-request.json`。Linux 用它确定 OTA 后的实际 BOOT 槽位，使“返回 Android”继续跟随当前安装，而不是沿用旧槽位。这个文件只保存槽位与 UEFI 标识，不保存原厂内核或账号信息。
+助手不再向 ESP 写入槽位配置。Linux 切换工具直接读取高通 GPT 的 A/B 属性，校验实际活动 BOOT，再更新其中的 SunUEFI 请求页；不依赖 Android 与 ESP 同步额外文件。
 
 ## 构建
 

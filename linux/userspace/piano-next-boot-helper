@@ -1,46 +1,127 @@
 #!/usr/bin/python3 -I
 """Privileged, one-shot adapter for the installed SunUEFI request pages."""
 import json
+import fcntl
 import os
 from pathlib import Path
 import re
 import stat
+import struct
 import subprocess
 import sys
+import zlib
 
-CONFIG = Path('/etc/piano/boot-request.json')
-SHARED_CONFIG = Path('/boot/efi/EFI/SunUEFI/boot-request.json')
 NATIVE = Path('/usr/local/sbin/piano-boot-request')
 TARGETS = {'android': 0, 'menu': 1, 'linux': 2, 'setup': 3}
 
 
-def installed_config():
-    # Android's installer owns this ESP record and refreshes it after OTA.
-    # Keep the local record for installations predating shared slot tracking.
-    selected = SHARED_CONFIG if SHARED_CONFIG.exists() else CONFIG
+def read_gpt(read, sector, capacity):
+    """Read and verify both GPT copies; never open the disk for writing."""
+    if sector not in (512, 4096) or capacity % sector or capacity // sector < 6:
+        raise ValueError('BOOT 所在磁盘的扇区或容量无效。')
+    last = capacity // sector - 1
+
+    def header(lba, alternate):
+        data = read(sector, lba * sector)
+        if len(data) != sector or data[:8] != b'EFI PART':
+            raise ValueError('BOOT 所在磁盘缺少有效 GPT。')
+        revision, size, checksum, reserved = struct.unpack_from('<4I', data, 8)
+        if revision != 0x10000 or not 92 <= size <= sector or reserved:
+            raise ValueError('GPT 头格式无效。')
+        checked = bytearray(data[:size]); checked[16:20] = bytes(4)
+        if zlib.crc32(checked) != checksum:
+            raise ValueError('GPT 头校验失败。')
+        current, backup, first, end = struct.unpack_from('<4Q', data, 24)
+        table, count, stride, crc = struct.unpack_from('<Q3I', data, 72)
+        if (current != lba or backup != alternate or not 2 <= first <= end < last
+                or not count or stride < 128 or stride > 4096 or stride & (stride - 1)
+                or count > 65536 // stride):
+            raise ValueError('GPT 布局无效。')
+        blocks = (count * stride + sector - 1) // sector
+        if (lba == 1 and not (table >= 2 and table + blocks <= first)
+                or lba == last and not (table > end and table + blocks <= last)):
+            raise ValueError('GPT 条目超出元数据区域。')
+        entries = read(count * stride, table * sector)
+        if len(entries) != count * stride or zlib.crc32(entries) != crc:
+            raise ValueError('GPT 分区条目校验失败。')
+        return data[56:72], first, end, count, stride, entries
+
+    primary, backup = header(1, last), header(last, 1)
+    if primary != backup or primary[0] == bytes(16):
+        raise ValueError('主备 GPT 不一致，未改变启动选择。')
+    guid, first, end, count, stride, entries = primary
+    boots = {}
+    for i in range(count):
+        entry = entries[i * stride:(i + 1) * stride]
+        if entry[:16] == bytes(16):
+            continue
+        name = entry[56:128].decode('utf-16le').split('\0', 1)[0]
+        if name not in ('boot_a', 'boot_b'):
+            continue
+        start, stop, attributes = struct.unpack_from('<3Q', entry, 32)
+        if name in boots or not first <= start <= stop <= end or entry[16:32] == bytes(16):
+            raise ValueError('GPT 中的 BOOT 分区不唯一或范围无效。')
+        boots[name] = (start, stop, attributes, entry[16:32])
+    if set(boots) != {'boot_a', 'boot_b'}:
+        raise ValueError('GPT 中未找到完整的 boot_a / boot_b。')
+    a, b = boots['boot_a'], boots['boot_b']
+    if a[3] == b[3] or a[0] <= b[1] and b[0] <= a[1]:
+        raise ValueError('BOOT 分区标识重复或范围重叠。')
+    return guid, boots
+
+
+def select_active_boot(boots):
+    # Qualcomm slot attributes: priority48..49, active50, retries51..53,
+    # successful54, unbootable55. This path only reads them; no slot switch.
+    candidates = []
+    for name, (_, _, attributes, _) in boots.items():
+        priority = attributes >> 48 & 3
+        if (priority and attributes & (1 << 50) and not attributes & (1 << 55)
+                and (attributes & (1 << 54) or attributes >> 51 & 7)):
+            candidates.append((priority, name))
+    candidates.sort(reverse=True)
+    if not candidates or len(candidates) > 1 and candidates[0][0] == candidates[1][0]:
+        raise ValueError('GPT 没有唯一可启动的活动 BOOT 槽位，未改变启动选择。')
+    return candidates[0][1]
+
+
+def active_boot_device():
+    partitions = {}
+    for name in ('boot_a', 'boot_b'):
+        device = Path('/dev/disk/by-partlabel') / name
+        info = device.stat()
+        if not stat.S_ISBLK(info.st_mode):
+            raise ValueError('BOOT 分区不是块设备。')
+        sysfs = (Path('/sys/dev/block') / f'{os.major(info.st_rdev)}:{os.minor(info.st_rdev)}').resolve(strict=True)
+        if not (sysfs / 'partition').is_file():
+            raise ValueError('无法定位 BOOT 所在磁盘。')
+        partitions[name] = (device, info.st_rdev, sysfs)
+    parents = {part[2].parent for part in partitions.values()}
+    if len(parents) != 1:
+        raise ValueError('boot_a / boot_b 不在同一块磁盘。')
+    parent = parents.pop()
+    properties = dict(line.split('=', 1) for line in (parent / 'uevent').read_text().splitlines() if '=' in line)
+    disk_name = properties.get('DEVNAME', '')
+    if not re.fullmatch(r'[a-zA-Z0-9_-]+', disk_name):
+        raise ValueError('BOOT 磁盘设备名无效。')
+    fd = os.open('/dev/' + disk_name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
     try:
-        fd = os.open(selected, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-    except FileNotFoundError:
-        raise ValueError('缺少 /etc/piano/boot-request.json。请先由安装器记录实际启动分区和 APP generation。')
-    with os.fdopen(fd, 'rb') as stream:
-        info = os.fstat(stream.fileno())
-        if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022 or info.st_size > 8192:
-            raise ValueError('启动配置必须是 root 所有、不可由普通用户改写的小型 JSON 文件。')
-        config = json.load(stream)
-    if not isinstance(config, dict) or set(config) != {'version', 'boot_device', 'app_generation'} or type(config['version']) is not int or config['version'] != 1:
-        raise ValueError('启动配置需要 version=1、boot_device 和 app_generation。')
-    device = config['boot_device']
-    if not isinstance(device, str) or not re.fullmatch(r'/dev/disk/by-partlabel/boot_[ab]', device):
-        raise ValueError('boot_device 尚未配置：安装器须记录实际 /dev/disk/by-partlabel/boot_a 或 boot_b。')
-    generation = config['app_generation']
-    if not isinstance(generation, str) or not re.fullmatch(r'[0-9a-fA-F]{32}', generation) or not int(generation, 16):
-        raise ValueError('app_generation 尚未配置：须记录安装镜像的 16-byte generation（32 位十六进制）。')
-    if not stat.S_ISBLK(os.stat(device).st_mode):
-        raise ValueError('配置指定的启动分区不是块设备；不会扫描或猜测其他分区。')
-    info = NATIVE.stat()
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
-        raise ValueError('原生 piano-boot-request 必须是 root 所有、不可由普通用户改写的文件。')
-    return device, generation.lower()
+        disk = os.fstat(fd)
+        if not stat.S_ISBLK(disk.st_mode) or (parent / 'dev').read_text().strip() != f'{os.major(disk.st_rdev)}:{os.minor(disk.st_rdev)}':
+            raise ValueError('BOOT 磁盘身份不匹配。')
+        sector = struct.unpack('=I', fcntl.ioctl(fd, 0x1268, bytes(4)))[0]  # BLKSSZGET
+        capacity = struct.unpack('=Q', fcntl.ioctl(fd, 0x80081272, bytes(8)))[0]  # BLKGETSIZE64
+        guid, boots = read_gpt(lambda size, offset: os.pread(fd, size, offset), sector, capacity)
+    finally:
+        os.close(fd)
+    for name, (device, rdev, sysfs) in partitions.items():
+        start, end, _, _ = boots[name]
+        if (device.stat().st_rdev != rdev or int((sysfs / 'start').read_text()) * 512 != start * sector
+                or int((sysfs / 'size').read_text()) * 512 != (end - start + 1) * sector):
+            raise ValueError('内核分区范围与 GPT 不一致，未改变启动选择。')
+    selected = select_active_boot(boots)
+    device, rdev, _ = partitions[selected]
+    return str(device), (disk.st_rdev, guid, boots['boot_a'], boots['boot_b'], rdev)
 
 
 def main(argv):
@@ -51,10 +132,11 @@ def main(argv):
         raise ValueError('status 是只读操作，不能带 --reboot。')
     if os.geteuid() != 0:
         raise ValueError('请使用 piano-next-boot；它会通过 polkit 请求本次操作的授权。')
-    device, _installed_generation = installed_config()
-    # Android can update the shared BOOT independently of this rootfs. Read
-    # the current validated entry; retain the generation pin for the actual
-    # write so an intervening BOOT replacement cannot redirect the request.
+    info = NATIVE.stat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+        raise ValueError('原生 piano-boot-request 必须是 root 所有、不可由普通用户改写的文件。')
+    device, slot_state = active_boot_device()
+    # Read generation from this actual BOOT, never a cached ESP/rootfs record.
     environment = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8'}
     current = subprocess.run([str(NATIVE), 'status', '--device', device],
                              text=True, capture_output=True, check=False, env=environment)
@@ -66,6 +148,8 @@ def main(argv):
         raise ValueError('当前 BOOT 没有有效的 SunUEFI 引导标识，没有请求重启。')
     command = [str(NATIVE), 'set', '--device', device]
     if action != 'status':
+        if active_boot_device() != (device, slot_state):
+            raise ValueError('操作期间 GPT 活动槽位已改变，请重新选择启动目标。')
         command += ['--target', action, '--expect-generation', generation]
         result = subprocess.run(command, text=True, capture_output=True, check=False, env=environment)
         if result.returncode:
@@ -75,6 +159,8 @@ def main(argv):
         raise ValueError('操作期间引导镜像已改变，请重新选择启动目标。')
     if action != 'status' and record.get('target') != TARGETS[action]:
         raise ValueError('原生请求读回的目标不同；没有请求重启。')
+    if active_boot_device() != (device, slot_state):
+        raise ValueError('操作期间 GPT 活动槽位已改变，没有请求重启。')
     record.update(boot_device=device, reboot_planned=reboot)
     print(json.dumps(record, ensure_ascii=False), flush=True)
     if reboot:
