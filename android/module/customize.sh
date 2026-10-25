@@ -3,13 +3,14 @@ SKIPMOUNT=true
 PROPFILE=false
 POSTFSDATA=false
 LATESTARTSERVICE=true
+unset PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER
 if [ -f "$MODPATH/installed-core.json" ]; then
   [ "$BOOTMODE" = true ] || abort "请在正常启动的 Android 模块管理器中安装。"
   [ "${ARCH:-}" = arm64 ] || abort "此模块需要 ARM64 Android。"
-  . "$MODPATH/common.sh"
-  piano_current_identity install || abort "当前 Android 未正常启动。"
   set_perm "$MODPATH/bin/piano-boot-repack" 0 0 0755
   set_perm "$MODPATH/bin/piano-boot-request" 0 0 0755
+  . "$MODPATH/common.sh"
+  piano_current_identity install || abort "安装已退出，尚未写入 BOOT。"
   repack="$MODPATH/bin/piano-boot-repack"
   mkdir -p "$MODPATH/.work"
   # BOOT is slot-specific after an OTA. Keep every generated metadata file in
@@ -35,6 +36,7 @@ if [ -f "$MODPATH/installed-core.json" ]; then
       ui_print "正在安装开机选择器，保留当前 Android 内核，默认进入 Android。"
       "$repack" probe --boot-device "$bootdev" --active-slot "$slot"         --rom-fingerprint "$rom_fingerprint" --boot-fingerprint "$boot_fingerprint"         --policy "$MODPATH/policy.json" --output "$work/current.json" --reject-wrapped > /dev/null ||
         abort "当前 BOOT 格式不受支持，尚未写入。"
+      piano_check_bootloader || abort "已取消安装，尚未写入 BOOT。"
       "$repack" repack --boot-device "$bootdev" --active-slot "$slot"         --source-metadata "$work/current.json" --payload-dir "$MODPATH/payload"         --policy "$MODPATH/policy.json" --state-output "$state_output" --execute > /dev/null ||
         abort "引导安装未完成，请查看上面的原因。"
     fi
@@ -74,7 +76,7 @@ ui_print "SunUEFI: current-ROM BOOT installation"
 [ -f "$MODPATH/bin/piano-boot-repack" ] || abort "The validated repacker is missing."
 set_perm "$MODPATH/bin/piano-boot-repack" 0 0 0755
 piano_check_payload || abort "Module is not ready; no partition was written."
-piano_current_identity install || abort "Android identity checks failed; no partition was written."
+piano_current_identity install || abort "安装已退出，尚未写入 BOOT。"
 state=$(piano_partition_state /dev/block/by-name) || abort "Only one SunUEFI partition exists; review the layout manually."
 if [ "$state" = existing ]; then
   ui_print "sunuefi_esp and sunuefi_root exist; skipping all resize/partition operations."
@@ -93,6 +95,7 @@ repack="$MODPATH/bin/piano-boot-repack"
 ui_print "Install on the currently running slot $slot? Volume Up confirms; Volume Down cancels."
 key=$(piano_read_key) || abort "No confirmation; no write occurred."
 [ "$key" = up ] || abort "Cancelled; no write occurred."
+piano_check_bootloader || abort "已取消安装，尚未写入 BOOT。"
 # The native tool must re-read slot/fingerprints/source hash immediately before its guarded write.
 "$repack" repack --boot-device "$bootdev" --active-slot "$slot" \
   --source-metadata "$work/current.json" --payload-dir "$MODPATH/payload" \

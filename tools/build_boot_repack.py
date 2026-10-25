@@ -123,9 +123,9 @@ def build(output, arch, compiler=None, sysroot=None):
         raise ValueError('Native compiler is unavailable')
     libmd = ROOT / 'upstream/simple-init/libs/libmd'
     request = ROOT / 'uefi/handoff/bootselect'
-    sources = [ROOT / 'android/native/piano-boot-repack.c', request / 'BootRequest.c', libmd / 'src/sha2.c']
+    sources = [ROOT / 'android/native/piano-boot-repack.c', ROOT / 'android/native/piano-bootloader.c', request / 'BootRequest.c', libmd / 'src/sha2.c']
     inputs = [*sources, request / 'BootRequest.h', libmd / 'include/sha2.h', libmd / 'src/local-link.h', libmd / 'COPYING',
-              ROOT / 'android/native/jsmn.h', ROOT / 'android/native/jsmn-source.json']
+              ROOT / 'android/native/jsmn.h', ROOT / 'android/native/jsmn-source.json', ROOT / 'android/native/piano-bootloader.h']
     flags = ['-O2', '-std=c11', '-D_DEFAULT_SOURCE', '-Wall', '-Wextra', '-Werror',
              '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
              '-I' + str(request), '-I' + str(libmd / 'include')]

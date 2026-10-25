@@ -59,7 +59,7 @@ class AndroidStorageSizeTests(unittest.TestCase):
                     'piano-resize-f2fs': '#!/bin/sh\nprintf \'%s\\n\' ' + shlex.quote(json.dumps({
                         'section_blocks': section // 4096, 'section_bytes': section}, separators=(',', ':'))) + '\n',
                     'getprop': '#!/bin/sh\ncase "$1" in ro.product.device) echo piano;; '
-                        'ro.boot.flash.locked) echo 0;; esac\n',
+                        'ro.boot.flash.locked) echo 1;; esac\n',
                     'id': '#!/bin/sh\necho 0\n',
                 }
                 for name, text in wrappers.items():

@@ -39,9 +39,17 @@ piano_linux_available() {
     piano_fail "Linux requires an already installed sunuefi_esp and sunuefi_root pair."; return 1;
   }
 }
+piano_check_bootloader() {
+  [ "$(getprop ro.boot.flash.locked)" = 0 ] && return 0
+  [ "${PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER:-}" = 1 ] && return 0
+  "$MODPATH/bin/piano-boot-repack" confirm-bootloader || return 1
+  # Private to this operation and its child tools; never saved across boots or
+  # later WebUI requests, and never used to bypass any other identity check.
+  PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER=1
+  export PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER
+}
 piano_current_identity() {
   [ "$(getprop ro.product.device)" = piano ] || piano_fail "Only piano is supported." || return
-  [ "$(getprop ro.boot.flash.locked)" = 0 ] || piano_fail "An unlocked bootloader is required." || return
   slot=$(getprop ro.boot.slot_suffix)
   case "$slot" in _a|_b) ;; *) piano_fail "Cannot identify the current Android slot."; return 1 ;; esac
   bootdev="/dev/block/by-name/boot$slot"
@@ -54,6 +62,7 @@ piano_current_identity() {
   if [ "${1:-}" = install ] && [ "$(getprop sys.boot_completed)" != 1 ]; then
     piano_fail "Install only after the current Android ROM has booted normally."; return 1
   fi
+  return 0
 }
 piano_check_payload() {
   [ "$PIANO_POLICY_SCHEMA" = 1 ] && [ "$PIANO_INTERFACE_VERSION" = 1 ] &&

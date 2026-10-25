@@ -1,5 +1,6 @@
 #!/system/bin/sh
 set -eu
+unset PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER
 MODPATH=${0%/*}
 ui_print() { echo "$*" >&2; }
 . "$MODPATH/common.sh"
@@ -64,8 +65,10 @@ piano_quick_status() {
     fi
     entries="$entries"']'
   fi
-  printf '{"operation":"quick-status","route":"%s","destination":"%s","wrapped":%s,"state_available":%s,"linux_available":%s,"linux_checked":%s,"slot":"%s","request_status":"%s","request_target":%s,"request_sequence":%s,"setup_available":false,"read_only":true,"entries":%s}\n' \
-    "$route" "$destination" "$wrapped" "$state_available" "$linux_available" "$linux_checked" "$slot" "$request_status" "$chosen" "$sequence" "$entries"
+  confirm_bootloader=false
+  [ "$wrapped" = true ] || [ "$(getprop ro.boot.flash.locked)" = 0 ] || confirm_bootloader=true
+  printf '{"operation":"quick-status","route":"%s","destination":"%s","wrapped":%s,"state_available":%s,"linux_available":%s,"linux_checked":%s,"slot":"%s","request_status":"%s","request_target":%s,"request_sequence":%s,"setup_available":false,"read_only":true,"bootloader_confirm_required":%s,"entries":%s}\n' \
+    "$route" "$destination" "$wrapped" "$state_available" "$linux_available" "$linux_checked" "$slot" "$request_status" "$chosen" "$sequence" "$confirm_bootloader" "$entries"
 }
 
 case "$operation" in
@@ -169,6 +172,7 @@ case "$operation" in
    "$repack" probe --boot-device "$bootdev" --active-slot "$slot" \
     --rom-fingerprint "$rom_fingerprint" --boot-fingerprint "$boot_fingerprint" \
     --policy "$policy" --output "$work/current.json" --reject-wrapped >/dev/null
+   piano_check_bootloader || exit 1
    "$repack" repack --boot-device "$bootdev" --active-slot "$slot" \
     --source-metadata "$work/current.json" --payload-dir "$MODPATH/payload" \
     --policy "$policy" --state-output "$next_state" --execute >/dev/null

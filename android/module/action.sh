@@ -1,5 +1,6 @@
 #!/system/bin/sh
 # No argument is a read-only status action for Magisk's module Action button.
+unset PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER
 MODPATH=${0%/*}
 if [ -f "$MODPATH/installed-core.json" ]; then
   if [ "$#" = 0 ]; then

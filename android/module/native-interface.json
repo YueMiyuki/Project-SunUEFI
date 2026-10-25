@@ -9,6 +9,7 @@
   "webui_bridge_verified": true,
   "partition_execution_ready": false,
   "commands": {
+    "confirm-bootloader": "Read-only physical-key risk confirmation for stock-to-SunUEFI repack when ro.boot.flash.locked is not 0, including installation after OTA. Accept only platform gpio-keys/pmic_resin, require three distinct Volume Down press/release pairs, cancel on Volume Up, input failure or 30-second timeout. The shell passes confirmation only to this installation's child; no permanent flag or other write guard is relaxed. Existing wrapper requests/upgrades/restoration and independent storage do not check the BL property.",
     "status": "Read-only policy/tool/current-owned-wrapper status. --require-ready requires the actual online-write tests, Android passthrough, persistent re-selection/CRC and standard Recovery evidence; source implementation does not set these proofs.",
     "probe": "Read only active BOOT and current Android identity. Reject unknown headers, nested wrappers, malformed layout, slot changes and incompatible GKI. Emit bounded reconstruction metadata, never a whole stock BOOT copy.",
     "repack": "Extract the active current-ROM GKI, embed the explicit same-product selector/BootShim/FD/APP and SPLITv1+RSTRv1. --execute re-reads source hash, slot, ROM and bootimage property independently, writes only exact active BOOT then fsyncs and verifies complete readback. No inactive-slot, REC, vbmeta or GPT write.",

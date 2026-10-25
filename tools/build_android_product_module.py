@@ -93,6 +93,7 @@ def add_licenses_and_records(output, sysroot, records):
         # These project sources make the native helper rebuild commands visible
         # to a recipient of the ZIP, without embedding any proprietary input.
         for name in ('android/native/piano-boot-repack.c', 'android/native/piano-boot-request.c',
+                     'android/native/piano-bootloader.c', 'android/native/piano-bootloader.h',
                      'android/native/piano-storage.c', 'android/native/piano-bluetooth-provision.c',
                      'android/native/piano-bluetooth-provision.h', 'android/native/jsmn.h',
                      'android/native/jsmn-source.json', 'tools/android/piano_resize_f2fs.c',

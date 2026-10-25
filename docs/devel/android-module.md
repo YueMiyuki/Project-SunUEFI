@@ -37,6 +37,8 @@ SukiSU 安装、模块激活和 WebUI 状态读取已在设备上使用。Kernel
 
 引导写入前核对当前活动槽、ROM、BOOT 实际内容及源镜像摘要，写入后同步并完整读回。引导操作不写 Recovery、vbmeta、GPT 或 userdata；存储操作由独立工具负责，只在确认具体计划后调整对应文件系统和分区表。旧核心升级已用真实 96 MiB BOOT 文件验证原镜像重建完全一致；这一结果不代表已经完成所有 HyperOS OTA 场景的实机验证。
 
+只有将原厂 BOOT 安装为合体 BOOT 的 `repack` 路径检查 BL 属性；属性未报告解锁时，按[安装指南中的实体音量键提示](../user/install-from-artifact.md#1-安装引导助手)确认。`piano-boot-repack confirm-bootloader` 只从平台设备下的 `gpio-keys`／`pmic_resin` 读取三次完整按下和松开，临时独占按键，忽略长按重复和预先按住的键。确认通过后，Shell 只向本次安装的子进程传递 `PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER=1`，公共入口会清除外部继承值，不保存永久设置。原生 `repack` 写入前再次检查属性或本次确认，型号、活动槽、源摘要、格式、范围、同步及读回检查不变。已有合体 BOOT 的请求更新、核心升级和原样还原仍完整验证当前包装，不再检查 BL 属性；独立存储不在 AVB 校验范围内，也不增加 BL 检查。
+
 源码位于 `android/module/`，引导原生工具位于 `android/native/`，在线 F2FS 调整工具位于 `tools/android/`。`manager.sh` 连接 WebUI 与原生工具：轻量读取使用 `piano-boot-request`；完整检查、识别已有引导、更新、重新打包和改选使用 `piano-boot-repack`。
 
 助手不再向 ESP 写入槽位配置。Linux 切换工具直接读取高通 GPT 的 A/B 属性，校验实际活动 BOOT，再更新其中的 SunUEFI 请求页；不依赖 Android 与 ESP 同步额外文件。

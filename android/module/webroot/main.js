@@ -7,6 +7,8 @@ const strings = {
 let language = /^en\b/i.test(typeof navigator === 'object' ? navigator.language : '') ? 'en' : 'zh';
 try { const saved = localStorage.getItem('sunuefi-language'); if (saved === 'zh' || saved === 'en') language = saved; } catch (_) {}
 const t = key => strings[language][key] || key;
+Object.assign(strings.zh, {bootloaderWarning:'无法确认 BL 已解锁，可能启用了状态伪装模块。如果只有临时 Root、实际未解锁，写入可能导致设备无法启动（变砖）。继续操作后，请在 30 秒内按下并松开三次音量下确认；按音量上退出。'});
+Object.assign(strings.en, {bootloaderWarning:'Bootloader unlock could not be confirmed. A state-spoofing module may be active. If this is temporary root on a locked bootloader, writing may make the device unbootable. After continuing, press and release Volume Down three times within 30 seconds to confirm, or press Volume Up to exit.'});
 let counter = 0;
 function nativeAction(action, target, extra, bytes) {
   let valid = ['quick-status','status','reinstall','storage-status','storage-reboot'].includes(action) && !target && !extra;
@@ -42,6 +44,7 @@ if (typeof document !== 'undefined') {
   const $ = id => document.getElementById(id);
   let status = null, entries = [], selectedEntry = 'linux', busy = false, selectionChanged = false, messageKey = '';
   let storage = null, storagePlan = null, rootSize = '64', activeTab = 'boot', activeAction = '', activeJob = null, needsStorageReboot = false;
+  const needsBootloaderConfirmation = () => (!status || !status.wrapped) && (!status || status.bootloader_confirm_required !== false);
   const route = () => document.querySelector('input[name="route"]:checked').value;
   const destinationName = id => t(id === 'uefi' ? 'menu' : id);
   function say(key, error) { messageKey = key; $('message').textContent = t(key); $('message').classList.toggle('error', !!error); }
@@ -247,10 +250,14 @@ if (typeof document !== 'undefined') {
     try { await nativeAction('switch',target); }
     catch (error) { busy = false; updateButtons(); errorMessage(error); }
   });
-  $('reinstall').addEventListener('click', () => $('install-dialog').showModal());
+  $('reinstall').addEventListener('click', () => {
+    $('bootloader-install-warning').hidden = !needsBootloaderConfirmation();
+    $('bootloader-install-warning').textContent = t('bootloaderWarning');
+    $('install-dialog').showModal();
+  });
   $('cancel-install').addEventListener('click', () => $('install-dialog').close());
   $('confirm-install').addEventListener('click', async () => {
-    $('install-dialog').close(); if (busy) return; busy = true; activeAction = 'reinstall'; updateButtons(); say('installing');
+    $('install-dialog').close(); if (busy) return; busy = true; activeAction = 'reinstall'; updateButtons(); say(needsBootloaderConfirmation() ? 'bootloaderWarning' : 'installing');
     try {
       const result = await nativeAction('reinstall'); selectionChanged = false;
       show(await nativeAction('quick-status'), true); say(result.status === 'ADOPTED_READ_ONLY_VERIFIED' ? 'unchanged' : 'installed');

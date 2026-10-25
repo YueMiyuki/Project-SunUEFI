@@ -5,6 +5,7 @@
  */
 #define _GNU_SOURCE
 #include "BootRequest.h"
+#include "piano-bootloader.h"
 #define JSMN_STRICT
 #include "jsmn.h"
 #include <errno.h>
@@ -509,7 +510,13 @@ static struct identity current_identity(const struct options *o, int write) {
   require(!o->rom || !strcmp(o->rom, id.rom), "ROM changed since invocation");
   require(!o->bootprop || !strcmp(o->bootprop, id.bootprop), "bootimage property changed since invocation");
   if (write) {
-    property("ro.boot.flash.locked", value, sizeof(value)); require(!strcmp(value, "0"), "BOOT writes require an unlocked bootloader");
+    /* A validated existing SunUEFI carrier already boots modified BOOT.
+     * Only stock-to-SunUEFI installation (including after OTA) needs this
+     * check; requests, upgrades and exact restoration validate their wrapper. */
+    if (!strcmp(o->action, "repack")) {
+      property("ro.boot.flash.locked", value, sizeof(value));
+      require(piano_bootloader_write_allowed(value), "无法确认 BL 已解锁；请在安装引导时通过实体音量键确认，尚未写入。");
+    }
     property("sys.boot_completed", value, sizeof(value)); require(!strcmp(value, "1"), "BOOT writes require a normally booted Android ROM");
   }
   return id;
@@ -1028,12 +1035,15 @@ static int online_main(int argc, char **argv) {
 
 int main(int argc, char **argv) {
   require(!atexit(reset_ro), "cannot register BOOT readonly cleanup");
+  if (argc == 2 && !strcmp(argv[1], "confirm-bootloader"))
+    return piano_bootloader_confirm();
   int online = argc >= 2 && (!strcmp(argv[1], "request") || !strcmp(argv[1], "adopt") || !strcmp(argv[1], "upgrade"));
   for (int i = 2; i < argc; i++)
     if (!strcmp(argv[i], "--boot-device") || !strcmp(argv[i], "--policy")) online = 1;
   if (online) return online_main(argc, argv);
   if (argc == 2 && !strcmp(argv[1], "--help")) {
     puts("piano-boot-repack status\n"
+         "piano-boot-repack confirm-bootloader\n"
          "piano-boot-repack probe --input BOOT.img\n"
          "piano-boot-repack repack --input STOCK.img --output NEW.img --selector FILE\n"
          "  --selector-memory-bytes N --selector-metadata-offset N --shim FILE --fd FILE --app FILE\n"
