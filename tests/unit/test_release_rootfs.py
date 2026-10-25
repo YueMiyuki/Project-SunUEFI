@@ -112,7 +112,7 @@ class ReleaseRootTests(unittest.TestCase):
                 builder.apply_policy(self.rootfs, self.output, config)
         self.assertFalse((self.rootfs / 'etc/fstab').exists())
 
-    def test_sanitize_removes_only_new_generated_identity_and_locks_password(self):
+    def test_sanitize_removes_only_new_generated_identity_and_sets_default_password(self):
         self.policy_tree(); old = self.root / 'old-root'; old.mkdir(); (old / 'keep').write_text('unchanged')
         for name in ('root/.ssh/authorized_keys', 'home/piano/.ssh/authorized_keys', 'etc/ssh/ssh_host_ed25519_key'):
             (self.rootfs / name).write_text('synthetic fixture')
@@ -124,7 +124,8 @@ class ReleaseRootTests(unittest.TestCase):
         self.assertFalse(list((self.rootfs / 'etc/ssh').glob('ssh_host_*')))
         self.assertFalse((self.output / 'login.txt').exists()); self.assertEqual((old / 'keep').read_text(), 'unchanged')
         self.assertFalse((self.rootfs / 'etc/shadow-').exists())
-        self.assertEqual(run.call_args.args[0][-3:], ['--password', '!', 'piano'])
+        self.assertEqual(run.call_args.args[0], ['chroot', str(self.rootfs), '/usr/sbin/chpasswd'])
+        self.assertEqual(run.call_args.kwargs['input'], CONFIG['login']['user'] + ':' + CONFIG['login']['password'] + '\n')
         with patch.object(builder, 'ROOT', self.root), self.assertRaises(ValueError): builder.sanitize(old, old.parent)
 
     def test_guest_symlink_cannot_redirect_policy_to_an_old_tree(self):
