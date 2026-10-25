@@ -103,16 +103,24 @@ def kde_recipes(output, root):
             "pkgdesc='KDE desktop component for SteamOS ARM64'\narch=(aarch64)\n"
             f"url='https://kde.org/'\nlicense=({license})\n"
             f"depends=({' '.join(q(p) for p in item['depends'])})\n"
-            f"makedepends=(base-devel cmake ninja extra-cmake-modules kdoctools"
+            f"makedepends=(base-devel cmake ninja extra-cmake-modules kdoctools libglvnd"
             f"{''.join(' ' + q(p) for p in item.get('makedepends', []))})\n"
             "options=(!lto !debug)\n"
             f"source=({' '.join(q(p) for p in sources)})\n"
             f"sha256sums=({' '.join(q(p) for p in checksums)})\n"
             + ('prepare() {\n  cd "$pkgname-$pkgver"\n'
                + prepare_commands + '}\n' if patches else '') +
-            'build() {\n  cmake -S "$pkgname-$pkgver" -B build -G Ninja '
+            'build() {\n'
+            '  local opengl_libdir glx_libdir\n'
+            '  opengl_libdir=$(pkg-config --variable=libdir opengl)\n'
+            '  glx_libdir=$(pkg-config --variable=libdir glx)\n'
+            '  test -r "$opengl_libdir/libOpenGL.so"\n'
+            '  test -r "$glx_libdir/libGLX.so"\n'
+            '  cmake -S "$pkgname-$pkgver" -B build -G Ninja '
             '-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr '
             '-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBEXECDIR=lib '
+            '-DOPENGL_opengl_LIBRARY="$opengl_libdir/libOpenGL.so" '
+            '-DOPENGL_glx_LIBRARY="$glx_libdir/libGLX.so" '
             '-DBUILD_TESTING=OFF -DBUILD_QCH=OFF\n'
             '  cmake --build build -j4\n}\n'
             'package() {\n  DESTDIR="$pkgdir" cmake --install build\n'
@@ -215,13 +223,18 @@ def build(args):
             guest(['pacman', '-S', '--noconfirm', 'qt6-declarative'])
         if not qt_qml_models.is_file():
             raise ValueError('qt6-declarative is missing the Qt6QmlModels CMake package')
-        # Qt6Gui resolves OpenGL through libglvnd's unversioned link libraries.
-        # Restore the package if those files are missing before building kscreen.
-        opengl_links = [root / 'usr/lib/libOpenGL.so', root / 'usr/lib/libGLX.so']
-        if not all(path.exists() for path in opengl_links):
+        # Resolve inside the target root, including absolute symlink targets.
+        # KDE recipes pass these pkg-config paths to Qt's CMake dependency scan.
+        opengl_check = ['bash', '-euc', '''
+for module in opengl glx; do
+    directory=$(pkg-config --variable=libdir "$module")
+    case "$module" in opengl) library=libOpenGL.so ;; glx) library=libGLX.so ;; esac
+    test -r "$directory/$library"
+done
+''']
+        if subprocess.run(['chroot', root, *opengl_check]).returncode:
             guest(['pacman', '-S', '--noconfirm', 'libglvnd'])
-        if not all(path.exists() for path in opengl_links):
-            raise ValueError('libglvnd is missing the OpenGL link libraries')
+        guest(opengl_check)
         if not (root / 'usr/share/ibus/component/pinyin.xml').is_file():
             raise ValueError('The Valve base image must include its native IBus Pinyin engine')
         if subprocess.run(['chroot', root, 'id', 'piano'], capture_output=True).returncode:
