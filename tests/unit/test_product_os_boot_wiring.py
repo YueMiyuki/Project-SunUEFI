@@ -14,6 +14,7 @@ import prepare_product as product
 import build_integrity as integrity
 from prepare_product_early_memory import prepare as prepare_early, OBJECT_DXE_FILES
 from prepare_product_handoff import prepare as prepare_handoff, stage_provider
+from firmware_workspace import active_root
 
 
 class ProductOsBootWiringTests(unittest.TestCase):
@@ -39,8 +40,9 @@ class ProductOsBootWiringTests(unittest.TestCase):
             target=app/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,target)
         record=product.prepare_os_boot(root,app)
         shutil.copytree(ROOT/'uefi/components/product-handoff',root/'uefi/components/product-handoff')
-        for relative in prepare_handoff(ROOT,apply=False)['files']:
-            src=ROOT/relative;dst=root/relative;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(src,dst)
+        prepared=active_root(ROOT)
+        for relative in prepare_handoff(prepared,apply=False)['files']:
+            src=prepared/relative;dst=root/relative;dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(src,dst)
         native=prepare_handoff(root,apply=True)
         provider=stage_provider(root,app)
         observation=product.prepare_observation_families(root,app)
@@ -52,19 +54,20 @@ class ProductOsBootWiringTests(unittest.TestCase):
         (target/'pianoProduct.fdf').write_text('[FV]\n  INF SiliciumPkg/Sec/Sec.inf\n')
         early=prepare_early(root,target)
         import piano_display_mapping as display
-        for path in display.source_files(ROOT):
-            copy=root/path.relative_to(ROOT);copy.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,copy)
+        for path in display.source_files(prepared):
+            copy=root/path.relative_to(prepared);copy.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(path,copy)
         for name in ('tools/compose_piano_dtb.py','tools/analyze_capture.py','tools/source_input_tail.py'):
             copy=root/name;copy.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,copy)
-        memory,display_candidate=display.prepare(root,display.original_native(ROOT))
+        memory,display_candidate=display.prepare(root,display.original_native(prepared))
         memory_path=target/'Library/MemoryMapLib/MemoryMapLib.c';memory_path.parent.mkdir(parents=True,exist_ok=True);memory_path.write_text(memory)
         display_binding={'candidate':display_candidate,'compiled_into_product':True,'hardware_verified':False,'register_access_authorized':False}
         staged=root/'upstream/Mu-Silicium/Platforms/Xiaomi/pianoProductPkg'
         shutil.copytree(app.parent.parent,staged)
         manifest=root/'build/product/prepared-manifest.json';manifest.parent.mkdir(parents=True);manifest.write_text(json.dumps({'vendor_inputs':vendor.record(root),'os_boot':record,'dxe_observation':observation,'early_memory':early,'native_late_handoff':native,'late_provider':provider,'display_mapping':display_binding}))
-        for relative in ('config/piano-product.json','tools/prepare_product.py','tools/build_product.sh','tools/package_product.py',
-                         'tools/prepare_product_pump.py','tools/prepare_product_ui.py','tools/prepare_nv_runtime_guard.py','tools/prepare_product_early_memory.py','tools/prepare_product_handoff.py','tools/simpleinit_build_identity.py',
-                         'tools/build_simpleinit.sh','tools/prepare_simpleinit.py','tools/product_payload_digest.py',
+        for relative in ('config/piano-product.json','tools/prepare_product.py','tools/build_product.sh','tools/firmware_workspace.py','tools/package_product.py',
+                          'tools/prepare_product_pump.py','tools/prepare_product_ui.py','tools/prepare_product_console.py','tools/prepare_nv_runtime_guard.py','tools/prepare_product_early_memory.py','tools/prepare_product_handoff.py','tools/simpleinit_build_identity.py',
+                          'tools/build_simpleinit.sh','tools/prepare_simpleinit.py','tools/firmware/prepare_ext4.py','tools/product_payload_digest.py',
+                          'config/uefi-ext4.json','config/simpleinit.static.uefi.cfg',
                          'artifacts/simpleinit/product/SimpleInit.efi','artifacts/simpleinit/product/app-payload.bin','artifacts/simpleinit/product/build-ok.json'):
             path=root/relative;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('fixture')
         return app,record,staged/'Applications/ProductCore'
@@ -104,7 +107,7 @@ class ProductOsBootWiringTests(unittest.TestCase):
                 if name.endswith('.c'):
                     output=root/(Path(name).stem+'.obj')
                     subprocess.run([str(ROOT/'build/host-tools/usr/bin/clang'),'--target=aarch64-windows-msvc','-ffreestanding','-fshort-wchar','-c','-Wall','-Wextra','-Werror',
-                                    '-I',str(include),'-I',str(include/'AArch64'),'-I',str(crypto),'-I',str(staged),str(staged/name),'-o',str(output)],check=True)
+                                    '-I',str(include),'-I',str(include/'AArch64'),'-I',str(crypto),'-I',str(ROOT/'upstream/Mu-Silicium/Silicon/Silicium/SiliciumPkg/Include'),'-I',str(staged),str(staged/name),'-o',str(output)],check=True)
                     self.assertGreater(output.stat().st_size,0)
 
     def test_freshness_rejects_canonical_staged_header_and_inf_mutations(self):

@@ -45,7 +45,7 @@ EFI_STATUS PianoRegisterLinuxBootOption(VOID) {
     if(!Path){Status=EFI_OUT_OF_RESOURCES;break;}
     EFI_BOOT_MANAGER_LOAD_OPTION Option;
     Status=EfiBootManagerInitializeLoadOption(&Option,LoadOptionNumberUnassigned,LoadOptionTypeBoot,
-      LOAD_OPTION_ACTIVE,L"Piano Linux",Path,NULL,0);
+      LOAD_OPTION_ACTIVE,L"Linux",Path,NULL,0);
     FreePool(Path);
     if(Status==EFI_SUCCESS){Status=EfiBootManagerAddLoadOptionVariable(&Option,MAX_UINTN);EfiBootManagerFreeLoadOption(&Option);}
     break;

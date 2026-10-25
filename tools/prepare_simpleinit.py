@@ -4,9 +4,146 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import urllib.request
+
+
+def prepare_filesystem(si):
+    """Keep disk URLs lossless and resolve the requested protocol, not a parent."""
+    from prepare_product_pump import transform
+    path = si / 'src/filesystem/volume/uefi.c'
+    text = path.read_text()
+    text = transform(text, 'if(!(txt=ConvertDevicePathToText(dp,TRUE,TRUE)))DONE(ENOMEM);',
+                     'if(!(txt=ConvertDevicePathToText(dp,FALSE,FALSE)))DONE(ENOMEM);', str(path))
+    path.write_text(text)
+
+    path = si / 'src/filesystem/layer/uefi.c'
+    text = path.read_text()
+    text = transform(text, '\tEFI_DEVICE_PATH_PROTOCOL*dp;\n\tEFI_LOADED_IMAGE_PROTOCOL*li=NULL;\n',
+                     '\tEFI_DEVICE_PATH_PROTOCOL*dp,*base;\n\tEFI_LOADED_IMAGE_PROTOCOL*li=NULL;\n', str(path))
+    old = '''		st=gBS->LocateDevicePath(
+			&gEfiDevicePathProtocolGuid,
+			&dp,&hand
+		);
+'''
+    new = '''		base=dp;
+		st=gBS->LocateDevicePath(
+			*type==TYPE_FILE?&gEfiSimpleFileSystemProtocolGuid:&gEfiDiskIoProtocolGuid,
+			&dp,&hand
+		);
+		if(!EFI_ERROR(st)&&!IsDevicePathEnd(dp))st=EFI_NOT_FOUND;
+		FreePool(base);
+'''
+    text = transform(text, old, new, str(path))
+    text = transform(text, '\t\tmode|=EFI_FILE_MODE_CREATE;',
+                     '\t\tmode|=EFI_FILE_MODE_CREATE|EFI_FILE_MODE_WRITE;', str(path))
+    path.write_text(text)
+
+    path = si / 'src/confd/file.c'
+    text = path.read_text()
+    old = '''		fs_seek(hand->file,0,SEEK_SET);
+		r=fs_full_write(hand->file,hand->buff,hand->off);
+		if(r!=0)tlog_warn("write config failed: %s",strerror(r));'''
+    new = '''		r=fs_seek(hand->file,0,SEEK_SET);
+		if(r==0)r=fs_full_write(hand->file,hand->buff,hand->off);
+		if(r==0)r=fs_flush(hand->file);
+		if(r!=0)tlog_warn("write config failed: %s",strerror(r));'''
+    text = transform(text, old, new, str(path))
+    text = transform(text, '\tfs_seek(hand->file,0,SEEK_SET);\n\tfs_set_size(hand->file,0);',
+                     '\tr=fs_seek(hand->file,0,SEEK_SET);\n\tif(r==0)r=fs_set_size(hand->file,0);\n\tif(r!=0)goto done;', str(path))
+    text = transform(text, '\t\tdo_close(hand,true);\n\t\tif(r==0)errno=0;',
+                     '\t\tint written=do_close(hand,r==0);\n\t\tif(r==0)r=written;\n\t\terrno=r==0?0:(r>0?r:EIO);', str(path))
+    path.write_text(text)
+
+
+def prepare_defaults(root, si):
+    """Load built-in defaults before external static/user configuration."""
+    main_c = si / 'src/main/uefimain.c'
+    text = main_c.read_text()
+    begin = text.index('\tconfd_init();\n')
+    end = text.index('\tlogger_init();\n', begin)
+    previous = text[begin:end]
+    # Migrate the exact earlier bring-up defaults, including the short-lived
+    # zero timeout. Unknown startup code must not be silently removed.
+    allowed = {
+        '\tconfd_init();',
+        '\tconfd_set_string("language", "zh_CN.UTF-8");',
+        '#if defined(PIANO_PRODUCT_GUI_PUMP) && PIANO_PRODUCT_GUI_PUMP',
+        '\tconfd_set_integer("boot.timeout", -1);',
+        '\tconfd_set_integer("boot.timeout", 0);',
+        '#else',
+        '\tconfd_set_integer("boot.timeout", 150);',
+        '#endif',
+        '\tconfd_set_boolean("gui.driver.pointer.use_first", false);',
+    }
+    if any(line not in allowed for line in previous.splitlines()):
+        raise ValueError('Unexpected SimpleInit startup configuration')
+    main_c.write_text(text[:begin] + '\tconfd_init();\n' + text[end:])
+
+    config_c = si / 'src/confd/uefi.c'
+    text = config_c.read_text()
+    defaults = '''	// The product's real static config is embedded in the application rootfs.
+#if defined(PIANO_PRODUCT_GUI_PUMP) && PIANO_PRODUCT_GUI_PUMP
+	if(conf_include_file(NULL,"rootfs:///etc/simpleinit.static.uefi.cfg")!=0)
+		EDONE(tlog_warn("load built-in product config failed"));
+#else
+	char *language=strdup("zh_CN.UTF-8");
+	if(!language)EDONE(tlog_warn("allocate default language failed"));
+	if(conf_set_string_inc("language",language,0,0,true)!=0)free(language);
+	conf_set_integer_inc("boot.timeout",150,0,0,true);
+	conf_set_boolean_inc("gui.driver.pointer.use_first",false,0,0,true);
+#endif
+'''
+    anchor = '\tdef_fp=NULL,def_path=NULL;\n\tload_default();'
+    replacement = '\tdef_fp=NULL,def_path=NULL;\n' + defaults + '\tload_default();'
+    if replacement not in text:
+        if text.count(anchor) != 1:
+            raise ValueError('Unexpected SimpleInit config initialization')
+        config_c.write_text(text.replace(anchor, replacement, 1))
+    text = config_c.read_text()
+    # Product settings belong only to our directory on persist. Do not scan
+    # factory partitions or pick an arbitrary writable filesystem for saving.
+    begin = text.index('\tload_default();', text.index('int confd_init()'))
+    end = text.index('\tif(!def_fp||!def_path)', begin)
+    existing = text[begin:end]
+    if '#if defined(PIANO_PRODUCT_GUI_PUMP)' not in existing:
+        product = '''#if defined(PIANO_PRODUCT_GUI_PUMP) && PIANO_PRODUCT_GUI_PUMP
+	fsvol_info *persist=fsvol_lookup_by_part_label("persist");
+	if(persist&&fsvol_open_volume(persist,&f)==0){
+		fsh *directory=NULL;
+		if(fs_open(f,&directory,"sunuefi",FILE_FLAG_FOLDER|FILE_FLAG_CREATE|0700)==0){
+			fs_close(&directory);
+			conf_load_file(f,"/sunuefi/simpleinit.uefi.cfg");
+			set_default(f,"/sunuefi/simpleinit.uefi.cfg");
+			f=NULL;
+		}
+		if(f)fs_close(&f);
+	}
+#else
+'''
+        text = text[:begin] + product + existing + '#endif\n' + text[end:]
+        config_c.write_text(text)
+    text=config_c.read_text()
+    text=text.replace('int confd_quit(){\n\treturn -1;\n}',
+        'int confd_quit(){\n\tif(def_fp)fs_close(&def_fp);\n\tif(def_path)free(def_path);\n\tdef_path=NULL;\n\treturn 0;\n}')
+    config_c.write_text(text)
+    source = root / 'config/simpleinit.static.uefi.cfg'
+    shutil.copyfile(source, si / 'root/etc/simpleinit.static.uefi.cfg')
+    return config_c
+
+
+def display_default(config, key):
+    values = re.findall(r'^' + re.escape(key) + r'\s*=\s*([0-9]+)\s*$', config, re.MULTILINE)
+    if len(values) != 1:
+        raise ValueError('Expected one integer display default: ' + key)
+    value = int(values[0])
+    if key == 'gui.dpi' and not 72 <= value <= 1200:
+        raise ValueError('SimpleInit default DPI out of range')
+    if key == 'gui.rotate' and value not in (0, 90, 180, 270):
+        raise ValueError('SimpleInit default rotation out of range')
+    return value
 
 
 def main():
@@ -31,12 +168,12 @@ def main():
     fontdir = si / 'root/usr/share/fonts'
     fontdir.mkdir(parents=True, exist_ok=True)
     from fontTools.ttLib import TTCollection
+    source_font = next((path for path in (
+        Path('/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc'),
+        Path('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'),
+    ) if path.is_file()), None)
     target_font = fontdir / 'NotoSansCJKsc-Regular.otf'
     if not target_font.exists():
-        source_font = next((path for path in (
-            Path('/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc'),
-            Path('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc'),
-        ) if path.is_file()), None)
         if source_font is None:
             raise SystemExit('Noto Sans CJK Regular collection missing; install fonts-noto-cjk or noto-fonts-cjk')
         collection = TTCollection(str(source_font))
@@ -59,29 +196,10 @@ def main():
         directory = si / f'root/usr/share/locale/{lang}/LC_MESSAGES'
         directory.mkdir(parents=True, exist_ok=True)
         subprocess.run(['msgfmt', '-o', str(directory / 'simple-init.mo'), str(si / f'po/{lang}.po')], check=True)
-    # The app uses an embedded rootfs and volatile config during bring-up.
+    config_c = prepare_defaults(root, si)
+    prepare_filesystem(si)
     main_c = si / 'src/main/uefimain.c'
-    text = main_c.read_text()
-    text = text.replace('\tconfd_init();\n\tlogger_init();',
-                        '\tconfd_init();\n\tconfd_set_string("language", "zh_CN.UTF-8");\n\tlogger_init();')
-    main_c.write_text(text)
-    text = main_c.read_text()
-    if 'boot.timeout' not in text:
-        text=text.replace('\tconfd_set_string("language", "zh_CN.UTF-8");',
-          '\tconfd_set_string("language", "zh_CN.UTF-8");\n\tconfd_set_integer("boot.timeout", 150);')
-        main_c.write_text(text)
-    # Product GUI has no diagnostic countdown. Keep the default bring-up
-    # timeout only in the macro-disabled diagnostic build of the same source.
     text=main_c.read_text()
-    if 'PIANO_PRODUCT_GUI_PUMP' not in text:
-        anchor='\tconfd_set_integer("boot.timeout", 150);'
-        if text.count(anchor)!=1:raise SystemExit('Unexpected SimpleInit timeout source')
-        text=text.replace(anchor,'#if defined(PIANO_PRODUCT_GUI_PUMP) && PIANO_PRODUCT_GUI_PUMP\n'
-            '\tconfd_set_integer("boot.timeout", -1);\n#else\n'+anchor+'\n#endif')
-        main_c.write_text(text)
-    elif '\tconfd_set_integer("boot.timeout", 0);' in text:
-        text=text.replace('\tconfd_set_integer("boot.timeout", 0);','\tconfd_set_integer("boot.timeout", -1);')
-        main_c.write_text(text)
     if 'PianoScheduleSnapshot' not in text:
         text=text.replace('int main_retval=0;', 'extern VOID PianoScheduleSnapshot (VOID);\nint main_retval=0;')
         text=text.replace('\tEfiBootManagerConnectAll();', '\tPianoScheduleSnapshot();\n\tEfiBootManagerConnectAll();')
@@ -91,6 +209,10 @@ def main():
         text = text.replace('extern VOID PianoScheduleSnapshot (VOID);',
                             'extern VOID PianoScheduleSnapshot (VOID);\nextern VOID PianoCancelSnapshot (VOID);')
         text = text.replace('\treturn main_retval;', '\tPianoCancelSnapshot();\n\treturn main_retval;')
+        main_c.write_text(text)
+    text=main_c.read_text()
+    if '\tconfd_quit();\n\treturn main_retval;' not in text:
+        text=text.replace('\treturn main_retval;', '\tconfd_quit();\n\treturn main_retval;')
         main_c.write_text(text)
     # Continue Boot calls Boot Services Exit directly, bypassing UefiMain's
     # normal return cleanup. Cancel our callback on that path as well.
@@ -104,6 +226,10 @@ def main():
             raise SystemExit('Unexpected simple-init Continue Boot source')
         text = text.replace(anchor,'\tPianoCancelSnapshot();\n'+anchor)
         exit_c.write_text(text)
+    text=exit_c.read_text()
+    if '#include"confd.h"' not in text:text=text.replace('#include"boot.h"','#include"boot.h"\n#include"confd.h"')
+    text=text.replace('\tPianoCancelSnapshot();\n\tgBS->Exit', '\tPianoCancelSnapshot();\n\tconfd_quit();\n\tgBS->Exit')
+    exit_c.write_text(text)
     main_inf = si / 'src/main/SimpleInitMain.inf'
     text=main_inf.read_text()
     if 'PianoSnapshot.c' not in text:
@@ -166,11 +292,6 @@ def main():
             '\tdata->mx=data->touch->Mode->AbsoluteMinX;\n\tdata->my=data->touch->Mode->AbsoluteMinY;\n\tdata->rx=data->touch->Mode->AbsoluteMaxX;')
         touch.write_text(text)
     shutil.copyfile(root/'uefi/core/PianoTouchInput.h',touch.parent/'PianoTouchInput.h')
-    text=main_c.read_text()
-    if 'gui.driver.pointer.use_first' not in text:
-        text=text.replace('\tconfd_set_integer("boot.timeout", 150);',
-            '\tconfd_set_integer("boot.timeout", 150);\n\tconfd_set_boolean("gui.driver.pointer.use_first", false);')
-        main_c.write_text(text)
     inc = si / 'SimpleInit.inc'
     text = inc.read_text().replace('EmbeddedPkg/Library/FdtLib/FdtLib.inf',
                                   'MdePkg/Library/BaseFdtLib/BaseFdtLib.inf')
@@ -218,6 +339,8 @@ def main():
                       'MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf')
     dsc = dsc.replace('MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf',
                       'MdePkg/Library/BaseDebugLibSerialPort/BaseDebugLibSerialPort.inf')
+    static_config = root / 'config/simpleinit.static.uefi.cfg'
+    config_text = static_config.read_text()
     dsc += '''
 [LibraryClasses]
   PianoProductPumpLib|MdePkg/Library/PianoProductPumpLibNull/PianoProductPumpLibNull.inf
@@ -225,12 +348,12 @@ def main():
   MemoryTypeInformationChangeLib|MdeModulePkg/Library/MemoryTypeInformationChangeLibNull/MemoryTypeInformationChangeLibNull.inf
 [PcdsFixedAtBuild]
   gSimpleInitTokenSpaceGuid.PcdLoggerdUseConsole|FALSE
-  gSimpleInitTokenSpaceGuid.PcdGuiDefaultRotate|0
-  gSimpleInitTokenSpaceGuid.PcdGuiDefaultDPI|600
+  gSimpleInitTokenSpaceGuid.PcdGuiDefaultRotate|{rotate}
+  gSimpleInitTokenSpaceGuid.PcdGuiDefaultDPI|{dpi}
   gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x80000046
 [BuildOptions]
   GCC:*_CLANGDWARF_AARCH64_CC_FLAGS = -Wno-error -Wno-deprecated-non-prototype -Wno-implicit-function-declaration -Wno-int-conversion
-'''
+'''.format(rotate=display_default(config_text, 'gui.rotate'), dpi=display_default(config_text, 'gui.dpi'))
     if args.product_gui_pump:
         dsc += '''
 [LibraryClasses.common.UEFI_APPLICATION, LibraryClasses.common.UEFI_DRIVER, LibraryClasses.common.DXE_DRIVER]
@@ -242,7 +365,9 @@ def main():
     (build / 'SunSimpleInit.dsc').write_text(dsc)
     fonts = {'noto': {'source': str(source_font), 'sha256': hashlib.sha256(target_font.read_bytes()).hexdigest()},
              'fontawesome': {'version': '5.15.4', 'sha256': hashlib.sha256(icons.read_bytes()).hexdigest()}}
-    owned_paths = (main_c,exit_c,main_inf,si/'src/main/PianoSnapshot.c',keyboard,menu,touch,
+    owned_paths = (main_c,config_c,static_config,si/'root/etc/simpleinit.static.uefi.cfg',
+                    exit_c,main_inf,si/'src/main/PianoSnapshot.c',keyboard,menu,touch,
+                    si/'src/filesystem/volume/uefi.c',si/'src/filesystem/layer/uefi.c',si/'src/confd/file.c',
                    touch.parent/'PianoTouchInput.h',gui_inf,drivers,compat_inf,
                    si/'libs/compatible/PianoQuadFloatCompat.c',arm,linux_inf,inc)
     if args.product_gui_pump:

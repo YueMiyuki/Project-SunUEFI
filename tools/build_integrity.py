@@ -75,13 +75,13 @@ def inputs(root,profile):
             files.add(path)
         for target in (platform,root/'uefi/platforms/pianoProductPkg'):
             verify_provider(root,target/'Applications/ProductCore',prepared.get('late_provider',{}))
-        for folder in ('uefi/components/product-pump','uefi/components/product-support','uefi/components/product-handoff','uefi/components/ext4','uefi/components/nv','uefi/components/reset'):
+        for folder in ('uefi/components/product-pump','uefi/components/product-support','uefi/components/product-handoff','uefi/components/ext4','uefi/components/simple-init','uefi/components/nv','uefi/components/reset'):
             files.update(path for path in (root/folder).rglob('*') if path.is_file())
         for relative in ('config/piano-product.json','build/product/prepared-manifest.json',
                          'tools/prepare_product.py','tools/build_product.sh','tools/firmware_workspace.py','tools/package_product.py',
                          'tools/prepare_product_pump.py','tools/prepare_product_ui.py','tools/prepare_product_console.py','tools/prepare_nv_runtime_guard.py','tools/prepare_product_early_memory.py','tools/prepare_product_handoff.py','tools/source_input_tail.py','tools/simpleinit_build_identity.py',
                           'tools/build_simpleinit.sh','tools/prepare_simpleinit.py','tools/firmware/prepare_ext4.py','tools/product_payload_digest.py',
-                          'config/uefi-ext4.json',
+                          'config/uefi-ext4.json','config/simpleinit.static.uefi.cfg',
                          'artifacts/simpleinit/product/SimpleInit.efi','artifacts/simpleinit/product/app-payload.bin',
                          'artifacts/simpleinit/product/build-ok.json'):
             p=root/relative

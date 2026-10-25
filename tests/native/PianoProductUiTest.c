@@ -40,6 +40,11 @@
 #define PIANO_PRODUCT_ACTION_SETUP 2
 #define PIANO_PRODUCT_ACTION_SHELL 3
 #define PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE 7
+#define PIANO_PRODUCT_RESET_NORMAL 0
+#define PIANO_PRODUCT_RESET_SHUTDOWN 1
+#define PIANO_PRODUCT_RESET_RECOVERY 2
+#define PIANO_PRODUCT_RESET_BOOTLOADER 3
+#define PIANO_PRODUCT_RESET_EDL 4
 
 EFI_BOOT_SERVICES *gBS;
 EFI_SYSTEM_TABLE *gST;
@@ -58,6 +63,7 @@ static UINTN processed_input,checked_config;
 static UINTN reboot_requests,native_resets,config_saves,reboot_warnings,navigation_requests,navigation_action,gui_exits,legacy_boots,entry_count;
 static UINTN reset_option,reset_packages;
 static UINTN continue_requests,message_errors;
+static UINT32 reset_target;
 static VOID *display_buffer;
 static UINT32 action;
 static UINT64 timeout_value;
@@ -167,6 +173,7 @@ static VOID CreatePopUp(UINTN attr,EFI_INPUT_KEY *Key,...){++reset_reminders;Act
 static VOID EFIAPI ResetSystem(EFI_RESET_TYPE Type,EFI_STATUS Status,UINTN Bytes,VOID *Data){assert(allow_native_reset&&!enabled);++native_resets;}
 static BOOLEAN PianoProductRebootManaged(VOID){return enabled;}
 static EFI_STATUS PianoProductRequestReboot(VOID){++reboot_requests;if(!enabled)return EFI_UNSUPPORTED;if(request_failure)return EFI_ACCESS_DENIED;pending=TRUE;return EFI_SUCCESS;}
+static EFI_STATUS PianoProductRequestReset(UINT32 target){reset_target=target;return PianoProductRequestReboot();}
 static EFI_STATUS PianoProductRequestContinue(VOID){++continue_requests;if(!enabled)return EFI_UNSUPPORTED;if(request_failure)return EFI_ACCESS_DENIED;pending=TRUE;return EFI_SUCCESS;}
 static VOID msgbox_alert(CONST char *message,...){assert(!strcmp(message,"未能重启，请稍后重试。"));++message_errors;}
 #define MAX_STRING_LEN 100
@@ -200,7 +207,7 @@ struct bootmenu{struct bootmenu_item *selected;};
 static bool bootmenu_chdir(struct bootmenu_item *bi){return false;}
 static int after_exit(VOID *arg){++legacy_boots;return 0;}
 static VOID gui_run_and_exit(int (*callback)(VOID *)){if(callback){callback(NULL);}else ++gui_exits;}
-static VOID enter_simple_init(VOID *arg){}
+static VOID piano_bootmenu_enter(VOID *arg){}
 static VOID lv_async_call(VOID(*fn)(VOID *),VOID *arg){fn(arg);}
 typedef UINTN SHELL_STATUS;
 enum{SHELL_SUCCESS,SHELL_INVALID_PARAMETER,SHELL_UNSUPPORTED,SHELL_DEVICE_ERROR};
@@ -229,6 +236,7 @@ static VOID reset(BOOLEAN on){
   navigation_requests=navigation_action=gui_exits=legacy_boots=entry_count=0;
   reset_option=reset_packages=0;
   continue_requests=message_errors=0;
+  reset_target=0;
   ZeroMem(&ShellInfoObject,sizeof(ShellInfoObject));
   ShellInfoObject.NewEfiShellProtocol=&template;
   InitializeListHead(&ShellInfoObject.ViewingSettings.CommandHistory.Link);
@@ -267,16 +275,19 @@ int main(VOID){
   reset(TRUE);assert(adv_reboot(REBOOT_COLD,NULL)==0&&pending&&reboot_requests==1&&!native_resets);
   reset(TRUE);assert(adv_reboot(REBOOT_RESTART,NULL)==0&&pending&&reboot_requests==1&&!native_resets);
   reset(TRUE);request_failure=TRUE;assert(adv_reboot(REBOOT_COLD,NULL)==-1&&errno==EIO&&!pending&&!native_resets);
-  for(UINTN cmd=0;cmd<=REBOOT_DATA;++cmd)if(cmd!=REBOOT_COLD&&cmd!=REBOOT_RESTART){reset(TRUE);assert(adv_reboot((enum reboot_cmd)cmd,NULL)==-1&&errno==EOPNOTSUPP&&!reboot_requests&&!native_resets);}
+  for(UINTN cmd=0;cmd<REBOOT_DATA;++cmd){reset(TRUE);assert(adv_reboot((enum reboot_cmd)cmd,NULL)==0&&pending&&reboot_requests==1&&!native_resets);
+    assert(reset_target==(cmd==REBOOT_HALT||cmd==REBOOT_POWEROFF?PIANO_PRODUCT_RESET_SHUTDOWN:cmd==REBOOT_RECOVERY?PIANO_PRODUCT_RESET_RECOVERY:cmd==REBOOT_FASTBOOT?PIANO_PRODUCT_RESET_BOOTLOADER:cmd==REBOOT_EDL?PIANO_PRODUCT_RESET_EDL:PIANO_PRODUCT_RESET_NORMAL));}
+  reset(TRUE);assert(adv_reboot(REBOOT_DATA,"recovery")==0&&reset_target==PIANO_PRODUCT_RESET_RECOVERY);
+  reset(TRUE);assert(adv_reboot(REBOOT_DATA,NULL)==-1&&errno==EOPNOTSUPP&&!reboot_requests&&!native_resets);
   reset(FALSE);allow_native_reset=TRUE;assert(adv_reboot(REBOOT_COLD,NULL)==-1&&native_resets==1&&!reboot_requests);
   reset(TRUE);boot_config boot={.mode=BOOT_REBOOT};assert(run_boot_reboot(&boot)==0&&pending&&reboot_requests==1&&config_saves==1&&!reboot_warnings&&!native_resets);
-  reset(TRUE);boot_init_configs();assert(entry_count==4&&!strcmp(created_entries[0].ident,"piano-stable")&&!strcmp(created_entries[0].desc,"启动 Piano Linux（Stable）")&&!strcmp(created_entries[1].ident,"piano-setup")&&!strcmp(created_entries[2].ident,"piano-shell")&&created_entries[0].show&&created_entries[0].enabled&&!created_entries[0].save&&!strcmp(created_entries[3].ident,"continue")&&!strcmp(created_entries[3].desc,"重启"));
-  struct bootmenu_item item={.cfg=created_entries[0]};struct bootmenu bm={.selected=&item};bootmenu_boot(&bm);assert(navigation_action==7&&navigation_requests==1&&gui_exits==1&&!legacy_boots&&!native_resets);
-  item.cfg=created_entries[1];bootmenu_boot(&bm);assert(navigation_action==2&&navigation_requests==2&&gui_exits==2&&!legacy_boots&&!native_resets);
-  item.cfg=created_entries[2];bootmenu_boot(&bm);assert(navigation_action==3&&navigation_requests==3&&gui_exits==3&&!legacy_boots&&!native_resets);
-  item.cfg=created_entries[3];bootmenu_boot(&bm);assert(continue_requests==1&&gui_exits==4&&!legacy_boots&&!native_resets);
+  reset(TRUE);boot_init_configs();assert(!entry_count); // Entries now come from the built-in static config.
+  struct bootmenu_item item={.cfg={.mode=BOOT_EXIT,.ident="linux"}};struct bootmenu bm={.selected=&item};bootmenu_boot(&bm);assert(navigation_action==7&&navigation_requests==1&&gui_exits==1&&!legacy_boots&&!native_resets);
+  strcpy(item.cfg.ident,"setup");bootmenu_boot(&bm);assert(navigation_action==2&&navigation_requests==2&&gui_exits==2&&!legacy_boots&&!native_resets);
+  strcpy(item.cfg.ident,"shell");bootmenu_boot(&bm);assert(navigation_action==3&&navigation_requests==3&&gui_exits==3&&!legacy_boots&&!native_resets);
+  strcpy(item.cfg.ident,"continue");bootmenu_boot(&bm);assert(continue_requests==1&&gui_exits==4&&!legacy_boots&&!native_resets);
   reset(TRUE);request_failure=TRUE;strcpy(item.cfg.ident,"continue");bootmenu_boot(&bm);assert(continue_requests==1&&message_errors==1&&!gui_exits&&!legacy_boots&&!native_resets);
-  reset(TRUE);request_failure=TRUE;strcpy(item.cfg.ident,"piano-setup");bootmenu_boot(&bm);assert(navigation_requests==1&&!gui_exits&&!legacy_boots&&!native_resets);
+  reset(TRUE);request_failure=TRUE;strcpy(item.cfg.ident,"setup");bootmenu_boot(&bm);assert(navigation_requests==1&&!gui_exits&&!legacy_boots&&!native_resets);
   reset(FALSE);boot_init_configs();assert(!entry_count);bootmenu_boot(&bm);assert(legacy_boots==1&&!navigation_requests&&!gui_exits);
   reset(TRUE);assert(ShellCommandRunReset(NULL,gST)==SHELL_SUCCESS&&pending&&reboot_requests==1&&!native_resets&&reset_packages==1&&allocated==freed);
   for(UINTN option=1;option<=4;++option){reset(TRUE);reset_option=option;assert(ShellCommandRunReset(NULL,gST)==SHELL_UNSUPPORTED&&!pending&&!reboot_requests&&!native_resets&&reset_packages==1&&allocated==freed);}

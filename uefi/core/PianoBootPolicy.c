@@ -445,7 +445,7 @@ EFI_STATUS PianoBootPolicyDispatchPending(VOID) {
     }
     if(S==EFI_SUCCESS){BOOLEAN Previous=PianoSetStandardKeyNavigation(TRUE);
       S=PianoFvApplicationRun(mParent,Action==PIANO_PRODUCT_ACTION_SETUP?&mSetupGuid:&mShellGuid,
-        Action==PIANO_PRODUCT_ACTION_SHELL?L"Shell.efi -nostartup -nointerrupt":NULL,0x2000000,&mReport.Application);
+        Action==PIANO_PRODUCT_ACTION_SHELL?L"Shell.efi -nostartup -nointerrupt -nomap":NULL,0x2000000,&mReport.Application);
       RequireAlive();if(!mReport.Application.Retained)PianoSetStandardKeyNavigation(Previous);
     }
     RequireAlive();if(mReport.Application.Retained)RetainAndHalt();

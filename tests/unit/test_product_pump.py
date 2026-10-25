@@ -9,8 +9,11 @@ import shutil
 import sys
 from unittest.mock import patch
 import unittest
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'tools'))
+from firmware_workspace import active_root
 
 ROOT=Path(__file__).resolve().parents[2];BASE=ROOT/"upstream/Mu-Silicium/Mu_Basecore"
+PREPARED=active_root(ROOT);PREPARED_BASE=PREPARED/'upstream/Mu-Silicium/Mu_Basecore'
 spec=importlib.util.spec_from_file_location("prepare_product_pump",ROOT/"tools/prepare_product_pump.py")
 prepare=importlib.util.module_from_spec(spec);spec.loader.exec_module(prepare)
 sys.modules['prepare_product_pump']=prepare
@@ -31,7 +34,7 @@ def function(text,name):
 
 class ProductPumpTests(unittest.TestCase):
     def test_canonical_sources_are_installed_in_actual_build_checkout(self):
-        manifest=prepare.prepare(apply=False)
+        manifest=prepare.prepare(PREPARED,apply=False)
         self.assertEqual(len(manifest['files']),16)
         self.assertEqual(manifest['default_binding'],'PianoProductPumpLibNull')
 
@@ -78,13 +81,13 @@ class ProductPumpTests(unittest.TestCase):
                 self.assertEqual(library.read_text(),'preserve me')
 
     def test_build_identity_refuses_wrong_actual_binding_flags_and_output(self):
-        hooks=prepare.prepare(apply=False)
+        hooks=prepare.prepare(PREPARED,apply=False)
         for mutation in ('none','report','link','gui','output','dsc','sources','navigation_sources'):
             with self.subTest(mutation=mutation),tempfile.TemporaryDirectory(prefix='product-si-id-')as directory:
                 base=Path(directory);build=base/'build';output=base/'output';build.mkdir();output.mkdir()
                 dsc=build/'SunSimpleInit.dsc';dsc.write_text('real product DSC')
-                owned=ROOT/'upstream/simple-init/src/main/uefimain.c'
-                source={'product_gui_pump':True,'pump_hooks':hooks,'dsc_sha256':identity.sha(dsc),'owned_sources':{str(owned.relative_to(ROOT)):identity.sha(owned),**{name:identity.sha(ROOT/name)for name in identity.PRODUCT_NAVIGATION_SOURCES}}}
+                owned=PREPARED/'upstream/simple-init/src/main/uefimain.c'
+                source={'product_gui_pump':True,'pump_hooks':hooks,'ui_hooks':{},'dsc_sha256':identity.sha(dsc),'owned_sources':{str(owned.relative_to(PREPARED)):identity.sha(owned),**{name:identity.sha(PREPARED/name)for name in identity.PRODUCT_NAVIGATION_SOURCES}}}
                 (build/'source-manifest.json').write_text(__import__('json').dumps(source))
                 report=build/'simpleinit-build-report.txt';report.write_text('MdePkg/Library/PianoProductPumpLib/PianoProductPumpLib.inf')
                 target=build/'Build/SimpleInit/NOOPT_CLANGDWARF/AARCH64';target.mkdir(parents=True)
@@ -100,14 +103,14 @@ class ProductPumpTests(unittest.TestCase):
                 if mutation=='navigation_sources':source['owned_sources'].pop(identity.PRODUCT_NAVIGATION_SOURCES[0]);(build/'source-manifest.json').write_text(__import__('json').dumps(source))
                 # This fixture isolates post-compile metadata checks. Actual
                 # installed UI/GUI source verification is covered separately.
-                with patch.dict(sys.modules,{'prepare_product_ui':type('Ui',(),{'prepare':staticmethod(lambda *args,**kwargs:None)})}):
+                with patch.dict(sys.modules,{'prepare_product_ui':type('Ui',(),{'prepare':staticmethod(lambda *args,**kwargs:{})})}):
                     if mutation=='none':self.assertTrue(identity.inspect(build,output,True)['product_gui_pump'])
                     else:
                         with self.assertRaises(ValueError):identity.inspect(build,output,True)
 
     def test_actual_client_core_wait_gui_matrix(self):
-        event=(BASE/"MdeModulePkg/Core/Dxe/Event/Event.c").read_text()
-        gui=(ROOT/"upstream/simple-init/src/gui/gui_init.c").read_text()
+        event=(PREPARED_BASE/"MdeModulePkg/Core/Dxe/Event/Event.c").read_text()
+        gui=(PREPARED/"upstream/simple-init/src/gui/gui_init.c").read_text()
         extracted="\n\n".join((function(event,"CoreWaitForEvent"),function(gui,"gui_main"),function(gui,"gui_run_and_exit"),
             "#if PIANO_PRODUCT_GUI_PUMP\n"+function(gui,"custom_tick_get")+"\n#endif"))
         include=BASE/"MdePkg/Include"
@@ -116,15 +119,15 @@ class ProductPumpTests(unittest.TestCase):
             for enabled in(0,1):
                 exe=directory/("pump-"+str(enabled))
                 cmd=["cc","-std=gnu11","-Wall","-Wextra","-Werror","-Wno-unused-function","-g","-fshort-wchar","-fno-pie","-no-pie","-fsanitize=address,undefined","-DENABLE_UEFI",f"-DPIANO_PRODUCT_GUI_PUMP={enabled}",
-                    "-I"+str(include),"-I"+str(include/"X64"),"-I"+str(directory),"-I"+str(ROOT/"upstream/simple-init/src/gui"),str(ROOT/"tests/native/PianoProductPumpTest.c"),str(BASE/"MdePkg/Library/PianoProductPumpLib/PianoProductPumpLib.c"),str(ROOT/"upstream/simple-init/src/gui/piano_product_runtime.c"),"-o",str(exe)]
+                    "-I"+str(include),"-I"+str(include/"X64"),"-I"+str(PREPARED_BASE/'MdePkg/Include'),"-I"+str(directory),"-I"+str(PREPARED/"upstream/simple-init/src/gui"),str(ROOT/"tests/native/PianoProductPumpTest.c"),str(PREPARED_BASE/"MdePkg/Library/PianoProductPumpLib/PianoProductPumpLib.c"),str(PREPARED/"upstream/simple-init/src/gui/piano_product_runtime.c"),"-o",str(exe)]
                 build=subprocess.run(cmd,capture_output=True,text=True);self.assertEqual(build.returncode,0,build.stdout+build.stderr)
                 run=subprocess.run([str(exe)],capture_output=True,text=True,env={**os.environ,"ASAN_OPTIONS":"detect_leaks=1"});self.assertEqual(run.returncode,0,run.stdout+run.stderr);print(run.stdout.strip())
         for enabled in(0,1):
             subprocess.run([str(ROOT/'build/host-tools/usr/bin/clang'),'--target=aarch64-windows-msvc',
                 '-ffreestanding','-fshort-wchar','-fsyntax-only','-Wall','-Wextra','-Werror',
                 '-DENABLE_UEFI',f'-DPIANO_PRODUCT_GUI_PUMP={enabled}',
-                '-I'+str(include),'-I'+str(include/'AArch64'),
-                str(ROOT/'upstream/simple-init/src/gui/piano_product_runtime.c')],check=True)
+                '-I'+str(include),'-I'+str(include/'AArch64'),'-I'+str(PREPARED_BASE/'MdePkg/Include'),
+                str(PREPARED/'upstream/simple-init/src/gui/piano_product_runtime.c')],check=True)
 
     def test_default_null_has_no_boot_service_or_provider_dependency(self):
         include=BASE/"MdePkg/Include"
@@ -136,13 +139,13 @@ UINT32 Checks,Signals;
 EFI_STATUS CoreCheckEvent(EFI_EVENT E){assert(E==(VOID *)1);Checks++;return EFI_SUCCESS;}
 EFI_STATUS CoreSignalEvent(EFI_EVENT E){(VOID)E;Signals++;return EFI_SUCCESS;}
 '''
-        source+=function((BASE/'MdeModulePkg/Core/Dxe/Event/Event.c').read_text(),'CoreWaitForEvent')
+        source+=function((PREPARED_BASE/'MdeModulePkg/Core/Dxe/Event/Event.c').read_text(),'CoreWaitForEvent')
         source+='''
 int main(void){UINT32 A=99;UINT64 S=99;assert(PianoProductPumpApplication(1,1000)==EFI_UNSUPPORTED);assert(PianoProductGetPendingAction(&A,&S)==EFI_UNSUPPORTED&&A==0&&S==0);assert(PianoProductPumpBootServicesAlive()==TRUE);assert(!PianoProductReturnCoreRequested());assert(PianoProductRequestReboot()==EFI_UNSUPPORTED&&!PianoProductRebootManaged());EFI_EVENT E=(VOID *)1;UINTN I=99;assert(CoreWaitForEvent(1,&E,&I)==EFI_SUCCESS&&I==0&&Checks==1&&!Signals);gEfiCurrentTpl=TPL_CALLBACK;assert(CoreWaitForEvent(1,&E,&I)==EFI_SUCCESS&&Checks==2&&!Signals);return 0;}
 '''
         with tempfile.TemporaryDirectory(prefix="null-pump-host-")as directory:
             directory=Path(directory);(directory/"null.c").write_text(source);exe=directory/"null"
-            subprocess.run(["cc","-std=c11","-fshort-wchar","-I"+str(include),"-I"+str(include/"X64"),str(directory/"null.c"),str(BASE/"MdePkg/Library/PianoProductPumpLibNull/PianoProductPumpLibNull.c"),"-o",str(exe)],check=True)
+            subprocess.run(["cc","-std=c11","-fshort-wchar","-I"+str(include),"-I"+str(include/"X64"),'-I'+str(PREPARED_BASE/'MdePkg/Include'),str(directory/"null.c"),str(PREPARED_BASE/"MdePkg/Library/PianoProductPumpLibNull/PianoProductPumpLibNull.c"),"-o",str(exe)],check=True)
             subprocess.run([str(exe)],check=True)
             symbols=subprocess.run(["nm","-u",str(exe)],check=True,capture_output=True,text=True).stdout
             for symbol in("gBS","gST","LocateProtocol","CreateEvent","Pump"):self.assertNotIn(symbol,symbols)

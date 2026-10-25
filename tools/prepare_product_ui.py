@@ -251,6 +251,8 @@ hook(SI+'src/boot/reboot_uefi.c', '\tadv_reboot(cmd,data);\n\ttlog_warn("reset s
      '\tif(adv_reboot(cmd,data)==0){\n\t\tif(data)free(data);\n\t\treturn 0;\n\t}\n'
      '\ttlog_warn("reset system failed");')
 
+# Menu content comes from config/simpleinit.static.uefi.cfg. These hooks only
+# dispatch product actions and expose upstream's generic file/tool activities.
 hook(SI+'src/gui/drivers/uefi_gop.c', '\tuefigop_apply_mode();\n',
      '\tuefigop_apply_mode();\n'
      '\tif(gop->Mode&&gop->Mode->Info)tlog_notice("PIANO_GUI_GOP_SELECTED interface=%p blt=%p mode=%u base=%llx bytes=%llu width=%u height=%u stride=%u format=%u",\n'
@@ -258,20 +260,15 @@ hook(SI+'src/gui/drivers/uefi_gop.c', '\tuefigop_apply_mode();\n',
      '\t\t(unsigned long long)gop->Mode->FrameBufferBase,(unsigned long long)gop->Mode->FrameBufferSize,\n'
      '\t\tgop->Mode->Info->HorizontalResolution,gop->Mode->Info->VerticalResolution,\n'
      '\t\tgop->Mode->Info->PixelsPerScanLine,(unsigned)gop->Mode->Info->PixelFormat);\n')
-include(SI+'src/boot/bootdef.c', '#include<Library/BaseLib.h>\n')
-hook(SI+'src/boot/SimpleInitBoot.inf', '[LibraryClasses]\n', '[LibraryClasses]\n  PianoProductPumpLib\n')
-hook(SI+'src/boot/bootdef.c', '\tgui_splash_set_text(true,_("Loading UEFI boot options..."));',
-     '\tif(PianoProductRebootManaged()){\n'
-     '\t\tboot_config entries[]={\n'
-     '\t\t\t{.mode=BOOT_EXIT,.ident="piano-stable",.desc="启动 Piano Linux（Stable）",.save=false,.replace=true,.show=true,.enabled=true},\n'
-     '\t\t\t{.mode=BOOT_EXIT,.ident="piano-setup",.desc="固件设置（BIOS）",.save=false,.replace=true,.show=true,.enabled=true},\n'
-     '\t\t\t{.mode=BOOT_EXIT,.ident="piano-shell",.desc="进入 UEFI Shell",.save=false,.replace=true,.show=true,.enabled=true},\n'
-     '\t\t\t{.mode=BOOT_EXIT,.ident="continue",.desc="重启",.save=false,.replace=true,.show=true,.enabled=true}\n'
-     '\t\t};\n'
-     '\t\tfor(size_t n=0;n<sizeof(entries)/sizeof(entries[0]);n++)boot_create_config(&entries[n],NULL);\n'
-     '\t}\n\tgui_splash_set_text(true,_("Loading UEFI boot options..."));')
 hook(SI+'src/gui/interface/core/bootmenu.c', '#include"gui/tools.h"\n',
-     '#include"gui/tools.h"\n#include"gui/msgbox.h"\n#ifdef ENABLE_UEFI\n#include<Library/PianoProductPumpLib.h>\n#endif\n')
+     '#include"gui/tools.h"\n#include"gui/msgbox.h"\n#include"piano_bootmenu.h"\n#ifdef ENABLE_UEFI\n#include<Library/PianoProductPumpLib.h>\n#endif\n')
+hook(SI+'src/gui/SimpleInitGUI.inf', '  interface/core/bootmenu.c\n',
+     '  interface/core/bootmenu.c\n  interface/core/piano_bootmenu.c\n')
+hook(SI+'src/gui/interface/core/bootmenu.c',
+     '\t\tfor(size_t i=0;cs[i];i++)bootmenu_add(bm,cs[i]);',
+     '\t\tpiano_bootmenu_sort(cs);\n\t\tfor(size_t i=0;cs[i];i++)bootmenu_add(bm,cs[i]);')
+hook(SI+'src/gui/interface/core/bootmenu.c', '\t\tlv_async_call(enter_simple_init,NULL);',
+     '\t\tlv_async_call(piano_bootmenu_enter,confd_get_string_base(bi->cfg.key,"activity",NULL));')
 hook(SI+'src/gui/interface/core/bootmenu.c', '\t#ifdef ENABLE_UEFI\n\tif(bi->cfg.mode==BOOT_SIMPLE_INIT){',
      '\t#ifdef ENABLE_UEFI\n'
      '\tif(PianoProductRebootManaged()){\n'
@@ -280,15 +277,33 @@ hook(SI+'src/gui/interface/core/bootmenu.c', '\t#ifdef ENABLE_UEFI\n\tif(bi->cfg
      '\t\t\tif(status==EFI_SUCCESS)gui_run_and_exit(NULL);\n'
      '\t\t\telse msgbox_alert("未能重启，请稍后重试。");\n'
      '\t\t\treturn;\n\t\t}\n'
-     '\t\tUINT32 action=strcmp(bi->cfg.ident,"piano-setup")==0?PIANO_PRODUCT_ACTION_SETUP:\n'
-     '\t\t\tstrcmp(bi->cfg.ident,"piano-stable")==0?PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE:\n'
-     '\t\t\tstrcmp(bi->cfg.ident,"piano-shell")==0?PIANO_PRODUCT_ACTION_SHELL:PIANO_PRODUCT_ACTION_NONE;\n'
+     '\t\tUINT32 action=strcmp(bi->cfg.ident,"setup")==0?PIANO_PRODUCT_ACTION_SETUP:\n'
+     '\t\t\tstrcmp(bi->cfg.ident,"linux")==0?PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE:\n'
+     '\t\t\tstrcmp(bi->cfg.ident,"shell")==0?PIANO_PRODUCT_ACTION_SHELL:PIANO_PRODUCT_ACTION_NONE;\n'
      '\t\tif(action!=PIANO_PRODUCT_ACTION_NONE){\n'
      '\t\t\tEFI_STATUS status=PianoProductRequestNavigation(action);\n'
      '\t\t\tif(status==EFI_SUCCESS)gui_run_and_exit(NULL);\n'
      '\t\t\telse tlog_warn("product navigation request failed");\n'
      '\t\t\treturn;\n\t\t}\n\t}\n'
      '\tif(bi->cfg.mode==BOOT_SIMPLE_INIT){')
+# Repair the pinned scanner: the inner loop shadowed the directory index and
+# closed a cached handle twice. Keep scanning read-only and display plain names.
+hook(SI+'src/boot/prober.c',
+     '\t\tfor(size_t d=0;ep->dir[d];d++)for(size_t d=0;ep->name[d];d++){',
+     '\t\tfor(size_t d=0;ep->dir[d];d++)for(size_t n=0;ep->name[n];n++){')
+hook(SI+'src/boot/prober.c', '\t\t\t\tep->dir[d],ep->name[d]', '\t\t\t\tep->dir[d],ep->name[n]')
+hook(SI+'src/boot/prober.c', '\t\t\tfs_close(&nf);\n\t\t\t(*id)++,found=true;',
+     '\t\t\t(*id)++,found=true;')
+hook(SI+'src/boot/prober.c',
+     '\tsnprintf(use->desc,sizeof(use->desc)-1,"%s on #%d",ep->title,part);',
+     '\tsnprintf(use->desc,sizeof(use->desc),"%s",ep->title);')
+hook(SI+'src/boot/prober.c', '\tboot_create_config(use,NULL);\n\tconfd_set_string_base(use->key,"efi_file",url);',
+     '\tboot_create_config(use,NULL);\n'
+     '\tconfd_set_integer_base(use->base,"order",strcmp(ep->title,"启动 Windows")==0?20:30);\n'
+     '\tconfd_set_string_base(use->key,"efi_file",url);')
+hook(SI+'src/boot/prober.c', '\tif(!(use=malloc(sizeof(struct boot_config))))return false;',
+     '\tif(!(use=malloc(sizeof(struct boot_config)))){free(url);return false;}')
+hook(SI+'src/boot/efi_path.c', '"Windows Boot Manager",  ms_dir,  ms_boot', '"启动 Windows",         ms_dir,  ms_boot')
 hook(SI+'src/gui/interface/apps/uefi_shell.c', '#include<Library/UefiLib.h>\n',
      '#include<Library/UefiLib.h>\n#include<Library/PianoProductPumpLib.h>\n')
 hook(SI+'src/gui/interface/apps/uefi_shell.c', '\tif(id==0){\n\t\tMEDIA_FW_VOL_FILEPATH_DEVICE_PATH fn;',
@@ -351,12 +366,36 @@ def prepare(root=ROOT, apply=False, check_pins=True):
     from prepare_product_console import prepare as prepare_console
     console = prepare_console(root, apply=apply)
     desired, newline = {}, {}
+    previous_menu_include='#include"gui/tools.h"\n#include"gui/msgbox.h"\n#ifdef ENABLE_UEFI\n#include<Library/PianoProductPumpLib.h>\n#endif\n'
+    legacy_entries='''	if(PianoProductRebootManaged()){
+		boot_config entries[]={
+			{.mode=BOOT_EXIT,.ident="piano-stable",.desc="启动 Piano Linux（Stable）",.save=false,.replace=true,.show=true,.enabled=true},
+			{.mode=BOOT_EXIT,.ident="piano-setup",.desc="固件设置（BIOS）",.save=false,.replace=true,.show=true,.enabled=true},
+			{.mode=BOOT_EXIT,.ident="piano-shell",.desc="进入 UEFI Shell",.save=false,.replace=true,.show=true,.enabled=true},
+			{.mode=BOOT_EXIT,.ident="continue",.desc="返回 Android（重启）",.save=false,.replace=true,.show=true,.enabled=true}
+		};
+		for(size_t n=0;n<sizeof(entries)/sizeof(entries[0]);n++)boot_create_config(&entries[n],NULL);
+	}
+'''
     for relative, old, new in HOOKS:
         path = root/relative
         if path not in desired:
             raw=path.read_bytes()
             newline[path]=b'\r\n' if b'\r\n' in raw else b'\n'
             desired[path]=raw.decode().replace('\r\n','\n')
+            if relative==SI+'src/gui/interface/core/bootmenu.c' and previous_menu_include in desired[path]:
+                desired[path]=desired[path].replace(previous_menu_include,previous_menu_include.replace('#include"gui/msgbox.h"\n','#include"gui/msgbox.h"\n#include"piano_bootmenu.h"\n'),1)
+            if relative==SI+'src/gui/interface/core/bootmenu.c':
+                desired[path]=desired[path].replace('"piano-setup"','"setup"').replace('"piano-stable"','"linux"').replace('"piano-shell"','"shell"').replace('未能返回 Android，请稍后重试。','未能重启，请稍后重试。')
+            if relative==SI+'src/lib/reboot.c':
+                prior='''	if(PianoProductRebootManaged()){
+		if(cmd!=REBOOT_RESTART&&cmd!=REBOOT_COLD)ERET(EOPNOTSUPP);
+		EFI_STATUS status=PianoProductRequestReboot();
+		if(status!=EFI_SUCCESS)ERET(EIO);
+		return 0;
+	}
+'''
+                desired[path]=desired[path].replace(prior,'')
             for previous_path,previous_menu,current_menu in MENU_MIGRATIONS:
                 if previous_path==relative and desired[path].count(previous_menu)==1:
                     desired[path]=desired[path].replace(previous_menu,current_menu,1)
@@ -367,13 +406,20 @@ def prepare(root=ROOT, apply=False, check_pins=True):
                     desired[path]=desired[path].replace(previous,current,1)
         desired[path]=transform(desired[path],old,new,relative)
     outputs={path:value.replace('\n',newline[path].decode()).encode() for path,value in desired.items()}
+    bootdef=root/(SI+'src/boot/bootdef.c')
+    boot_text=bootdef.read_text()
+    for previous in (legacy_entries,legacy_entries.replace('返回 Android（重启）','重启')):
+        boot_text=boot_text.replace(previous,'')
+    outputs[bootdef]=boot_text.encode()
+    for name in ('piano_bootmenu.c','piano_bootmenu.h'):
+        outputs[root/(SI+'src/gui/interface/core/'+name)]=(root/'uefi/components/simple-init'/name).read_bytes()
     if not apply:
         for path,value in outputs.items():
             if path.read_bytes()!=value:
                 raise ValueError('product UI hook not prepared: '+str(path.relative_to(root)))
     else:
         for path,value in outputs.items():
-            if path.read_bytes()!=value:
+            if not path.is_file() or path.read_bytes()!=value:
                 path.write_bytes(value)
     hashes={str(path.relative_to(root)):hashlib.sha256(value).hexdigest() for path,value in sorted(outputs.items())}
     return {'pin':PIN,'simpleinit_pin':SIMPLEINIT_PIN,'files':hashes,'sha256':hashlib.sha256(json.dumps(hashes,sort_keys=True).encode()).hexdigest(),'console':console,

@@ -12,6 +12,16 @@ PRODUCT_NAVIGATION_SOURCES = (
     'upstream/simple-init/src/boot/SimpleInitBoot.inf',
     'upstream/simple-init/src/gui/interface/core/bootmenu.c',
     'upstream/simple-init/src/gui/interface/apps/uefi_shell.c',
+    'upstream/simple-init/src/boot/prober.c',
+    'upstream/simple-init/src/boot/efi_path.c',
+    'upstream/simple-init/src/gui/interface/core/piano_bootmenu.c',
+    'upstream/simple-init/src/gui/interface/core/piano_bootmenu.h',
+    'config/simpleinit.static.uefi.cfg',
+    'upstream/simple-init/root/etc/simpleinit.static.uefi.cfg',
+    'upstream/simple-init/src/confd/uefi.c',
+    'upstream/simple-init/src/confd/file.c',
+    'upstream/simple-init/src/filesystem/volume/uefi.c',
+    'upstream/simple-init/src/filesystem/layer/uefi.c',
 )
 
 
