@@ -18,7 +18,9 @@ STATIC EFI_STATUS ProductSmmuGuard(BOOLEAN Establish){
   if(!mProductExecuting || !mBlockBusy || !mInstalled || mExitRetained || mProductRetained || !mContext.Attached || !mContext.Verified ||
      !mContext.Domain || !mContext.TableMemory.Signature || mContext.TableMemory.Quarantined)return EFI_ACCESS_DENIED;
   if(Read(0x50)!=(UINT32)mTrl.DeviceAddress || Read(0x54)!=(UINT32)(mTrl.DeviceAddress>>32) || Read(0x58) || Read(0x78))return ProductRetain(EFI_COMPROMISED_DATA);
-  PIANO_SMMU_SNAPSHOT Current;EFI_STATUS S=PianoSmmuCapture(mContext.Fdt,"product-volume-lease",&Current);
+  // File IO runs beside USB enumeration. Keep every register/peer check but
+  // do not dump the entire SMMU for each journal block at TPL_CALLBACK.
+  PIANO_SMMU_SNAPSHOT Current;EFI_STATUS S=PianoSmmuCaptureQuiet(mContext.Fdt,&Current);
   if(S!=EFI_SUCCESS)return ProductRetain(S);
   if(!Current.Valid || Current.Base!=0x15000000 || Current.Window!=0x100000 || !Current.Groups || Current.Groups>256 ||
      Current.GlobalFault || !Current.Device[0].Present || !Current.Device[0].Enabled ||

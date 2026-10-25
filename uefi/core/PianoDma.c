@@ -61,12 +61,21 @@ STATIC UINT32 RecordCrc(CONST VOID *Data,UINTN Bytes) {
   for(UINTN I=0;I<Bytes;++I){C^=P[I];for(UINTN J=0;J<8;++J)C=(C>>1)^((C&1)?0xEDB88320U:0);}
   return ~C;
 }
+STATIC BOOLEAN QuietCommand(CONST CHAR8 *Command){
+  if(Command==NULL)return FALSE;
+  if(!AsciiStrCmp(Command,"BLOCKIO_READ"))return TRUE;
+#if defined(PIANO_USB_SERVICE) && PIANO_USB_SERVICE
+  if(!AsciiStrCmp(Command,"USB_FASTBOOT_IN")||!AsciiStrCmp(Command,"USB_FASTBOOT_OUT")||
+     !AsciiStrCmp(Command,"PARTITION_WRITE_FUA")||!AsciiStrCmp(Command,"PARTITION_SYNC"))return TRUE;
+#endif
+  return FALSE;
+}
 STATIC VOID Log(PIANO_DMA_BUFFER *B,CONST CHAR8 *Phase,CONST CHAR8 *Cache,EFI_STATUS Status) {
   UINTN Level=DEBUG_WARN;
   // Ordinary file reads reuse these buffers thousands of times. Keep their
   // transfer trace opt-in so it cannot evict startup failures from RAM log.
   // Allocation, mapping, retirement and every failure remain visible.
-  if(Status==EFI_SUCCESS && B->Command!=NULL && !AsciiStrCmp(B->Command,"BLOCKIO_READ") &&
+  if(Status==EFI_SUCCESS && QuietCommand(B->Command) &&
      (!AsciiStrCmp(Phase,"submit") || !AsciiStrCmp(Phase,"complete")))Level=DEBUG_VERBOSE;
   if(!DebugPrintEnabled() || !DebugPrintLevelEnabled(Level))return;
   CHAR8 Body[384];UINTN Bytes=AsciiSPrint(Body,sizeof(Body),
@@ -149,7 +158,8 @@ EFI_STATUS PianoDmaBegin(PIANO_DMA_BUFFER *B,CONST CHAR8 *Command) {
   if(B->Direction==PianoDmaToDevice){WriteBackDataCacheRange(B->Cpu,B->ReservedBytes);Cache="clean";}
   else {WriteBackInvalidateDataCacheRange(B->Cpu,B->ReservedBytes);Cache="clean-invalidate";}
   MemoryFence();B->Active=TRUE;B->Command=Command;
-  DEBUG((DEBUG_WARN,"SUNUEFI_DMA_COMMAND dev=%a command=%a\n",B->Device->Name,Command));
+  DEBUG((QuietCommand(Command)?DEBUG_VERBOSE:DEBUG_WARN,
+    "SUNUEFI_DMA_COMMAND dev=%a command=%a\n",B->Device->Name,Command));
   Log(B,"submit",Cache,EFI_SUCCESS);return EFI_SUCCESS;
 }
 EFI_STATUS PianoDmaComplete(PIANO_DMA_BUFFER *B,EFI_STATUS Status,BOOLEAN Quiesced) {
