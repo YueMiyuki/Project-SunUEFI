@@ -424,6 +424,7 @@ def prepare(root=ROOT):
     late_provider['os_image_armed']=False
     observation=prepare_observation_families(root,app)
     (app/'PianoProductSimpleInitDigest.h').write_text(header)
+    shutil.copyfile(root/'upstream/Mu-Silicium/Mu_Basecore/MdeModulePkg/Universal/Console/GraphicsConsoleDxe/PianoChineseGlyphs.h',app/'PianoChineseGlyphs.h')
     (app/'ProductCore.inf').write_text(core_inf())
     from firmware.prepare_ext4 import prepare as prepare_ext4
     ext4=prepare_ext4(root,target)

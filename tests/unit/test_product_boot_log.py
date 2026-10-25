@@ -17,9 +17,10 @@ class ProductBootLogTests(unittest.TestCase):
         output.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='piano-bootlog-') as directory:
             executable = Path(directory) / 'bootlog'
+            generated=ROOT/'build/firmware-workspace/upstream/Mu-Silicium/Mu_Basecore/MdeModulePkg/Universal/Console/GraphicsConsoleDxe'
             subprocess.run(['cc', '-std=gnu11', '-Wall', '-Wextra', '-Werror',
                 '-Wno-misleading-indentation', '-fshort-wchar', '-fsanitize=address,undefined',
-                '-fno-pie', '-no-pie', '-I' + str(INC), '-I' + str(INC / 'X64'),
+                '-fno-pie', '-no-pie', '-I' + str(INC), '-I' + str(INC / 'X64'),'-I'+str(generated),
                 str(ROOT / 'tests/native/PianoProductBootLogTest.c'), str(SOURCE), str(SPLASH),
                 '-o', str(executable)], check=True)
             run = subprocess.run([str(executable), str(output / 'product-bootlog-3200x2136.ppm')],
@@ -29,7 +30,7 @@ class ProductBootLogTests(unittest.TestCase):
         subprocess.run([str(ROOT / 'build/host-tools/usr/bin/clang'),
             '--target=aarch64-windows-msvc', '-ffreestanding', '-fshort-wchar',
             '-fsyntax-only', '-Wall', '-Wextra', '-Werror', '-I' + str(INC),
-            '-I' + str(INC / 'AArch64'), str(SOURCE)], check=True)
+            '-I' + str(INC / 'AArch64'),'-I'+str(generated),str(SOURCE)], check=True)
 
 
 if __name__ == '__main__':

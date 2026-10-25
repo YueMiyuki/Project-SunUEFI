@@ -166,7 +166,20 @@ STATIC VOID FailStop(EFI_STATUS Status) {
   // service lifetime. Do not make another display/protocol call on that path.
   if(!PianoProductDisplayRetained() && !PianoDisplaySmmuRetained() &&
      !PianoFrameBufferMappingRetained() && !PianoDisplayClockRetained() &&
-     !PianoProductDisplayOwnerRetained())BootLogStage(mBootLogStage,Status);
+     !PianoProductDisplayOwnerRetained()){
+    BootLogStage(mBootLogStage,Status);
+    CONST CHAR16 *Detail=L"启动菜单退出失败";
+    if(mOwners.Report.Retained){
+      if(EFI_ERROR(mOwners.Report.NvStatus)&&mOwners.Report.NvStatus!=EFI_NOT_STARTED)Detail=L"设置未能保存";
+      else if(EFI_ERROR(mOwners.Report.FilesystemsStatus))Detail=L"仍有文件或驱动没有关闭";
+      else Detail=mOwners.Report.Ufs.Failed?L"存储驱动未能安全退出":L"系统交接失败";
+    }else if(!AsciiStrnCmp(mBootLogStage,"UFS",3))Detail=L"存储初始化失败";
+    else if(!AsciiStrCmp(mBootLogStage,"USB"))Detail=L"USB 初始化失败";
+    else if(!AsciiStrCmp(mBootLogStage,"INPUT"))Detail=L"输入初始化失败";
+    else if(!AsciiStrCmp(mBootLogStage,"PAYLOAD"))Detail=L"引导文件不可用";
+    if(BootLogAlive())(VOID)PianoProductBootLogMessage(L"未能启动系统",Detail,Status,TRUE);
+    DEBUG((DEBUG_ERROR,"PIANO_START_FAILED stage=%a status=%r recovery=hold-power-reboot-volume-up-Android\n",mBootLogStage,Status));
+  }
 #ifdef __aarch64__
   __asm__ volatile("msr daifset, #15" ::: "memory");
 #endif
@@ -367,6 +380,7 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
       Status=PianoProductOwnersResolveReturnedAction(&mOwners);
       BOOLEAN FileLoaded=FALSE;
       if(Status==EFI_NOT_READY&&PianoBootPolicyReport()->RequestedCoreAction==PianoUsbServiceActionBoot) {
+        (VOID)PianoProductBootLogMessage(L"正在读取启动镜像",L"请稍候",EFI_SUCCESS,FALSE);
         VOID *FileContext=NULL,*FileToken=NULL;
         EFI_STATUS Load=PianoRawLinuxLoadStable(Runtime,&FileContext,&FileToken);
         DEBUG((DEBUG_WARN,"PIANO_PRODUCT_ESP_STABLE_LOAD status=%r path=EFI/Piano/stable/boot.img\n",Load));
@@ -384,6 +398,7 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
       if(FileLoaded&&mOwners.Report.Origin!=PianoProductRequestFile) {
         Status=PianoRawLinuxDiscardStable();if(Status!=EFI_SUCCESS)FailStop(Status);FileLoaded=FALSE;
       }
+      (VOID)PianoProductBootLogMessage(L"正在交接系统",L"正在保存设置并关闭存储",EFI_SUCCESS,FALSE);
       Status=PianoProductOwnersRetire(&mOwners);
       if(Status==EFI_NOT_READY&&FileLoaded&&mOwners.Report.Origin==PianoProductRequestUsb) {
         Status=PianoRawLinuxDiscardStable();if(Status!=EFI_SUCCESS)FailStop(Status);

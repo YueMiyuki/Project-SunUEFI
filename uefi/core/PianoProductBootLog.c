@@ -2,6 +2,8 @@
 #include "PianoProductBootLog.h"
 #include <Library/DebugLib.h>
 #include <Library/UefiBootServicesTableLib.h>
+#include <Protocol/HiiFont.h>
+#include "PianoChineseGlyphs.h"
 
 #ifndef PIANO_PRODUCT_DISPLAY_TEST
 #define PIANO_PRODUCT_DISPLAY_TEST 0
@@ -194,4 +196,33 @@ EFI_STATUS PianoProductBootLogStage(CONST CHAR8 *Name,EFI_STATUS Status,UINT64 E
   CHAR8 Elapsed[24],Code[19];Decimal(ElapsedMs,Elapsed);Hex(Status,Code);
   return DrawRow(Row,Label,Elapsed,
     Status==EFI_SUCCESS||Status==EFI_NOT_STARTED?"--":Code);
+}
+STATIC EFI_STATUS MessageText(CONST CHAR16 *String,UINT32 X,UINT32 Y,UINT32 Scale,EFI_GRAPHICS_OUTPUT_BLT_PIXEL Ink){
+  for(UINTN I=0;String&&String[I];++I){
+    CHAR16 Ch=String[I];CONST EFI_WIDE_GLYPH *Wide=NULL;
+    for(UINTN G=0;G<ARRAY_SIZE(mPianoWideGlyphs);++G)if(mPianoWideGlyphs[G].UnicodeWeight==Ch){Wide=&mPianoWideGlyphs[G];break;}
+    UINT32 Columns=Wide?16:8,Rows=Wide?19:7;
+    if(X+(Columns+1)*Scale>=mCanvas.Width)return EFI_BAD_BUFFER_SIZE;
+    for(UINT32 Row=0;Row<Rows;++Row)for(UINT32 Col=0;Col<Columns;++Col){
+      BOOLEAN On=Wide?(((Col<8?Wide->GlyphCol1[Row]:Wide->GlyphCol2[Row])&(0x80>>(Col%8)))!=0):
+        (Col<5&&(Glyph((CHAR8)Ch)[Col]&(1U<<Row)));
+      if(On){EFI_STATUS S=Rect(Ink,X+Col*Scale,Y+(Wide?Row:Row*2+3)*Scale,Scale,Wide?Scale:2*Scale);if(S!=EFI_SUCCESS)return S;}
+    }
+    X+=(Columns+1)*Scale;
+  }
+  return EFI_SUCCESS;
+}
+EFI_STATUS PianoProductBootLogMessage(CONST CHAR16 *Title,CONST CHAR16 *Detail,EFI_STATUS Status,BOOLEAN Failed){
+  if(!mCanvas.Gop||!mCanvas.Alive||!Title)return EFI_NOT_STARTED;
+  UINT32 Scale=MIN(mCanvas.Width,mCanvas.Height)/440;if(!Scale)Scale=1;
+  UINT32 X=mCanvas.Width*7/100,Y=mCanvas.Height*26/100;
+  EFI_STATUS S=Rect(Color(255,255,255),0,0,mCanvas.Width,mCanvas.Height);if(S!=EFI_SUCCESS)return S;
+  S=Rect(Color(238,121,0),X,Y-10*Scale,20*Scale,2*Scale);if(S!=EFI_SUCCESS)return S;
+  S=MessageText(Title,X,Y,Scale+1,Color(40,44,50));if(S!=EFI_SUCCESS)return S;
+  S=MessageText(Detail,X,Y+34*Scale,Scale,Color(80,84,90));if(S!=EFI_SUCCESS)return S;
+  if(!Failed)return MessageText(L"请稍候",X,Y+64*Scale,Scale,Color(110,114,120));
+  S=MessageText(L"长按电源重启",X,Y+72*Scale,Scale,Color(50,54,60));if(S!=EFI_SUCCESS)return S;
+  S=MessageText(L"在选择画面按音量上进入 Android",X,Y+100*Scale,Scale,Color(50,54,60));if(S!=EFI_SUCCESS)return S;
+  CHAR8 Code[19];Hex(Status,Code);UINT32 Saved=mCanvas.Scale;mCanvas.Scale=Scale;
+  S=Text(Code,X,Y+140*Scale,Color(120,124,130));mCanvas.Scale=Saved;return S;
 }

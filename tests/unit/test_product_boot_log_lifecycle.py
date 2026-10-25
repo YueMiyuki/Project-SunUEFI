@@ -17,6 +17,8 @@ class ProductBootLogLifecycleTests(unittest.TestCase):
                     WS / 'Silicon/Qualcomm/QcomPkg/Include',
                     WS / 'Silicon/Silicium/SiliciumPkg/Include',
                     ROOT / 'uefi/components/guarded-read',
+                    ROOT / 'uefi/components/nv',
+                    ROOT / 'uefi/components/reset',
                     ROOT / 'uefi/handoff/early-memory']
         with tempfile.TemporaryDirectory(prefix='piano-core-bootlog-') as temporary:
             executable = Path(temporary) / 'lifecycle'

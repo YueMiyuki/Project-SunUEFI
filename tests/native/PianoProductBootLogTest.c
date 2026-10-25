@@ -98,6 +98,8 @@ int main(int Argc,char **Argv){
     assert(PianoProductBootLogStage("UFS CAPACITY",EFI_DEVICE_ERROR,528)==EFI_SUCCESS);
     assert(PianoProductBootLogStage("USB",EFI_SUCCESS,1132)==EFI_SUCCESS);
     assert(PianoProductBootLogStage("MENU",EFI_NOT_STARTED,1140)==EFI_SUCCESS);Preview(Argv[1]);
+    assert(PianoProductBootLogMessage(L"未能启动系统",L"存储驱动未能安全退出",EFI_NOT_FOUND,TRUE)==EFI_SUCCESS);
+    char Failure[1024];snprintf(Failure,sizeof(Failure),"%s-failure.ppm",Argv[1]);Preview(Failure);
   }
   CONST UINT32 Sizes[][2]={{480,320},{800,600},{3200,320},{480,2136}};
   for(UINTN I=0;I<ARRAY_SIZE(Sizes);++I){
