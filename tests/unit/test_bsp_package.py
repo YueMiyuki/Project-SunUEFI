@@ -41,7 +41,7 @@ class BspPackageTests(unittest.TestCase):
         row=report['payload_files']['etc/modules-load.d/piano-bluetooth.conf']
         self.assertEqual(row['source_component'],'Project SunUEFI')
         data=(bsp.BSP/'common/etc/modules-load.d/piano-bluetooth.conf').read_text()
-        self.assertEqual([line for line in data.splitlines()if line and not line.startswith('#')],['uhid'])
+        self.assertEqual([line for line in data.splitlines()if line and not line.startswith('#')],['uhid','hid_xiaomi'])
         camera = bsp.build(self.args('inspect', '--feature', 'camera'))
         self.assertIn('etc/wireplumber/wireplumber.conf.d/50-piano-camera.conf', camera['payload_files'])
         self.assertIn('wireplumber (>= 0.5)', camera['depends'])
@@ -130,7 +130,7 @@ class BspPackageTests(unittest.TestCase):
             self.assertTrue(member.issym())
             self.assertEqual(member.linkname, '../../Qualcomm/sm8750/Xiaomi-Pad-8-Pro/Xiaomi-Pad-8-Pro.conf')
             hifi = archive.extractfile('./usr/share/alsa/ucm2/Qualcomm/sm8750/Xiaomi-Pad-8-Pro/HiFi.conf').read()
-            self.assertIn(b"VA_DEC0 Volume' 98", hifi)
+            self.assertIn(b"VA_DEC0 Volume' 124", hifi)
         self.assertEqual(report['files']['payload.tar']['sha256'], hashlib.sha256((out / 'payload.tar').read_bytes()).hexdigest())
 
     def test_missing_deb_backend_does_not_fake_package(self):

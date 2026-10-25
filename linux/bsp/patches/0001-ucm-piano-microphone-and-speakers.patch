@@ -33,8 +33,8 @@
 +		cset "name='VA DEC0 MUX' VA_DMIC"
 +		cset "name='VA DMIC MUX0' DMIC2"
 +		cset "name='VA_AIF1_CAP Mixer DEC0' 1"
-+		# Measured speech headroom; the standard VA control uses 1 dB steps.
-+		cset "name='VA_DEC0 Volume' 98"
++		# VA digital gain: -84 + 124 = +40 dB.
++		cset "name='VA_DEC0 Volume' 124"
 +	]
 +	DisableSequence [
 +		cset "name='VA DMIC MUX0' ZERO"

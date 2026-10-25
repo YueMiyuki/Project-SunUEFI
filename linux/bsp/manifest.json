@@ -208,7 +208,7 @@
       "source_git_mode": "100644",
       "license": "MIT",
       "patch": "patches/0001-ucm-piano-microphone-and-speakers.patch",
-      "patch_sha256": "5fd111588abb13b7b07e14fabc8d946b2303db2c791361ab4e3663586a0e2169",
+      "patch_sha256": "6cb3f556b4d33e6add8ad9407597e0deff74d7bab9dccaaee53a4db849e2fa40",
       "derived_from": {
         "path": "patches/linux/7.2.9/0013-asoc-piano-va-mono.patch",
         "sha256": "a584675049a6677d8f5acc1c0c03dd7d29a5719551f484ff26331aedd6f81edc",
