@@ -153,6 +153,15 @@ EFI_STATUS EFIAPI PianoProductRequestReboot(VOID) {
   // EFI_UNSUPPORTED is reserved for the Null implementation's legacy fallback.
   return Status==EFI_UNSUPPORTED?EFI_ACCESS_DENIED:Exact(Status);
 }
+EFI_STATUS EFIAPI PianoProductRequestReset(UINT32 Target) {
+  if(Target>PIANO_PRODUCT_RESET_EDL)return EFI_INVALID_PARAMETER;
+  if(!Target)return PianoProductRequestReboot();
+  EFI_STATUS Status=Enter();if(Status!=EFI_SUCCESS)return Status;
+  Status=mRuntime->RequestAction(mRuntime,PIANO_PRODUCT_ACTION_REQUEST_SHUTDOWN+Target-1);
+  mBusy=FALSE;
+  if(!PianoProductPumpBootServicesAlive()){CpuDeadLoop();return EFI_ABORTED;}
+  return Status==EFI_UNSUPPORTED?EFI_ACCESS_DENIED:Exact(Status);
+}
 EFI_STATUS EFIAPI PianoProductRequestContinue(VOID) {
   EFI_STATUS Status=Enter();
   if(!PianoProductPumpBootServicesAlive()){

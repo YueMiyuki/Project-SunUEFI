@@ -108,13 +108,13 @@ class LateHandoffTests(unittest.TestCase):
    (p/'PianoLateOwnersFixture.h').write_text('#include <Uefi.h>\nstatic UINTN mMemoryMapKey;\n'+fixture)
    exe=p/'late';command=['cc','-std=gnu11','-DNO_MSABI_VA_FUNCS','-DPIANO_PRODUCT_NATIVE_LATE=1','-fshort-wchar','-Wall','-Wextra','-Werror',
      '-Wno-unused-parameter','-Wno-misleading-indentation','-g','-fsanitize=address,undefined','-fno-pie','-no-pie',
-     '-I'+str(inc),'-I'+str(inc/'X64'),'-I'+str(shared),'-I'+str(ROOT/'uefi/core'),'-I'+str(ROOT/'tests/native'),'-I'+str(p),
+      '-I'+str(inc),'-I'+str(inc/'X64'),'-I'+str(shared),'-I'+str(ROOT/'uefi/core'),'-I'+str(ROOT/'uefi/components/nv'),'-I'+str(ROOT/'uefi/components/ext4'),'-I'+str(ROOT/'tests/native'),'-I'+str(p),
      '-Wno-deprecated-declarations','-I'+str(BASE/'CryptoPkg/Include'),
      str(ROOT/'tests/native/PianoLateHandoffTest.c'),str(ROOT/'uefi/components/product-handoff/PianoLateHandoff.c'),
      str(ROOT/'uefi/components/product-handoff/Mu_Basecore/MdePkg/Library/PianoProductExitLib/PianoProductExitLib.c'),
      str(ROOT/'uefi/components/os-boot/PianoCpuInput.c'),'-lcrypto','-o',str(exe)]
    subprocess.run(command,check=True,timeout=60)
-   for case in range(26):subprocess.run([str(exe),str(case)],check=True,timeout=60)
+   for case in (*range(26),40,41):subprocess.run([str(exe),str(case)],check=True,timeout=60)
    native=p/'native-launch';joint=list(command)
    joint[joint.index(str(ROOT/'tests/native/PianoLateHandoffTest.c'))]=str(ROOT/'tests/native/PianoNativeLaunchTest.c')
    joint[joint.index('-o')+1]=str(native)
@@ -126,7 +126,7 @@ class LateHandoffTests(unittest.TestCase):
    combined[combined.index(str(ROOT/'tests/native/PianoNativeLaunchTest.c'))]=str(ROOT/'tests/native/PianoNativeLinuxSessionTest.c')
    fdt=BASE/'MdePkg/Library/BaseFdtLib/libfdt/libfdt'
    combined +=['-I'+str(ROOT/'uefi/handoff/early-memory'),'-I'+str(fdt),'-I'+str(ROOT/'upstream/Mu-Silicium/Silicon/Silicium/SiliciumPkg/Include')]
-   combined +=[str(ROOT/'uefi/components/os-boot/PianoLinuxEfiSession.c'),str(ROOT/'uefi/core/PianoPanelSelection.c'),str(ROOT/'tests/native/PianoLinuxFdtHost.c')]
+   combined +=['-ffunction-sections','-fdata-sections','-Wl,--gc-sections',str(ROOT/'uefi/core/PianoProductBootObjects.c'),str(ROOT/'uefi/components/os-boot/PianoLinuxEfiSession.c'),str(ROOT/'uefi/core/PianoPanelSelection.c'),str(ROOT/'tests/native/PianoLinuxFdtHost.c')]
    combined +=[str(fdt/name)for name in ('fdt.c','fdt_ro.c','fdt_rw.c','fdt_wip.c','fdt_sw.c','fdt_check.c','fdt_empty_tree.c')]
    combined[combined.index('-o')+1]=str(linux)
    subprocess.run(combined,check=True,timeout=60)

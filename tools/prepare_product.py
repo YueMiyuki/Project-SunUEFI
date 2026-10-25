@@ -32,6 +32,7 @@ SOURCE_NAMES=(
 )
 PRODUCT_COMPONENTS={
     'nv':('PianoNvFile.c','PianoNvFile.h'),
+    'reset':('PianoReset.c','PianoReset.h'),
     'ext4':('PianoStorageIo.h','PianoStorageIo.inc','PianoExt4.h'),
 }
 COMPONENT_C_SOURCES=tuple(name for names in PRODUCT_COMPONENTS.values() for name in names if name.endswith('.c'))

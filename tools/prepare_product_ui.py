@@ -227,10 +227,23 @@ hook(SHELL+'ConsoleLogger.c',
 include(SI+'src/lib/reboot.c', '#include<Library/BaseLib.h>\n')
 hook(SI+'src/lib/SimpleInitLib.inf', '[LibraryClasses]\n', '[LibraryClasses]\n  PianoProductPumpLib\n')
 hook(SI+'src/lib/reboot.c', 'int adv_reboot(enum reboot_cmd cmd,char*data){\n\tUINTN s=0;',
-     'int adv_reboot(enum reboot_cmd cmd,char*data){\n'
-     '\tif(PianoProductRebootManaged()){\n'
-     '\t\tif(cmd!=REBOOT_RESTART&&cmd!=REBOOT_COLD)ERET(EOPNOTSUPP);\n'
-     '\t\tEFI_STATUS status=PianoProductRequestReboot();\n'
+      'int adv_reboot(enum reboot_cmd cmd,char*data){\n'
+      '\tif(PianoProductRebootManaged()){\n'
+      '\t\tif(cmd==REBOOT_DATA&&data){\n'
+      '\t\t\tif(AsciiStriCmp(data,"recovery")==0)cmd=REBOOT_RECOVERY;\n'
+      '\t\t\telse if(AsciiStriCmp(data,"bootloader")==0||AsciiStriCmp(data,"fastboot")==0)cmd=REBOOT_FASTBOOT;\n'
+      '\t\t\telse if(AsciiStriCmp(data,"edl")==0)cmd=REBOOT_EDL;\n'
+      '\t\t}\n'
+      '\t\tUINT32 target=PIANO_PRODUCT_RESET_NORMAL;\n'
+      '\t\tswitch(cmd){\n'
+      '\t\t\tcase REBOOT_RESTART:case REBOOT_COLD:case REBOOT_WARM:break;\n'
+      '\t\t\tcase REBOOT_HALT:case REBOOT_POWEROFF:target=PIANO_PRODUCT_RESET_SHUTDOWN;break;\n'
+      '\t\t\tcase REBOOT_RECOVERY:target=PIANO_PRODUCT_RESET_RECOVERY;break;\n'
+      '\t\t\tcase REBOOT_FASTBOOT:target=PIANO_PRODUCT_RESET_BOOTLOADER;break;\n'
+      '\t\t\tcase REBOOT_EDL:target=PIANO_PRODUCT_RESET_EDL;break;\n'
+      '\t\t\tdefault:ERET(EOPNOTSUPP);\n'
+      '\t\t}\n'
+      '\t\tEFI_STATUS status=PianoProductRequestReset(target);\n'
      '\t\tif(status!=EFI_SUCCESS)ERET(EIO);\n'
      '\t\treturn 0;\n\t}\n\tUINTN s=0;')
 hook(SI+'src/boot/reboot_uefi.c', '#include<string.h>\n', '#include<string.h>\n#include<stdlib.h>\n')
@@ -238,8 +251,6 @@ hook(SI+'src/boot/reboot_uefi.c', '\tadv_reboot(cmd,data);\n\ttlog_warn("reset s
      '\tif(adv_reboot(cmd,data)==0){\n\t\tif(data)free(data);\n\t\treturn 0;\n\t}\n'
      '\ttlog_warn("reset system failed");')
 
-# Visible product top-level entries use the existing boot menu's real focus
-# group/input path, but are dispatched by the resident parent, not nested EFI.
 hook(SI+'src/gui/drivers/uefi_gop.c', '\tuefigop_apply_mode();\n',
      '\tuefigop_apply_mode();\n'
      '\tif(gop->Mode&&gop->Mode->Info)tlog_notice("PIANO_GUI_GOP_SELECTED interface=%p blt=%p mode=%u base=%llx bytes=%llu width=%u height=%u stride=%u format=%u",\n'

@@ -75,8 +75,9 @@ STATIC VOID EndCritical(UINT64 Mask) {
 }
 STATIC BOOLEAN EFIAPI Alive(PIANO_PRODUCT_RUNTIME_PROTOCOL *This){return This==&mRuntime && mAlive;}
 STATIC EFI_STATUS EFIAPI Request(PIANO_PRODUCT_RUNTIME_PROTOCOL *This,UINT32 Action) {
-  if(This!=&mRuntime || Action<PIANO_PRODUCT_ACTION_SIMPLEINIT || Action>PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE)return EFI_INVALID_PARAMETER;
-  PIANO_USB_SERVICE_ACTION Reason=Action==PIANO_PRODUCT_ACTION_REQUEST_REBOOT?PianoUsbServiceActionReboot:
+  if(This!=&mRuntime || Action<PIANO_PRODUCT_ACTION_SIMPLEINIT || Action>PIANO_PRODUCT_ACTION_REQUEST_EDL)return EFI_INVALID_PARAMETER;
+  UINT32 ResetTarget=Action>=PIANO_PRODUCT_ACTION_REQUEST_SHUTDOWN?Action-PIANO_PRODUCT_ACTION_REQUEST_SHUTDOWN+1:0;
+  PIANO_USB_SERVICE_ACTION Reason=(Action==PIANO_PRODUCT_ACTION_REQUEST_REBOOT||ResetTarget)?PianoUsbServiceActionReboot:
     Action==PIANO_PRODUCT_ACTION_REQUEST_CONTINUE?PianoUsbServiceActionContinue:
     Action==PIANO_PRODUCT_ACTION_REQUEST_BOOT_STABLE?PianoUsbServiceActionBoot:PianoUsbServiceActionNone;
   BOOLEAN Typed=Reason!=PianoUsbServiceActionNone;
@@ -85,11 +86,12 @@ STATIC EFI_STATUS EFIAPI Request(PIANO_PRODUCT_RUNTIME_PROTOCOL *This,UINT32 Act
   if(!mAlive)S=EFI_ABORTED;
   else if(Typed && Reason!=PianoUsbServiceActionBoot && (mReport.ActiveAction<PIANO_PRODUCT_ACTION_SIMPLEINIT || mReport.ActiveAction>PIANO_PRODUCT_ACTION_SHELL))S=EFI_ACCESS_DENIED;
   else if(Typed && mReport.PendingAction==PIANO_PRODUCT_ACTION_RETURN_CORE && mReport.RequestedCoreAction!=Reason)S=EFI_ACCESS_DENIED;
+  else if(Typed && mReport.PendingAction==PIANO_PRODUCT_ACTION_RETURN_CORE && mReport.RequestedResetTarget!=ResetTarget)S=EFI_ACCESS_DENIED;
   else if(mReport.PendingAction==PIANO_PRODUCT_ACTION_RETURN_CORE && Action!=PIANO_PRODUCT_ACTION_RETURN_CORE)S=EFI_ACCESS_DENIED;
   else if(!Typed && Action<=PIANO_PRODUCT_ACTION_SHELL && mReport.ActiveAction==Action){ /* same UI: successful no-op, preserve any newer pending action */ }
   else if(mReport.PendingAction!=Action) {
     if(mReport.Sequence==MAX_UINT64)S=EFI_OUT_OF_RESOURCES;
-    else {if(Typed)mReport.RequestedCoreAction=Reason;mReport.PendingAction=Action;++mReport.Sequence;}
+    else {if(Typed){mReport.RequestedCoreAction=Reason;mReport.RequestedResetTarget=ResetTarget;}mReport.PendingAction=Action;++mReport.Sequence;}
   }
   EndCritical(Mask);return S;
 }
@@ -244,7 +246,7 @@ STATIC EFI_STATUS EFIAPI Pump(PIANO_PRODUCT_RUNTIME_PROTOCOL *This,UINT32 Reason
      mReport.PendingAction>=PIANO_PRODUCT_ACTION_SIMPLEINIT && mReport.PendingAction<=PIANO_PRODUCT_ACTION_SHELL &&
      mReport.PendingAction!=mReport.ActiveAction)S=EFI_ABORTED; // cooperative UI yield, not EBS/USB shutdown
   if((S==EFI_SUCCESS || S==EFI_NOT_READY) && Status==EFI_SUCCESS && Actual.Revision==1 && Actual.Started &&
-     Actual.Phase==PianoUsbServiceListening && !Actual.Retained && !Actual.ServicesLost && !Actual.Busy){
+      Actual.Phase==PianoUsbServiceListening && !Actual.Retained && !Actual.ServicesLost && !Actual.Busy){
     if(mReport.IdleSample==MAX_UINT64)S=EFI_OUT_OF_RESOURCES;
     else {++mReport.IdleSample;mReport.IdleBulkActive=Actual.BulkActive;mReport.IdleKnown=TRUE;}
   }

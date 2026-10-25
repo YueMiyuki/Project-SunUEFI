@@ -21,7 +21,7 @@ typedef struct {
  PIANO_PRODUCT_EXIT_PHASE Phase;EFI_STATUS Status;
  UINT32 ExitCalls,RetireCalls;UINTN CallerMapKey;
  BOOLEAN Busy,Installed,Retained;
- BOOLEAN RawMode;CONST PIANO_RAW_LINUX_REPORT *Raw;PIANO_RAW_LINUX_REPORT RawSnapshot;
+  BOOLEAN RawMode,ResetMode;CONST PIANO_RAW_LINUX_REPORT *Raw;PIANO_RAW_LINUX_REPORT RawSnapshot;
 } PIANO_LATE_HANDOFF;
 // Driver-lifetime singleton Root authority. Initialize/install once, then Arm
 // the actual selected loaded child before StartImage; default remains unarmed.
@@ -30,6 +30,8 @@ EFI_STATUS PianoLateHandoffArm(PIANO_LATE_HANDOFF *,EFI_HANDLE ChildImage);
 // Core-only fixed-window raw boot after actual manager retirement. This does
 // not create a full-DDR EFI memory proof or admit a child EFI application.
 EFI_STATUS PianoLateHandoffArmRaw(PIANO_LATE_HANDOFF *,EFI_HANDLE CoreImage,CONST PIANO_RAW_LINUX_REPORT *);
+// Root-only reset after actual service retirement. No OS memory permission.
+EFI_STATUS PianoLateHandoffArmReset(PIANO_LATE_HANDOFF *,EFI_HANDLE CoreImage);
 // Ordinary returned child only, before any retirement. Unknown/partial or
 // completed transition cannot be disarmed or used to resume GUI/controllers.
 EFI_STATUS PianoLateHandoffDisarm(PIANO_LATE_HANDOFF *);

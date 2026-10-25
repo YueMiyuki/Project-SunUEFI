@@ -416,7 +416,7 @@ int main(int argc,char **argv){
     if(scenario==42 || scenario==43){
       assert(runtime->RequestAction(runtime,PIANO_PRODUCT_ACTION_RETURN_CORE)==EFI_SUCCESS);
       assert(runtime->RequestAction(runtime,PIANO_PRODUCT_ACTION_SETUP)==EFI_ACCESS_DENIED);
-      assert(runtime->RequestAction(runtime,PIANO_PRODUCT_ACTION_NONE)==EFI_INVALID_PARAMETER && runtime->RequestAction(runtime,8)==EFI_INVALID_PARAMETER);
+      assert(runtime->RequestAction(runtime,PIANO_PRODUCT_ACTION_NONE)==EFI_INVALID_PARAMETER && runtime->RequestAction(runtime,12)==EFI_INVALID_PARAMETER);
       if(scenario==43){tpl=TPL_CALLBACK;assert(PianoBootPolicyDispatchPending()==EFI_UNSUPPORTED && !starts && !stops);tpl=TPL_APPLICATION;}
     }
     if(scenario==44 || scenario==45){

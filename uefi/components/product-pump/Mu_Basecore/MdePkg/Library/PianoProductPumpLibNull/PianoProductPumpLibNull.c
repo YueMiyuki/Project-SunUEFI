@@ -11,5 +11,6 @@ BOOLEAN EFIAPI PianoProductReturnCoreRequested(VOID) { return FALSE; }
 BOOLEAN EFIAPI PianoProductUiReturnRequested(VOID) { return FALSE; }
 EFI_STATUS EFIAPI PianoProductRequestNavigation(UINT32 Action) { (VOID)Action;return EFI_UNSUPPORTED; }
 EFI_STATUS EFIAPI PianoProductRequestReboot(VOID) { return EFI_UNSUPPORTED; }
+EFI_STATUS EFIAPI PianoProductRequestReset(UINT32 Target) { (VOID)Target;return EFI_UNSUPPORTED; }
 EFI_STATUS EFIAPI PianoProductRequestContinue(VOID) { return EFI_UNSUPPORTED; }
 BOOLEAN EFIAPI PianoProductRebootManaged(VOID){return FALSE;}

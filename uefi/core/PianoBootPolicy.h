@@ -16,6 +16,7 @@ typedef struct {
   // CPU-only trusted UI reason; parent gives this to the unified owner manager.
   // Never a direct reset from a GUI/pump or a fabricated USB worker action.
   PIANO_USB_SERVICE_ACTION RequestedCoreAction;
+  UINT32 RequestedResetTarget;
   PIANO_DWC3_SERVICE_STATUS Usb;
   PIANO_FV_APPLICATION Application;
 } PIANO_BOOT_POLICY_REPORT;

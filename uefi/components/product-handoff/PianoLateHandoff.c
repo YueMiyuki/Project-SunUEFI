@@ -48,7 +48,7 @@ STATIC EFI_STATUS EFIAPI LateObserve(PIANO_PRODUCT_EXIT_PROTOCOL *P,EFI_HANDLE I
     LateOverlap(Epoch,sizeof(*Epoch),S->Env.Owners,sizeof(*S->Env.Owners))||
     S->Retained||S->Phase!=PianoExitClean||S->Busy||!LateIdentity(S,Image,L)||!LateClean(S))return EFI_COMPROMISED_DATA;
  if(S->RawMode&&!LateRaw(S))return EFI_COMPROMISED_DATA;
- *Epoch=S->RawMode?S->RawSnapshot.Epoch:S->Memory.BootEpoch;return EFI_SUCCESS; // no BS, HAL or provider lookup
+  *Epoch=S->RawMode?S->RawSnapshot.Epoch:S->ResetMode?1:S->Memory.BootEpoch;return EFI_SUCCESS; // no BS, HAL or provider lookup
 }
 STATIC VOID EFIAPI LateFail(PIANO_PRODUCT_EXIT_PROTOCOL *P,EFI_STATUS E){LateStop(BASE_CR(P,PIANO_LATE_HANDOFF,Protocol),E);}
 STATIC EFI_STATUS EFIAPI LateEnter(PIANO_PRODUCT_EXIT_PROTOCOL *P,EFI_HANDLE Image,CONST EFI_LOADED_IMAGE_PROTOCOL *L,UINTN MapKey){
@@ -56,8 +56,8 @@ STATIC EFI_STATUS EFIAPI LateEnter(PIANO_PRODUCT_EXIT_PROTOCOL *P,EFI_HANDLE Ima
  if(S->Signature!=LATE_SIG||S->Retained||!S->Installed)return EFI_NOT_READY;
  if(S->Busy)return EFI_ALREADY_STARTED;
  if(S->Phase!=PianoExitArmed||!LateIdentity(S,Image,L))return EFI_ACCESS_DENIED;
- if(S->RawMode){
-   if(!LateLive(S)||!LateRaw(S)||!LateClean(S))return EFI_ACCESS_DENIED;
+  if(S->RawMode||S->ResetMode){
+    if(!LateLive(S)||(S->RawMode&&!LateRaw(S))||!LateClean(S))return EFI_ACCESS_DENIED;
    S->CallerMapKey=MapKey;++S->ExitCalls;S->Phase=PianoExitClean;return S->Status=EFI_SUCCESS;
  }
  EFI_STATUS E=LateApp(S);if(E!=EFI_SUCCESS)return E;
@@ -106,7 +106,7 @@ EFI_STATUS PianoLateHandoffArm(PIANO_LATE_HANDOFF *S,EFI_HANDLE Image){
 }
 EFI_STATUS PianoLateHandoffDisarm(PIANO_LATE_HANDOFF *S){
  if(!S||S->Signature!=LATE_SIG||!S->Installed)return EFI_INVALID_PARAMETER;
- if(S->Phase!=PianoExitArmed||S->Busy||S->Retained||S->RetireCalls||S->RawMode)return EFI_ACCESS_DENIED;
+  if(S->Phase!=PianoExitArmed||S->Busy||S->Retained||S->RetireCalls||S->RawMode||S->ResetMode)return EFI_ACCESS_DENIED;
  EFI_STATUS E=LateApp(S);if(E!=EFI_SUCCESS)return E;
  S->Image=NULL;S->Identity=NULL;ZeroMem(&S->Loaded,sizeof(S->Loaded));ZeroMem(&S->Memory,sizeof(S->Memory));
  S->Phase=PianoExitUnarmed;return S->Status=EFI_SUCCESS;
@@ -126,6 +126,20 @@ EFI_STATUS PianoLateHandoffArmRaw(PIANO_LATE_HANDOFF *S,EFI_HANDLE Image,CONST P
  if(!LateClean(S))return EFI_ACCESS_DENIED;
  S->Image=Image;S->Identity=L;S->Loaded=*L;S->Raw=R;S->RawSnapshot=*R;S->RawMode=TRUE;
  S->Phase=PianoExitArmed;return S->Status=EFI_SUCCESS;
+}
+EFI_STATUS PianoLateHandoffArmReset(PIANO_LATE_HANDOFF *S,EFI_HANDLE Image){
+  if(!S||S->Signature!=LATE_SIG||!S->Installed||S->Retained||Image!=S->Env.ParentImage)return EFI_ACCESS_DENIED;
+  if(S->Phase!=PianoExitUnarmed||S->Busy||S->RawMode||S->ResetMode)return EFI_ALREADY_STARTED;
+  EFI_STATUS E=LateApp(S);if(E!=EFI_SUCCESS)return E;
+  CONST PIANO_PRODUCT_OWNERS_REPORT *R=&S->Env.Owners->Report;
+  if(!R->Clean||R->Retained||R->ServicesLost||
+     (R->AllowedAction!=PianoUsbServiceActionReboot&&R->AllowedAction!=PianoUsbServiceActionContinue))return EFI_NOT_READY;
+  EFI_LOADED_IMAGE_PROTOCOL *L=NULL;E=S->Env.Services->HandleProtocol(Image,&gEfiLoadedImageProtocolGuid,(VOID **)&L);
+  if(E!=EFI_SUCCESS||!LateLive(S))return E==EFI_SUCCESS?EFI_ABORTED:E;
+  if(!L||L->Revision<EFI_LOADED_IMAGE_PROTOCOL_REVISION||L->SystemTable!=S->Env.SystemTable||
+     !L->ImageBase||!L->ImageSize||L->ImageCodeType!=EfiLoaderCode||L->ImageDataType!=EfiLoaderData)return EFI_COMPROMISED_DATA;
+  S->OwnerConfig=S->Env.Owners->Config;S->CleanOwners=*R;if(!LateClean(S))return EFI_ACCESS_DENIED;
+  S->Image=Image;S->Identity=L;S->Loaded=*L;S->ResetMode=TRUE;S->Phase=PianoExitArmed;return S->Status=EFI_SUCCESS;
 }
 EFI_STATUS PianoLateHandoffShutdown(PIANO_LATE_HANDOFF *S){
  if(!S||S->Signature!=LATE_SIG||!S->Installed)return EFI_INVALID_PARAMETER;

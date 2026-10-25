@@ -73,6 +73,7 @@ typedef struct {
   PIANO_PRODUCT_OWNERS_PHASE Phase;
   PIANO_USB_SERVICE_ACTION RequestedAction,AllowedAction;
   PIANO_PRODUCT_REQUEST_ORIGIN Origin;
+  UINT32 ResetTarget;
   // Identity supplied by Core only after the actual FileSource is validated
   // and taken. Core retains its ownership; this ledger never invents a USB
   // action or takes/releases the file token.

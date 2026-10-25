@@ -150,6 +150,7 @@ EFI_STATUS PianoProductOwnersObserveUsbAction(PIANO_PRODUCT_OWNERS *Owners) {
   S=Owners->RuntimeRequest(Owners->Config.Runtime,PIANO_PRODUCT_ACTION_RETURN_CORE);
   if(S!=EFI_SUCCESS || Owners->Report.ServicesLost)return Retain(Owners,S==EFI_SUCCESS?EFI_ACCESS_DENIED:S);
   Owners->Report.RequestedAction=Usb.Action;Owners->Report.Origin=PianoProductRequestUsb;
+  Owners->Report.ResetTarget=PIANO_PRODUCT_RESET_NORMAL;
   Owners->Report.FileContext=NULL;Owners->Report.FileToken=NULL;Owners->Report.Phase=PianoProductOwnersReturnRequested;
   return Owners->Report.Status=EFI_SUCCESS;
 }
@@ -165,6 +166,7 @@ EFI_STATUS PianoProductOwnersRequestUiAction(PIANO_PRODUCT_OWNERS *Owners,PIANO_
   if(Policy->RequestedCoreAction!=Action)return EFI_NOT_READY;
   if(Owners->Report.Origin==PianoProductRequestUsb || Owners->Report.Origin==PianoProductRequestFile)return Retain(Owners,EFI_COMPROMISED_DATA);
   if(Owners->Report.Origin==PianoProductRequestUi && Owners->Report.RequestedAction!=Action)return Retain(Owners,EFI_COMPROMISED_DATA);
+  if(Owners->Report.Origin==PianoProductRequestUi && Owners->Report.ResetTarget!=Policy->RequestedResetTarget)return Retain(Owners,EFI_COMPROMISED_DATA);
   S=FreshRuntime(Owners);if(S!=EFI_SUCCESS)return Retain(Owners,S);
   if(UsbAbsent(Owners)){
     S=FreshAbsentUsb(Owners);if(S!=EFI_SUCCESS)return Retain(Owners,S);
@@ -177,6 +179,9 @@ EFI_STATUS PianoProductOwnersRequestUiAction(PIANO_PRODUCT_OWNERS *Owners,PIANO_
   // The UI request was already latched by actual Runtime RequestAction. Only
   // this trusted report grants UI origin; no host status or caller bool can.
   Owners->Report.Origin=PianoProductRequestUi;Owners->Report.RequestedAction=Action;
+  Owners->Report.ResetTarget=Policy->RequestedResetTarget;
+  if(Owners->Report.ResetTarget>PIANO_PRODUCT_RESET_EDL ||
+     (Action!=PianoUsbServiceActionReboot&&Owners->Report.ResetTarget))return Retain(Owners,EFI_COMPROMISED_DATA);
   Owners->Report.Phase=PianoProductOwnersReturnRequested;
   return Owners->Report.Status=EFI_SUCCESS;
 }
@@ -280,7 +285,7 @@ EFI_STATUS PianoProductOwnersRetire(PIANO_PRODUCT_OWNERS *Owners) {
     (!AbsentUsb&&Usb.Phase==PianoUsbServiceStopRequested && Usb.Action==Owners->Report.RequestedAction):
     Owners->Report.Origin==PianoProductRequestUi?
     ((Owners->Report.RequestedAction==PianoUsbServiceActionContinue || Owners->Report.RequestedAction==PianoUsbServiceActionReboot) &&
-     Policy->RequestedCoreAction==Owners->Report.RequestedAction &&
+      Policy->RequestedCoreAction==Owners->Report.RequestedAction && Policy->RequestedResetTarget==Owners->Report.ResetTarget &&
      (AbsentUsb||(Usb.Started && Usb.Phase==PianoUsbServiceListening && Usb.Action==PianoUsbServiceActionNone))):
     Owners->Report.Origin==PianoProductRequestFile?
     (Owners->Report.RequestedAction==PianoUsbServiceActionBoot && Policy->RequestedCoreAction==PianoUsbServiceActionBoot &&

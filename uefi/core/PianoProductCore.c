@@ -9,6 +9,7 @@
 #include "PianoRamPartition.h"
 #include "PianoUfsProductVolume.h"
 #include "PianoProductSmem.h"
+#include "PianoReset.h"
 #include "PianoNvFile.h"
 #include "PianoProductBootObjects.h"
 #include "PianoProductBootLog.h"
@@ -237,6 +238,8 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
   BootLogStage("PAYLOAD",Status);
   if(Status!=EFI_SUCCESS){BootLogReturned();return Status;}
   ReportRequiredBackends();
+  Status=PianoResetInitialize(Fdt);
+  DEBUG((DEBUG_WARN,"PIANO_RESET_LAYOUT status=%r\n",Status));
   (VOID)PianoProductBootObjectsReemit(BootLogAlive);
   if(!BootLogAlive())FailStop(EFI_ABORTED);
   ObserveDisplay("before-foundation");
@@ -388,7 +391,9 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
       }
       if(Status!=EFI_SUCCESS || !mOwners.Report.Clean)FailStop(Status);
       if(mOwners.Report.AllowedAction==PianoUsbServiceActionReboot || mOwners.Report.AllowedAction==PianoUsbServiceActionContinue) {
-        gRT->ResetSystem(EfiResetCold,EFI_SUCCESS,0,NULL);FailStop(EFI_ABORTED);
+        Status=PianoLateHandoffArmReset(&mLateHandoff,Image);
+        if(Status==EFI_SUCCESS)Status=PianoResetExecute(&mOwners,Image);
+        FailStop(Status);
       }
       if(mOwners.Report.AllowedAction==PianoUsbServiceActionBoot){
         CONST PIANO_RAW_LINUX_REPORT *Raw=NULL;
