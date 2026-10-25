@@ -292,10 +292,10 @@ def package(args):
     source = ROOT / 'android/module'
     entries = {name: read_file(source / name, 128 * 1024) for name in SOURCE_FILES}
     if candidate and not report['zip_ready']:
-        entries['module.prop'] = entries['module.prop'].replace(
-            b'name=SunUEFI for Piano\n', b'name=SunUEFI for Piano (validation candidate)\n').replace(
-            b'description=Current-ROM BOOT selector with explicit UEFI requests; ordinary Android and stock Recovery stay available.\n',
-            b'description=Validation candidate; installer refuses BOOT writes until the recorded native and device checks pass.\n')
+        entries['module.prop'] = ''.join(
+            'description=仅供验证：引导检查尚未通过，安装器会拒绝写入 BOOT。\n'
+            if line.startswith('description=') else line
+            for line in entries['module.prop'].decode().splitlines(keepends=True)).encode()
     entries.update({'payload/' + name: data for name, data in payloads.items()})
     entries['bin/piano-boot-repack'] = native
     entries['licenses/COPYING.libmd'] = read_file(ROOT / 'upstream/simple-init/libs/libmd/COPYING')

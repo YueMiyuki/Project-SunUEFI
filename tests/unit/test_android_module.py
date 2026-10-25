@@ -2,6 +2,7 @@
 import gzip
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import struct
@@ -170,7 +171,7 @@ class AndroidModuleTests(unittest.TestCase):
         self.assertTrue(report['zip_ready'])
         with zipfile.ZipFile(self.args.output) as archive:
             names = set(archive.namelist())
-            self.assertNotIn('service.sh', names)
+            self.assertIn('service.sh', names)
             self.assertFalse(any(name.endswith('.img') for name in names))
             self.assertEqual(archive.read('payload/app.bin'), self.payloads['app.bin'])
             self.assertEqual(archive.read('payload/fd.bin'), self.payloads['fd.bin'])
@@ -207,7 +208,7 @@ class AndroidModuleTests(unittest.TestCase):
             policy = json.loads(archive.read('policy.json'))
             self.assertFalse(policy['zip_ready'])
             self.assertIn(b'PIANO_DEVICE_PASSTHROUGH_VERIFIED=false', archive.read('module-policy.sh'))
-            self.assertIn(b'validation candidate', archive.read('module.prop'))
+            self.assertIn('引导检查尚未通过', archive.read('module.prop').decode())
         result = self.shell('PIANO_POLICY_SCHEMA=1; PIANO_INTERFACE_VERSION=1; '
             'PIANO_DEVICE_PASSTHROUGH_VERIFIED=false; PIANO_REQUEST_HANDLING_VERIFIED=true; '
             'PIANO_STANDARD_RECOVERY_PRESERVED=true; piano_check_payload')
@@ -233,7 +234,12 @@ class AndroidModuleTests(unittest.TestCase):
 
     def test_action_without_tool_is_readonly_status_and_request_refused(self):
         script = mod.ROOT / 'android/module/action.sh'
-        status = subprocess.run(['sh', str(script)], text=True, capture_output=True)
+        env = {**os.environ, 'PIANO_LANG': 'zh'}
+        action = subprocess.run(['sh', str(script)], env=env, text=True, capture_output=True)
+        self.assertEqual(action.returncode, 0)
+        self.assertIn('打开 WebUI', action.stdout)
+        self.assertNotIn('{', action.stdout)
+        status = subprocess.run(['sh', str(script), 'status'], env=env, text=True, capture_output=True)
         self.assertEqual(status.returncode, 0)
         self.assertFalse(json.loads(status.stdout)['request_handling_verified'])
         request = subprocess.run(['sh', str(script), 'request', 'uefi', '--confirm'], text=True, capture_output=True)
@@ -242,18 +248,29 @@ class AndroidModuleTests(unittest.TestCase):
         self.assertEqual(bad.returncode, 2)
 
     @unittest.skipUnless(shutil.which('node'), 'Node needed for optional WebUI model checks')
-    def test_webui_needs_live_verified_bridge_and_stock_recovery(self):
+    def test_webui_validates_actions_and_native_callback(self):
         model = mod.ROOT / 'android/module/webroot/main.js'
-        body = """const m=require(process.argv[1]);
-          const s={device_passthrough_verified:true,request_handling_verified:true,
-          standard_recovery_preserved:true,webui_bridge_verified:true,
-          entry_policy:'explicit-request-only',request_bootarg:'sunuefi.boot=uefi'};
-          if(m.canRequest(s,null)) process.exit(1);
-          if(!m.canRequest(s,{})) process.exit(2);
-          s.standard_recovery_preserved=false;
-          if(m.canRequest(s,{})) process.exit(3);
-          if(!m.previewText('linux').includes('不写入、不重启')) process.exit(4);
-          try {m.previewText('uefi;bad');process.exit(5);} catch(_) {}
+        body = """const assert=require('node:assert/strict'), m=require(process.argv[1]);
+          async function main() {
+            global.window={};
+            await assert.rejects(m.nativeAction('switch','linux'));
+            let calls=0;
+            window.ksu={exec(command,options,callback) {
+              calls++;
+              assert.equal(command,'/system/bin/sh /data/adb/modules/piano_sunuefi/action.sh quick-status');
+              assert.equal(options,'{}');
+              window[callback](0,JSON.stringify({wrapped:true,bootloader_confirm_required:true}),'');
+              assert.equal(window[callback],undefined);
+            }};
+            assert.deepEqual(await m.nativeAction('quick-status'),{wrapped:true,bootloader_confirm_required:true});
+            for (const args of [['switch','uefi;bad'], ['storage-execute','bad;id'],
+                ['storage-plan','create','$(id)'], ['storage-select','esp','3b6964','-1'],
+                ['confirm-bootloader']]) await assert.rejects(m.nativeAction(...args));
+            assert.equal(calls,1);
+            window.ksu.exec=(_command,_options,callback)=>window[callback](1,'','已按音量上取消，尚未写入。');
+            await assert.rejects(m.nativeAction('reinstall'),/音量上取消/);
+          }
+          main().catch(error=>{console.error(error);process.exitCode=1;});
         """
         result = subprocess.run(['node', '-e', body, str(model)], capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
