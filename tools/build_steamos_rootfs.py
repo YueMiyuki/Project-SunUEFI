@@ -111,12 +111,15 @@ def kde_recipes(output, root):
             + ('prepare() {\n  cd "$pkgname-$pkgver"\n'
                + prepare_commands + '}\n' if patches else '') +
             'build() {\n'
-            '  local opengl_libdir glx_libdir\n'
+            '  local opengl_libdir glx_libdir qt_libdir\n'
             '  opengl_libdir=$(pkg-config --variable=libdir opengl)\n'
             '  glx_libdir=$(pkg-config --variable=libdir glx)\n'
             '  test -r "$opengl_libdir/libOpenGL.so"\n'
             '  test -r "$glx_libdir/libGLX.so"\n'
+            '  qt_libdir=$(pkg-config --variable=libdir Qt6Core)\n'
+            '  test -r "$qt_libdir/cmake/Qt6/qt.toolchain.cmake"\n'
             '  cmake -S "$pkgname-$pkgver" -B build -G Ninja '
+            '-DCMAKE_TOOLCHAIN_FILE="$qt_libdir/cmake/Qt6/qt.toolchain.cmake" '
             '-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr '
             '-DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBEXECDIR=lib '
             '-DOPENGL_opengl_LIBRARY="$opengl_libdir/libOpenGL.so" '
@@ -215,14 +218,12 @@ def build(args):
         if missing.returncode:
             guest(['pacman', '-S', '--needed', '--noconfirm',
                    *missing.stdout.splitlines()])
-        # kscreen's QML module needs Qt6QmlModels. A partially extracted
-        # qt6-declarative leaves Qt6Quick unable to resolve that dependency in
-        # a fresh build tree, so restore the package before the KDE rebuild.
-        qt_qml_models = root / 'usr/lib/cmake/Qt6QmlModels/Qt6QmlModelsConfig.cmake'
-        if not qt_qml_models.is_file():
-            guest(['pacman', '-S', '--noconfirm', 'qt6-declarative'])
-        if not qt_qml_models.is_file():
-            raise ValueError('qt6-declarative is missing the Qt6QmlModels CMake package')
+        # Valve includes the Wayland modules in qt6-base. Ask pacman to check
+        # the complete Qt cohorts rather than checking one CMake file at a time.
+        for package in ('qt6-base', 'qt6-declarative'):
+            if subprocess.run(['chroot', root, 'pacman', '-Qk', package]).returncode:
+                guest(['pacman', '-S', '--noconfirm', package])
+            guest(['pacman', '-Qk', package])
         # Resolve inside the target root, including absolute symlink targets.
         # KDE recipes pass these pkg-config paths to Qt's CMake dependency scan.
         opengl_check = ['bash', '-euc', '''
