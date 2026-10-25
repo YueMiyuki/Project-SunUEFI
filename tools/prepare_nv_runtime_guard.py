@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Pinned standard VariableRuntimeDxe runtime-NV guard; host source only.
+"""Prepare standard VariableRuntimeDxe notifications and runtime-NV guards.
 
-Production binding uses -DPIANO_NV_BOOT_ONLY=1. Default diagnostic code stays
-unchanged (macro0). This does not activate a disk NV store or claim NVReady.
+The product restores ordinary variables through SetVariable and saves them
+through its boot-service file backend. This does not activate standard FVB/FTW
+or make persistent runtime writes available.
 """
 from pathlib import Path
 import argparse,hashlib,json,subprocess

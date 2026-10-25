@@ -294,5 +294,6 @@ STATIC EFI_DRIVER_BINDING_PROTOCOL mBinding={Supported,Start,Stop,0x10,NULL,NULL
 STATIC VOID EFIAPI Exit(EFI_EVENT Event,VOID *Context){(VOID)Event;(VOID)Context;mExited=TRUE;}
 EFI_STATUS EFIAPI PianoExt4Entry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Table){
   EFI_STATUS S=gBS->CreateEventEx(EVT_NOTIFY_SIGNAL,TPL_NOTIFY,Exit,NULL,&gEfiEventExitBootServicesGuid,&mExit);if(S!=EFI_SUCCESS)return S;
-  return EfiLibInstallDriverBindingComponentName2(Image,Table,&mBinding,Image,NULL,NULL);
+  S=EfiLibInstallDriverBindingComponentName2(Image,Table,&mBinding,Image,NULL,NULL);
+  if(S!=EFI_SUCCESS){gBS->CloseEvent(mExit);mExit=NULL;}return S;
 }
