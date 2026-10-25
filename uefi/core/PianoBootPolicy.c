@@ -7,6 +7,7 @@
 #endif
 #include "PianoUsbStorageExperiment.h"
 #include "PianoRawLinuxBoot.h"
+#include "PianoNvFile.h"
 #include <Protocol/SimpleTextInEx.h>
 #include <Protocol/HiiDatabase.h>
 #include <Protocol/HiiString.h>
@@ -246,6 +247,15 @@ STATIC EFI_STATUS EFIAPI Pump(PIANO_PRODUCT_RUNTIME_PROTOCOL *This,UINT32 Reason
      Actual.Phase==PianoUsbServiceListening && !Actual.Retained && !Actual.ServicesLost && !Actual.Busy){
     if(mReport.IdleSample==MAX_UINT64)S=EFI_OUT_OF_RESOURCES;
     else {++mReport.IdleSample;mReport.IdleBulkActive=Actual.BulkActive;mReport.IdleKnown=TRUE;}
+  }
+  // Drain USB first. Never hold off Chapter 9 enumeration or an active bulk
+  // transfer for a variable snapshot. Final saving is still mandatory at exit.
+  if(S==EFI_SUCCESS && mReport.IdleKnown && Actual.Configured && !Actual.BulkActive && !Actual.WorkPending){
+    STATIC UINT64 LastNvSave;UINT64 Now=GetPerformanceCounter();
+    if(!LastNvSave||GetTimeInNanoSecond(Now-LastNvSave)>=1000000000ULL){
+      LastNvSave=Now;EFI_STATUS NvSave=PianoNvFileSave(FALSE);
+      if(NvSave!=EFI_SUCCESS&&NvSave!=EFI_NOT_STARTED)DEBUG((DEBUG_WARN,"PIANO_NV_BACKGROUND_SAVE status=%r\n",NvSave));
+    }
   }
   mReport.Pumping=FALSE;return mReport.LastPump=Exact(S);
 }

@@ -2,10 +2,11 @@ from pathlib import Path
 import sys,subprocess,tempfile,unittest
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'tools'))
 import prepare_nv_runtime_guard as guard
+from firmware_workspace import active_root
 class RuntimeNvGuardTests(unittest.TestCase):
  def test_exact_standard_entry_before_mor_or_auth_mutation(self):
-  guard.prepare(apply=False)
-  text=(ROOT/guard.FILE).read_text();begin=text.index('#if PIANO_NV_BOOT_ONLY\n  // The UFS owner');end=text.index('#endif',begin)+len('#endif');fragment=text[begin:end]
+  root=active_root(ROOT);guard.prepare(root,apply=False)
+  text=(root/guard.FILE).read_text();begin=text.index('#if PIANO_NV_BOOT_ONLY\n  // The UFS owner');end=text.index('#endif',begin)+len('#endif');fragment=text[begin:end]
   inc=ROOT/'upstream/Mu-Silicium/Mu_Basecore/MdePkg/Include'
   with tempfile.TemporaryDirectory(prefix='nv-guard-')as d:
    d=Path(d);source=d/'guard.c';source.write_text('''#include <assert.h>
@@ -33,7 +34,10 @@ return 0;}
  def test_pinned_and_idempotent(self):
   with tempfile.TemporaryDirectory()as d:
    root=Path(d);path=root/guard.FILE;path.parent.mkdir(parents=True);relative=guard.FILE[len(guard.BASE)+1:]
-   path.write_bytes(subprocess.check_output(['git','-C',str(ROOT/guard.BASE),'show','HEAD:'+relative]));first=guard.prepare(root,apply=True,check_pin=False);self.assertEqual(first,guard.prepare(root,apply=True,check_pin=False))
-   text=path.read_text().replace('return EFI_UNSUPPORTED;\n    }\n    VARIABLE_POINTER_TRACK NvExisting;','return EFI_SUCCESS;\n    }\n    VARIABLE_POINTER_TRACK NvExisting;');path.write_text(text)
+   path.write_bytes(subprocess.check_output(['git','-C',str(ROOT/guard.BASE),'show','HEAD:'+relative]))
+   dxe=path.with_name('VariableDxe.c');dxe.write_bytes(subprocess.check_output(['git','-C',str(ROOT/guard.BASE),'show','HEAD:'+str(Path(relative).with_name('VariableDxe.c'))]))
+   header=root/'uefi/components/nv/Include/Protocol/PianoNvFile.h';header.parent.mkdir(parents=True);header.write_bytes((ROOT/'uefi/components/nv/Include/Protocol/PianoNvFile.h').read_bytes())
+   first=guard.prepare(root,apply=True,check_pin=False);self.assertEqual(first,guard.prepare(root,apply=True,check_pin=False))
+   text=path.read_text().replace('#if PIANO_NV_BOOT_ONLY\n  // The UFS owner','#if PIANO_NV_BOOT_ONLY\n  // damaged guard');path.write_text(text)
    with self.assertRaises(ValueError):guard.prepare(root,apply=True,check_pin=False)
 if __name__=='__main__':unittest.main()

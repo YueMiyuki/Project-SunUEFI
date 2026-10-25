@@ -30,6 +30,11 @@ SOURCE_NAMES=(
     'PianoFastbootScreen.c','PianoDwc3Device.c','PianoUsbControl.c','PianoUsbController.c','PianoUsbPhy.c',
     'PianoPogoReport.c','PianoPogoInput.c','PianoPogoI2c.c','PianoPogoTransport.c','PianoGeniI2cPio.c','PianoUsbHostPci.c',
 )
+PRODUCT_COMPONENTS={
+    'nv':('PianoNvFile.c','PianoNvFile.h'),
+    'ext4':('PianoStorageIo.h','PianoStorageIo.inc','PianoExt4.h'),
+}
+COMPONENT_C_SOURCES=tuple(name for names in PRODUCT_COMPONENTS.values() for name in names if name.endswith('.c'))
 OS_BOOT_SOURCES=('PianoBootFileSource.c','PianoCpuImageLoan.c','PianoLinuxEfiSession.c','PianoCpuInput.c','PianoEspBootSource.c')
 OS_BOOT_HEADERS=tuple(name[:-2]+'.h' for name in OS_BOOT_SOURCES)
 LATE_HANDOFF_INF_SOURCES=('LateHandoff/PianoLateHandoff.c','LateHandoff/PianoLateHandoff.h')
@@ -211,7 +216,7 @@ def backend_status():
       'ufs_blockio_read_write':{'status':'RESERVED_VOLUME_BACKEND_UNPROVISIONED','original_media':'READ_ONLY','missing':'explicit permanent reservation, provisioning approval and product physical RW acceptance'},
       'gpt':{'status':'IMPLEMENTED_READ','physical_evidence':'real UFS GPT reads; product untested'},
       'fat_simplefilesystem':{'status':'IMPLEMENTED_READ_ONLY_VOLUMES','physical_evidence':'7 read-only SFS, bounded FAT RW test86; product untested'},
-      'persistent_variables':{'status':'RAM_ONLY','prepared_backend':'STANDARD_FVB_DUAL_JOURNAL_NOT_ACTIVATED','runtime_nv_set_supported':False,'missing':'early recovered NV before standard variable initialization; HALIOMMU architectural dependency cycle; PcdEmuVariableNvModeEnable remains TRUE'},
+      'persistent_variables':{'status':'PERSIST_FILE_BOOT_SERVICES','path':'persist/sunuefi/nvram-{a,b}.bin','ordinary_nv_restored_via':'SetVariable','physical_evidence':'two CRC-checked copies saved and restored across product reboots; clean ext4 unmount before Linux handoff','runtime_nv_set_supported':False,'authenticated_variables_persisted':False,'standard_fvb_activated':False},
       'uefi_shell':{'status':'LINKED_STANDARD_SHELL','missing':'product cooperative exit and UFS file operations acceptance'},
       'setup_hii':{'status':'LINKED_STANDARD_UIAPP','missing':'product navigation/F12/cooperative exit acceptance'},
       'simpleinit':{'status':'LINKED_PRODUCT_GUI','missing':'product APPv1 load, visible Setup/Shell navigation and background service acceptance'},
@@ -291,7 +296,7 @@ def core_inf():
   VERSION_STRING = 0.1
   ENTRY_POINT = PianoProductCoreEntry
 [Sources]
-'''+''.join('  '+name+'\n' for name in (*SOURCE_NAMES,*OS_BOOT_INF_SOURCES,*OBSERVATION_INF_SOURCES,*LATE_HANDOFF_INF_SOURCES))+'''[Packages]
+'''+''.join('  '+name+'\n' for name in (*SOURCE_NAMES,*COMPONENT_C_SOURCES,*OS_BOOT_INF_SOURCES,*OBSERVATION_INF_SOURCES,*LATE_HANDOFF_INF_SOURCES))+'''[Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   QcomPkg/QcomPkg.dec
@@ -339,6 +344,7 @@ def core_inf():
   gEfiUsb2HcProtocolGuid
   gEfiUsbIoProtocolGuid
   gEfiBlockIoProtocolGuid
+  gEfiDiskIoProtocolGuid
   gEfiSimpleTextInProtocolGuid
   gEfiSimpleTextInputExProtocolGuid
   gEfiDevicePathProtocolGuid
@@ -408,6 +414,9 @@ def prepare(root=ROOT):
     for path in source.iterdir():
         if path.is_file() and path.suffix in ('.h','.inc'):shutil.copyfile(path,app/path.name)
     shutil.copytree(source/'Protocol',app/'Protocol')
+    for component,names in PRODUCT_COMPONENTS.items():
+        for name in names:shutil.copyfile(root/'uefi/components'/component/name,app/name)
+    shutil.copyfile(root/'uefi/components/nv/Include/Protocol/PianoNvFile.h',app/'Protocol/PianoNvFile.h')
     os_boot=prepare_os_boot(root,app)
     late_provider=stage_provider(root,app)
     late_provider['root_initialization_bound']=True
@@ -415,6 +424,8 @@ def prepare(root=ROOT):
     observation=prepare_observation_families(root,app)
     (app/'PianoProductSimpleInitDigest.h').write_text(header)
     (app/'ProductCore.inf').write_text(core_inf())
+    from firmware.prepare_ext4 import prepare as prepare_ext4
+    ext4=prepare_ext4(root,target)
     verify_os_boot(root,app,os_boot)
     verify_observation_families(root,app,observation)
     verify_provider(root,app,late_provider)
@@ -458,6 +469,7 @@ def prepare(root=ROOT):
       gEfiMdePkgTokenSpaceGuid.PcdUefiVariableDefaultPlatformLang|"en-US"
   }
   MdeModulePkg/Logo/LogoDxe.inf
+  pianoProductPkg/Drivers/PianoExt4Dxe/PianoExt4Dxe.inf
   pianoProductPkg/Applications/LinuxBoot/LinuxBoot.inf
   MdeModulePkg/Bus/Pci/XhciDxe/XhciDxe.inf
   MdeModulePkg/Bus/Usb/UsbMouseDxe/UsbMouseDxe.inf
@@ -492,7 +504,7 @@ def prepare(root=ROOT):
     dsc.write_text(text)
     fdf=target/'pianoProduct.fdf';text=fdf.read_text().replace('# Host-only stage-0 diagnostic; NOT hardware validated.','# Single PianoUEFI product integration candidate; INCOMPLETE_NOT_RELEASE.')
     text=text.replace('SiliciumPkg/Drivers/SimpleFbDxe/SimpleFbDxe.inf','pianoProductPkg/Drivers/PianoGopDxe/PianoGopDxe.inf')
-    modules=DISK_MODULES+HOST_MODULES+SETUP_FV_MODULES+('MdeModulePkg/Logo/LogoDxe.inf','ShellPkg/Application/Shell/Shell.inf','pianoProductPkg/Applications/LinuxBoot/LinuxBoot.inf','pianoProductPkg/Applications/ProductCore/ProductCore.inf')
+    modules=DISK_MODULES+HOST_MODULES+SETUP_FV_MODULES+('MdeModulePkg/Logo/LogoDxe.inf',ext4['module'],'ShellPkg/Application/Shell/Shell.inf','pianoProductPkg/Applications/LinuxBoot/LinuxBoot.inf','pianoProductPkg/Applications/ProductCore/ProductCore.inf')
     text=text.replace('!include SiliciumPkg/Common.fdf.inc',''.join('  INF '+module+'\n' for module in modules)+native_fdf+'\n!include SiliciumPkg/Common.fdf.inc')
     fdf.write_text(text)
     early_memory=prepare_early_memory(root,target)
@@ -510,7 +522,7 @@ def prepare(root=ROOT):
       'fastboot_mode':'resident_background','fastboot_surfaces':contract['fastboot']['available_in'],
       'default_application':'SimpleInit','setup_key':'F12','diagnostic_reboot_timer':False,
       'backend_initialization_required':True,'backends':backend_status(),'runtime_readiness':'NOT_PRODUCT_DEVICE_VALIDATED',
-      'service_compile_flags':list(flags),'display_diagnostic':display_test!='0','clock_init_trace':display_test=='2','sources':list((*SOURCE_NAMES,*OS_BOOT_INF_SOURCES,*OBSERVATION_INF_SOURCES)),'native_foundation':native_id,'os_boot':os_boot,'dxe_observation':observation,'early_memory':early_memory,
+      'service_compile_flags':list(flags),'display_diagnostic':display_test!='0','clock_init_trace':display_test=='2','sources':list((*SOURCE_NAMES,*COMPONENT_C_SOURCES,*OS_BOOT_INF_SOURCES,*OBSERVATION_INF_SOURCES)),'native_foundation':native_id,'os_boot':os_boot,'dxe_observation':observation,'early_memory':early_memory,
       'simpleinit':simpleinit,'simpleinit_payload':app_identity,'ui_hooks':ui,'pump_hooks':prepare_pump(root,apply=False),
       'low_memory_contract':low_memory_contract,
       'display_mapping':display_contract,

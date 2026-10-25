@@ -45,15 +45,15 @@ int main(void) {
 }
 ''')
             subprocess.run(['cc','-std=gnu11','-fshort-wchar','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-Wno-misleading-indentation',
-                '-fsanitize=address,undefined','-fno-pie','-no-pie','-I',str(INC),'-I',str(INC/'X64'),str(native),'-o',str(binary)],check=True)
+                '-fsanitize=address,undefined','-fno-pie','-no-pie','-I',str(INC),'-I',str(INC/'X64'),'-I'+str(ROOT/'uefi/components/nv'),'-I'+str(ROOT/'uefi/components/ext4'),str(native),'-o',str(binary)],check=True)
             subprocess.run([str(binary)],check=True)
     def test_actual_source_order_and_retained_cases(self):
         with tempfile.TemporaryDirectory(prefix='piano-product-owners-') as directory:
             binary=Path(directory)/'owners'
-            subprocess.run(['cc','-std=gnu11','-fshort-wchar','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-fsanitize=address,undefined','-fno-pie','-no-pie','-I',str(INC),'-I',str(INC/'X64'),str(ROOT/'tests/native/PianoProductOwnersTest.c'),'-o',str(binary)],check=True)
+            subprocess.run(['cc','-std=gnu11','-fshort-wchar','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-fsanitize=address,undefined','-fno-pie','-no-pie','-I',str(INC),'-I',str(INC/'X64'),'-I'+str(ROOT/'uefi/components/nv'),'-I'+str(ROOT/'uefi/components/ext4'),str(ROOT/'tests/native/PianoProductOwnersTest.c'),'-o',str(binary)],check=True)
             subprocess.run([str(binary)],check=True)
     def test_actual_source_aarch64(self):
-        subprocess.run([str(ROOT/'build/host-tools/usr/bin/clang'),'--target=aarch64-windows-msvc','-ffreestanding','-fshort-wchar','-fsyntax-only','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-I',str(INC),'-I',str(INC/'AArch64'),str(ROOT/'uefi/core/PianoProductOwners.c')],check=True)
+        subprocess.run([str(ROOT/'build/host-tools/usr/bin/clang'),'--target=aarch64-windows-msvc','-ffreestanding','-fshort-wchar','-fsyntax-only','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-I',str(INC),'-I',str(INC/'AArch64'),'-I'+str(ROOT/'uefi/components/nv'),'-I'+str(ROOT/'uefi/components/ext4'),str(ROOT/'uefi/core/PianoProductOwners.c')],check=True)
     def test_actual_raw_linux_aarch64(self):
         with tempfile.TemporaryDirectory(prefix='piano-raw-syntax-') as directory:
             staged=Path(directory);headers=staged/'Components/os-boot';headers.mkdir(parents=True)
@@ -64,5 +64,6 @@ int main(void) {
                 '-fshort-wchar','-fsyntax-only','-Wall','-Wextra','-Werror','-Wno-unused-parameter','-Wno-misleading-indentation',
                 '-I'+str(INC),'-I'+str(INC/'AArch64'),'-I'+str(INC.parents[1]/'CryptoPkg/Include'),
                 '-I'+str(ROOT/'upstream/Mu-Silicium/Silicon/Silicium/SiliciumPkg/Include'),'-I'+str(staged),
+                '-I'+str(ROOT/'uefi/handoff/early-memory'),
                 str(ROOT/'uefi/core/PianoRawLinuxBoot.c')],check=True)
 if __name__=='__main__':unittest.main()

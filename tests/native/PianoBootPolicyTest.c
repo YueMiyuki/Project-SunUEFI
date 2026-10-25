@@ -33,6 +33,9 @@ static PIANO_SMMU_RETIRED_USB_PROOF startup_usb_proof;static UINTN proof_checks;
 static UINT32 current_action,simple_runs;static VOID *image_base;static jmp_buf stop;
 static BOOLEAN navigation;
 static UINT64 window_clock;static UINTN window_stalls;
+EFI_STATUS PianoNvFileSave(BOOLEAN Freeze){(void)Freeze;return EFI_NOT_STARTED;}
+VOID PianoDwc3ServiceReplayStartup(VOID){}
+VOID PianoRawLinuxReplayStable(VOID){}
 UINT64 EFIAPI GetPerformanceCounterProperties(UINT64 *First,UINT64 *Last){*First=scenario==71?MAX_UINT64:0;*Last=scenario==71?0:MAX_UINT64;return scenario==74?0:1000000;}
 UINT64 EFIAPI GetPerformanceCounter(VOID){return scenario==71?MAX_UINT64-window_clock:window_clock;}
 UINT64 EFIAPI GetTimeInNanoSecond(UINT64 Ticks){return Ticks*1000;}

@@ -24,7 +24,7 @@ UEFI_FILES = {'requirements-build.txt', 'tools/build_android_product_module.py',
               'tools/build_product.sh', 'tools/build_simpleinit.sh', 'tools/build_stage0.sh',
               'tools/firmware_workspace.py', 'tools/apply_firmware_patches.py',
               'tools/prepare_simpleinit.py', 'tools/simpleinit_build_identity.py',
-              'tools/prepare_product.py', 'tools/prepare_nv_runtime_guard.py',
+              'tools/prepare_product.py', 'tools/prepare_nv_runtime_guard.py', 'tools/firmware/prepare_ext4.py',
               'tools/package_product.py', 'tools/build_integrity.py',
               'tools/product_payload_digest.py', 'tools/piano_vendor_inputs.py'}
 UEFI_PREFIXES = ('android/', 'uefi/', 'vendor/piano/', 'patches/firmware/',

@@ -18,6 +18,8 @@ static EFI_STATUS PolicyStatus,UsbStatus,ProofStatus,AcceptStatus,PrepareStatus,
 static BOOLEAN BridgeLive,ProofValid,ReportAbsent,FreshReplaced,CreateWarning,CreateNull,CreateEbs,InputEbs;
 static UINTN Requests,Calls;static CHAR8 Order[100];static PIANO_FB_BOOT_ACTION BootAction;
 static PIANO_SMMU_RETIRED_USB_PROOF StartupProof,ProducerStartupProof;
+EFI_STATUS PianoNvFileSave(BOOLEAN Freeze){(void)Freeze;return EFI_NOT_STARTED;}
+EFI_STATUS PianoStorageCloseFilesystems(VOID){return EFI_SUCCESS;}
 static EFI_STATUS StartupValidateStatus;static UINTN StartupValidations,StartupFailAt,UsbStatusReads;
 static VOID record(CHAR8 Step){assert(Calls<sizeof(Order)-1);Order[Calls++]=Step;Order[Calls]=0;}
 VOID *EFIAPI ZeroMem(VOID *Buffer,UINTN Bytes){return memset(Buffer,0,Bytes);}

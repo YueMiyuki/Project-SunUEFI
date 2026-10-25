@@ -28,7 +28,8 @@ class ProductBuilderTests(unittest.TestCase):
         contract=validate(json.loads((ROOT/'config/piano-product.json').read_text()))
         backends=product.backend_status()
         self.assertEqual(set(contract['features']),set(backends))
-        self.assertEqual(backends['persistent_variables']['status'],'RAM_ONLY')
+        self.assertEqual(backends['persistent_variables']['status'],'PERSIST_FILE_BOOT_SERVICES')
+        self.assertFalse(backends['persistent_variables']['runtime_nv_set_supported'])
         self.assertEqual(backends['ufs_blockio_read_write']['status'],'RESERVED_VOLUME_BACKEND_UNPROVISIONED')
         self.assertEqual(backends['ufs_blockio_read_write']['original_media'],'READ_ONLY')
         for feature in ('pogo_keyboard_touchpad','touchscreen','usb_host'):

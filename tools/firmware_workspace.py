@@ -147,7 +147,7 @@ def prepare(root=ROOT):
         git(destination, 'checkout', '--detach', '--force', commit)
         git(destination, 'clean', '-ffdx', '-e', 'Build/', '-e', 'build/', '-e', 'Conf/')
         _check_repo(destination, commit)
-    for relative in ('artifacts', 'build/logs'):
+    for relative in ('artifacts', 'build/logs', 'build/source-cache'):
         (root / relative).mkdir(parents=True, exist_ok=True)
         _link(workspace / relative, root / relative)
     for relative in ('.venv', 'build/host-tools'):

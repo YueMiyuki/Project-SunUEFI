@@ -8,7 +8,7 @@
 #include "../../uefi/core/PianoUfsDmaLayout.c"
 #include "../../uefi/core/PianoUfsReadOnlyDma.c"
 EFI_BOOT_SERVICES *gBS;EFI_RUNTIME_SERVICES *gRT;
-EFI_GUID gEfiBlockIoProtocolGuid,gEfiDevicePathProtocolGuid;
+EFI_GUID gEfiBlockIoProtocolGuid,gEfiDevicePathProtocolGuid,gEfiPartitionInfoProtocolGuid;
 static EFI_BOOT_SERVICES Bs;static EFI_RUNTIME_SERVICES Rt;
 #include <stdarg.h>
 static UINT8 Trl[1024],Ucd[1024],Data[4096];static UINT32 Regs[0x400/4];
@@ -18,6 +18,11 @@ static UINTN Freed,Disconnected,Uninstalled,ClockStops;
 static UINTN CorruptCapture;static BOOLEAN TranslateBad,PartialWrite,ResetAttempted;
 BOOLEAN EFIAPI DebugPrintEnabled(VOID){return FALSE;}BOOLEAN EFIAPI DebugPrintLevelEnabled(UINTN Level){(void)Level;return FALSE;}VOID EFIAPI DebugPrint(UINTN Level,CONST CHAR8 *Format,...){(void)Level;(void)Format;}
 VOID EFIAPI MemoryFence(VOID){}VOID EFIAPI CpuPause(VOID){}
+INTN EFIAPI AsciiStrCmp(CONST CHAR8 *A,CONST CHAR8 *B){return strcmp(A,B);}
+INTN EFIAPI StrnCmp(CONST CHAR16 *A,CONST CHAR16 *B,UINTN N){while(N--){if(*A!=*B)return *A<*B?-1:1;if(!*A)return 0;++A;++B;}return 0;}
+INTN EFIAPI StrCmp(CONST CHAR16 *A,CONST CHAR16 *B){while(*A&&*A==*B){++A;++B;}return *A==*B?0:*A<*B?-1:1;}
+BOOLEAN EFIAPI CompareGuid(CONST GUID *A,CONST GUID *B){return memcmp(A,B,sizeof(*A))==0;}
+UINTN EFIAPI DevicePathNodeLength(CONST VOID *Node){CONST EFI_DEVICE_PATH_PROTOCOL *P=Node;return P->Length[0]|((UINTN)P->Length[1]<<8);}
 VOID EFIAPI CpuDeadLoop(VOID){assert(!"Unexpected fail-stop in successful simulated source path");}
 VOID PianoFaultSetDiagnostic(VOID (*F)(VOID)){(void)F;}
 VOID PianoSmmuLogFaults(CONST PIANO_SMMU_SNAPSHOT *S){(void)S;}
@@ -30,6 +35,7 @@ EFI_STATUS PianoDmaBegin(PIANO_DMA_BUFFER *B,CONST CHAR8 *Name){(void)Name;asser
 EFI_STATUS PianoDmaComplete(PIANO_DMA_BUFFER *B,EFI_STATUS Status,BOOLEAN Quiet){assert(B->Active && Quiet && !Regs[0x58/4]);B->Active=FALSE;++DmaCompletes;return Status;}
 EFI_STATUS PianoIoPageTableTranslate(PIANO_IO_PAGE_TABLE *T,UINT64 Iova,BOOLEAN Write,UINT64 *Physical){assert(T==&mContext.PageTable && Write);*Physical=0x81000000+Iova-0x40000000+(TranslateBad?1:0);return EFI_SUCCESS;}
 EFI_STATUS PianoSmmuCapture(CONST VOID *Fdt,CONST CHAR8 *Phase,PIANO_SMMU_SNAPSHOT *Snapshot){assert(Fdt==(VOID *)0x123 && !strcmp(Phase,"product-volume-lease"));++CaptureCalls;*Snapshot=Hardware;if(CaptureCalls==CorruptCapture)Snapshot->RawS2cr[3]^=1;return EFI_SUCCESS;}
+EFI_STATUS PianoSmmuCaptureQuiet(CONST VOID *Fdt,PIANO_SMMU_SNAPSHOT *Snapshot){return PianoSmmuCapture(Fdt,"product-volume-lease",Snapshot);}
 UINT32 EFIAPI MmioRead32(UINTN Address){assert(Address>=HCI && Address<HCI+sizeof(Regs) && !(Address&3));return Regs[(Address-HCI)/4];}
 static VOID physical_read(UINT32 Lba){
   if(Lba==1)memcpy(Data,primary,4096);

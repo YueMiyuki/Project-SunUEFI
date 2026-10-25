@@ -10,7 +10,7 @@
 #include "Components/os-boot/PianoEspBootSource.h"
 STATIC EFI_STATUS mFileStatus=EFI_NOT_STARTED,mOptionStatus=EFI_NOT_STARTED;
 VOID PianoReportLinuxBootOption(VOID) {
-  DEBUG((DEBUG_WARN,"PIANO_LINUX_BOOT_OPTION_SAVED file=%r register=%r variables=ram\n",mFileStatus,mOptionStatus));
+  DEBUG((DEBUG_WARN,"PIANO_LINUX_BOOT_OPTION_SAVED file=%r register=%r\n",mFileStatus,mOptionStatus));
   CONST PIANO_ESP_DISCOVERY *D=PianoEspBootDiscovery();
   DEBUG((DEBUG_WARN,"PIANO_ESP_DISCOVERY locate=%r sfs=%u matches=%u open=%r\n",D->Locate,D->Filesystems,D->Matches,D->Open));
   for(UINTN I=0;I<D->Candidates&&I<ARRAY_SIZE(D->Candidate);++I)
@@ -52,6 +52,6 @@ EFI_STATUS PianoRegisterLinuxBootOption(VOID) {
   }
   FreePool(Volumes);
   mOptionStatus=Status;
-  DEBUG((DEBUG_WARN,"PIANO_LINUX_BOOT_OPTION stage=register status=%r variables=ram\n",Status));
+  DEBUG((DEBUG_WARN,"PIANO_LINUX_BOOT_OPTION stage=register status=%r\n",Status));
   return Status;
 }

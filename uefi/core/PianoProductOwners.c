@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 #include "PianoProductOwners.h"
 #include "PianoFastbootBlockRead.h"
+#include "PianoNvFile.h"
+#include "PianoStorageIo.h"
 #include <Guid/EventGroup.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/BaseMemoryLib.h>
@@ -287,6 +289,9 @@ EFI_STATUS PianoProductOwnersRetire(PIANO_PRODUCT_OWNERS *Owners) {
   if(S!=EFI_SUCCESS || (!AbsentUsb&&(Usb.Revision!=1 || Usb.ServicesLost || Usb.Retained)) || !OriginReady)
     return Retain(Owners,S==EFI_SUCCESS?EFI_COMPROMISED_DATA:S);
   Owners->Report.Busy=TRUE;Owners->Report.Phase=PianoProductOwnersRetiring;
+  Owners->Report.NvStatus=S=PianoNvFileSave(TRUE);
+  if(S!=EFI_SUCCESS&&S!=EFI_NOT_STARTED)return Retain(Owners,S);
+  Owners->Report.FilesystemsStatus=S=PianoStorageCloseFilesystems();if(S!=EFI_SUCCESS)return Retain(Owners,S);
   Owners->Report.PolicyStatus=S=PianoBootPolicyStop();
   Policy=PianoBootPolicyReport();
   if(S!=EFI_SUCCESS || Owners->Report.ServicesLost || !Policy || Policy->ProtocolInstalled || Policy->Dispatching || Policy->Pumping || Policy->Retained || Policy->ServicesLost)

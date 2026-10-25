@@ -82,6 +82,7 @@ typedef struct {
   BOOLEAN BootActionConsumed,OuterTplHeld,ManagerEventClosed;
   EFI_STATUS Status,PolicyStatus,UsbStatus,ProofStatus,AcceptStatus;
   EFI_STATUS PrepareStatus,ShutdownStatus,InputStatus,DisplayStatus,EventStatus;
+  EFI_STATUS NvStatus,FilesystemsStatus;
   UINT32 RegisteredStartedMask,RegisteredAbsentMask,RetiredMask;
   PIANO_USB_SERVICE_RETIRE_REPORT Usb;
   PIANO_UFS_RESET_REPORT Ufs;

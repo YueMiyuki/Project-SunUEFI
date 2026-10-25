@@ -6,6 +6,10 @@
 #include "PianoUfsDmaLayout.h"
 #include "PianoGpt.h"
 #include "PianoUfsProductVolume.h"
+#include "PianoStorageIo.h"
+#if defined(PIANO_UFS_PRODUCT_STORAGE) && PIANO_UFS_PRODUCT_STORAGE
+#include "PianoExt4.h"
+#endif
 #ifndef PIANO_UFS_PRODUCT_STORAGE
 #define PIANO_UFS_PRODUCT_STORAGE 0
 #endif
@@ -22,6 +26,10 @@ STATIC PIANO_SMMU_SNAPSHOT mProductLeaseBasis;
 STATIC UINTN mProductWriteDoorbells,mProductSyncDoorbells;
 STATIC EFI_STATUS mProductTransportStatus;
 STATIC EFI_STATUS ProductSmmuGuard(BOOLEAN Establish);
+STATIC BOOLEAN mPartitionExecuting,mPartitionFailed;
+STATIC UINT8 mPartitionLun;
+STATIC UINT64 mPartitionFirst,mPartitionBlocks;
+STATIC EFI_STATUS PartitionGate(VOID);
 #endif
 #if defined(PIANO_UFS_WRITE_TEST) || defined(PIANO_UFS_BOUNDED_VOLUME) || PIANO_UFS_PRODUCT_STORAGE
 #include "PianoUfsWriteTest.h"
@@ -81,6 +89,9 @@ STATIC EFI_STATUS mWindowTransportStatus=EFI_NOT_STARTED;
 #include "PianoUfsShutdown.h"
 #include <Protocol/DevicePath.h>
 #include <Protocol/DiskIo.h>
+#include <Protocol/SimpleFileSystem.h>
+#include <Protocol/PartitionInfo.h>
+#include <Library/DevicePathLib.h>
 #include <Protocol/SimpleFileSystem.h>
 #include <Guid/EventGroup.h>
 #endif
@@ -142,7 +153,7 @@ VOID PianoReportSetupDiagnostics(VOID);
 VOID PianoFaultSetDiagnostic(VOID (*Diagnostic)(VOID));
 STATIC VOID FaultDiagnostic(VOID){
 #if PIANO_UFS_PRODUCT_STORAGE
-  if(mProductExecuting || mProductRetained || (mProductVolume && (mProductVolume->State.PendingWrite || mProductVolume->State.Quarantined || mProductVolume->State.NeedsRecovery)))CpuDeadLoop();
+  if(mPartitionExecuting || mPartitionFailed || mProductExecuting || mProductRetained || (mProductVolume && (mProductVolume->State.PendingWrite || mProductVolume->State.Quarantined || mProductVolume->State.NeedsRecovery)))CpuDeadLoop();
 #endif
 #ifdef PIANO_UFS_BLOCKIO
   if(mResetReport.Started && !mResetReport.Clean){DEBUG((DEBUG_WARN,"SUNUEFI_UFS_RESET_EXCEPTION retained=1 status=%r\n",mResetReport.Result));CpuDeadLoop();}
@@ -223,7 +234,8 @@ STATIC EFI_STATUS Quiesce(VOID) {
 }
 STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
   if(Read(0x58) || Read(0x78) || !(Read(0x34)&1) || (Read(0x30)&0xF)!=0xF)return EFI_NOT_READY;
-  UINTN TraceLevel=AsciiStrCmp(Name,"BLOCKIO_READ")?DEBUG_WARN:DEBUG_VERBOSE;
+  UINTN TraceLevel=(!AsciiStrCmp(Name,"BLOCKIO_READ")||!AsciiStrCmp(Name,"PARTITION_WRITE_FUA")||
+    !AsciiStrCmp(Name,"PARTITION_SYNC"))?DEBUG_VERBOSE:DEBUG_WARN;
   LogUpiu(TraceLevel,Name,"request",mUcd.Cpu);
   UINT8 *Request=mUcd.Cpu;
   if(!(Request[0]==0 || Request[0]==1 || Request[0]==0x16))return EFI_ACCESS_DENIED;
@@ -255,7 +267,22 @@ STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
     if(EFI_ERROR(Gate) || CompareMem(ExpectedTrd,mTrl.Cpu,32) || CompareMem(ExpectedUcd,mUcd.Cpu,1024))return EFI_ACCESS_DENIED;
 #elif PIANO_UFS_PRODUCT_STORAGE
     UINT8 ExpectedTrd[32],ExpectedUcd[1024];EFI_STATUS Gate=EFI_ACCESS_DENIED;
-    if(mProductExecuting && mProductVolume && mProductVolume->State.Provisioned && !mProductVolume->State.Quarantined &&
+    if(mPartitionExecuting && mBlockBusy && !mPartitionFailed && mData.Direction==PianoDmaBidirectional &&
+       Request[2]==mPartitionLun && Requested<=4096 && PartitionGate()==EFI_SUCCESS) {
+      UINT32 Lba=EngineBe32(Request+18);
+      if(Request[16]==0x2A && Lba>=mPartitionFirst && Lba-mPartitionFirst<mPartitionBlocks && Requested==4096) {
+        Gate=PianoUfsBuildReadCommand(ExpectedTrd,32,ExpectedUcd,sizeof(ExpectedUcd),mUcd.DeviceAddress,mData.DeviceAddress,
+          4096,Tag,mPartitionLun,PianoUfsReadLba10,Lba,1);
+        if(Gate==EFI_SUCCESS){ExpectedTrd[3]=0x13;ExpectedUcd[1]=0x20;ExpectedUcd[16]=0x2A;ExpectedUcd[17]=8;}
+      } else if(Request[16]==0x35 && !Requested) {
+        ZeroMem(ExpectedTrd,sizeof(ExpectedTrd));ZeroMem(ExpectedUcd,sizeof(ExpectedUcd));
+        ExpectedTrd[3]=0x11;ExpectedTrd[8]=15;
+        for(UINTN I=0;I<8;++I)ExpectedTrd[16+I]=(UINT8)(mUcd.DeviceAddress>>(8*I));
+        ExpectedTrd[24]=16;ExpectedTrd[26]=16;
+        ExpectedUcd[0]=1;ExpectedUcd[2]=mPartitionLun;ExpectedUcd[3]=Tag;ExpectedUcd[16]=0x35;
+        Gate=EFI_SUCCESS;
+      }
+    }else if(mProductExecuting && mProductVolume && mProductVolume->State.Provisioned && !mProductVolume->State.Quarantined &&
        !mProductRetained && mData.Direction==PianoDmaBidirectional && mProductVolume->State.Busy) {
       UINT32 Lba=EngineBe32(Request+18);
       if(Request[16]==0x2A && Lba>=PIANO_UFS_WINDOW_FIRST+2)
@@ -333,7 +360,7 @@ STATIC EFI_STATUS Submit(CONST CHAR8 *Name,UINT8 Tag,BOOLEAN Nop) {
     Status=PianoUfsCheckReadResponse(T,mUcd.Cpu,Tag,Requested,&mTransferred);
     // READ diagnostics allow legal underflow; fixed WRITE and SYNC require
     // GOOD, correct tag/LUN, no sense/residual/overflow/underflow and exact count.
-    if(Mutation && (!EFI_ERROR(Status) && ((R[1]&0x60) || EngineBe32(R+12)!=0 || R[2]!=4 || R[10] || R[11] || R[32] || R[33] || mTransferred!=Requested)))Status=EFI_DEVICE_ERROR;
+    if(Mutation && (!EFI_ERROR(Status) && ((R[1]&0x60) || EngineBe32(R+12)!=0 || R[2]!=Request[2] || R[10] || R[11] || R[32] || R[33] || mTransferred!=Requested)))Status=EFI_DEVICE_ERROR;
   }
   if(EFI_ERROR(Status)) {
     TraceLevel=DEBUG_WARN;
@@ -707,6 +734,9 @@ STATIC EFI_STATUS ServiceRead(VOID *Context,UINT8 Lun,EFI_LBA Lba,UINTN Bytes,VO
   }
   mBlockBusy=FALSE;gBS->RestoreTPL(Old);return Status;
 }
+#if PIANO_UFS_PRODUCT_STORAGE
+#include "PianoStorageIo.inc"
+#endif
 #endif
 STATIC EFI_STATUS HaltService(VOID) {
 #if PIANO_UFS_PRODUCT_STORAGE
@@ -796,7 +826,7 @@ EFI_STATUS PianoUfsBlockIoPrepareForReset(VOID){
   if(mExitRetained || gBS==NULL)return EFI_ACCESS_DENIED;
   if(mBlockBusy)return EFI_NOT_READY;
 #if PIANO_UFS_PRODUCT_STORAGE
-  if(mProductRetained || (mProductVolume && (mProductVolume->State.PendingWrite || mProductVolume->State.Quarantined || mProductVolume->State.NeedsRecovery)))return EFI_ACCESS_DENIED;
+  if(mPartitionFailed || mPartitionExecuting || mProductRetained || (mProductVolume && (mProductVolume->State.PendingWrite || mProductVolume->State.Quarantined || mProductVolume->State.NeedsRecovery)))return EFI_ACCESS_DENIED;
 #endif
 #ifdef PIANO_UFS_WRITE_TEST
   if(mWriteWork.Running || mWriteWork.NeedsRecovery || mWriteResult.RequiresRecovery || mWriteResult.Quarantined)return EFI_ACCESS_DENIED;
@@ -816,6 +846,7 @@ EFI_STATUS PianoUfsBlockIoPrepareForReset(VOID){
 #endif
   for(UINTN I=0;I<ARRAY_SIZE(mBlockHandles);++I)if(mBlockHandles[I]!=NULL){
     EFI_STATUS S=ResetExact(gBS->DisconnectController(mBlockHandles[I],NULL,NULL));mResetReport.Disconnect=S;
+    DEBUG((DEBUG_WARN,"SUNUEFI_UFS_DISCONNECT index=%u handle=%p status=%r\n",(UINT32)I,mBlockHandles[I],S));
     if(S!=EFI_SUCCESS)return ResetFailure(S);++mResetReport.Disconnected;
   }
   mResetReport.Disconnect=EFI_SUCCESS;
@@ -882,7 +913,11 @@ EFI_STATUS PianoUfsBlockIoShutdownForReset(VOID){
     if(I==7)mProductPublished=FALSE;
 #endif
   }
-  if(mShutdownHandle!=NULL){EFI_GUID Guid=PIANO_UFS_SHUTDOWN_GUID;S=ResetExact(gBS->UninstallMultipleProtocolInterfaces(mShutdownHandle,&Guid,&mShutdown,NULL));if(S!=EFI_SUCCESS){mResetReport.Protocols=S;return ResetFailure(S);}mShutdownHandle=NULL;++mResetReport.ProtocolsRemoved;}
+  if(mShutdownHandle!=NULL){EFI_GUID Guid=PIANO_UFS_SHUTDOWN_GUID;S=ResetExact(gBS->UninstallMultipleProtocolInterfaces(mShutdownHandle,&Guid,&mShutdown,
+#if PIANO_UFS_PRODUCT_STORAGE
+    &mPartitionIoGuid,&mPartitionIo,
+#endif
+    NULL));if(S!=EFI_SUCCESS){mResetReport.Protocols=S;return ResetFailure(S);}mShutdownHandle=NULL;++mResetReport.ProtocolsRemoved;}
   mResetReport.Protocols=EFI_SUCCESS;
   // Cache the final MMIO evidence before releasing the clocks/GDSC. Never
   // probe a potentially unclocked HCI register after this boundary.
@@ -932,7 +967,11 @@ VOID PianoUfsBlockIoStop(VOID) {
   }
   if(mShutdownHandle!=NULL) {
     EFI_GUID Guid=PIANO_UFS_SHUTDOWN_GUID;
-    EFI_STATUS Status=gBS->UninstallMultipleProtocolInterfaces(mShutdownHandle,&Guid,&mShutdown,NULL);
+    EFI_STATUS Status=gBS->UninstallMultipleProtocolInterfaces(mShutdownHandle,&Guid,&mShutdown,
+#if PIANO_UFS_PRODUCT_STORAGE
+      &mPartitionIoGuid,&mPartitionIo,
+#endif
+      NULL);
     if(EFI_ERROR(Status)){DmaFaultReset();return;}mShutdownHandle=NULL;
   }
   EFI_STATUS Status=Cleanup();if(EFI_ERROR(Status)){DmaFaultReset();return;}
@@ -967,7 +1006,11 @@ STATIC EFI_STATUS PublishBlocks(VOID) {
     if(EFI_ERROR(Status) || Signature!=(mGpts[I].Entries!=0) || WriteStatus!=EFI_WRITE_PROTECTED)return EFI_DEVICE_ERROR;
   }
   EFI_GUID Guid=PIANO_UFS_SHUTDOWN_GUID;
-  EFI_STATUS Status=gBS->InstallMultipleProtocolInterfaces(&mShutdownHandle,&Guid,&mShutdown,NULL);
+  EFI_STATUS Status=gBS->InstallMultipleProtocolInterfaces(&mShutdownHandle,&Guid,&mShutdown,
+#if PIANO_UFS_PRODUCT_STORAGE
+    &mPartitionIoGuid,&mPartitionIo,
+#endif
+    NULL);
   if(EFI_ERROR(Status))return Status;
   Status=gBS->CreateEventEx(EVT_NOTIFY_SIGNAL,TPL_NOTIFY,PianoUfsExitBoot,NULL,&gEfiEventExitBootServicesGuid,&mExitBootEvent);
   if(EFI_ERROR(Status))return Status;

@@ -9,6 +9,7 @@
 #include "PianoRamPartition.h"
 #include "PianoUfsProductVolume.h"
 #include "PianoProductSmem.h"
+#include "PianoNvFile.h"
 #include "PianoProductBootObjects.h"
 #include "PianoProductBootLog.h"
 #include "PianoProductDisplayObserve.h"
@@ -151,7 +152,7 @@ STATIC VOID ObserveNative(CONST CHAR8 *Name,BOOLEAN Before) {
 STATIC VOID ReportRequiredBackends(VOID) {
   // Required remains true. Missing real hardware/startup is visible rather
   // than converted into a silent build-time feature switch or fake Ready.
-  STATIC CONST CHAR8 *Names[]={"touchscreen","pogo_keyboard_touchpad","usb_host","persistent_variables","ufs_blockio_write","download_1GiB","general_os_boot"};
+  STATIC CONST CHAR8 *Names[]={"touchscreen","pogo_keyboard_touchpad","usb_host","runtime_nv_write","ufs_blockio_write","download_1GiB","general_os_boot"};
   for(UINTN I=0;I<ARRAY_SIZE(Names);++I)
     DEBUG((DEBUG_WARN,"PIANO_PRODUCT_BACKEND name=%a required=1 initialized=0 status=%r release_ready=0\n",Names[I],EFI_NOT_READY));
 }
@@ -298,6 +299,8 @@ EFI_STATUS EFIAPI PianoProductCoreEntry(EFI_HANDLE Image,EFI_SYSTEM_TABLE *Syste
     DEBUG((DEBUG_WARN,"PIANO_PRODUCT_STORAGE_FAT_PUBLISHED writable=1 container_headers_excluded=1 nv_slots_private=1\n"));
   } else if(Status!=EFI_NOT_FOUND)FailStop(Status);
   mBootLogStage="UFS";
+  Status=PianoNvFileStart();
+  DEBUG((DEBUG_WARN,"PIANO_NV_FILE_BACKEND status=%r\n",Status));
   Status=PianoFastbootBlockReadInit();if(Status!=EFI_SUCCESS)FailStop(Status);
   CONST PIANO_FB_STORAGE *Storage=PianoFastbootBlockReadStorage();
   if(Storage==NULL || Storage->Ready(Storage->Context)!=EFI_SUCCESS)FailStop(EFI_NOT_READY);
