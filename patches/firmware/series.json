@@ -14,6 +14,12 @@
       "sha256": "a68761caebc222a17ca0f57fb9f896180535f37ddb408382c6ea2681eb4eba21"
     },
     {
+      "repository": "upstream/Mu-Silicium",
+      "base_commit": "3ec9169f308c01030a7e698072aca5acb2c0a144",
+      "patch": "mu-silicium/3ec9169/0001-close-filesystem-scan-handles.patch",
+      "sha256": "07a945eb731c489d0e269b30898aa42b74f63d4982832b79ee357a48e311a648"
+    },
+    {
       "repository": "upstream/simple-init",
       "base_commit": "3d66a6e78d519dd050fbebde4db6c5ac933f9aa4",
       "patch": "simple-init.patch",
