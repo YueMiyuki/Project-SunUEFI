@@ -47,7 +47,15 @@ EFI_STATUS PianoRegisterLinuxBootOption(VOID) {
     Status=EfiBootManagerInitializeLoadOption(&Option,LoadOptionNumberUnassigned,LoadOptionTypeBoot,
       LOAD_OPTION_ACTIVE,L"Linux",Path,NULL,0);
     FreePool(Path);
-    if(Status==EFI_SUCCESS){Status=EfiBootManagerAddLoadOptionVariable(&Option,MAX_UINTN);EfiBootManagerFreeLoadOption(&Option);}
+    if(Status==EFI_SUCCESS){
+      // Variables now survive reboot. Reuse the standard matching option
+      // instead of appending another Boot#### on every product startup.
+      UINTN ExistingCount=0;
+      EFI_BOOT_MANAGER_LOAD_OPTION *Existing=EfiBootManagerGetLoadOptions(&ExistingCount,LoadOptionTypeBoot);
+      if(EfiBootManagerFindLoadOption(&Option,Existing,ExistingCount)<0)
+        Status=EfiBootManagerAddLoadOptionVariable(&Option,MAX_UINTN);
+      EfiBootManagerFreeLoadOptions(Existing,ExistingCount);EfiBootManagerFreeLoadOption(&Option);
+    }
     break;
   }
   FreePool(Volumes);
