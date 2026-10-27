@@ -36,7 +36,7 @@ ARM64严格语法检查通过。测试不执行ARM内核，不接触平板。仍
 
 Source总实际Bytes必须不超过Root的MaxSourceBytes（零值默认64MiB，绝对最多1GiB）；先用减法边界检查总量，超过单项/总量或UINT64溢出风险在Take前拒绝。大容量预算在Take前必须通过实际CPU policy完整内存验证，Borrow后再验证每份真实source owner/span，后续DT-based memory proof的epoch必须一致。三份Context必须独立且不能落在session对象内，Env/blob描述符同样不能与session别名，避免初始化或后续Take破坏已有状态。
 
-LoadFile2复制使用统一64KiB CPU slices，拒绝Bytes输出或目标buffer与session/任一immutable source别名。NativeLate模式下StartImage内真实保持owners运行，复制initrd不要求OwnersRetired；随后native EBS完成真正退休。平台DDR或实际Arm validator拒绝时仍无Start。原生接入及完整源码联合测试见[piano-native-late-handoff.md](piano-native-late-handoff.md)。
+LoadFile2复制使用统一64KiB CPU slices，拒绝Bytes输出或目标buffer与session/任一immutable source别名。NativeLate模式下StartImage内真实保持owners运行，复制initrd不要求OwnersRetired；随后native EBS完成真正退休。平台DDR或实际Arm validator拒绝时仍无Start。原生接入及完整源码联合测试见[piano-native-late-handoff.md](../uefi-core/piano-native-late-handoff.md)。
 
 view只能在Borrow后知道其地址；在第一处已知跨源重叠、与session重叠或地址长度回绕时立即retain，不继续取得后面的源，也不调用任何Unborrow/ZeroRelease。Take返回error/warning却给Owner，或Borrow返回error/warning却给view/loan，按未知所有权处理，CPU fail-stop保留整组，不能ordinary cleanup猜测资源已安全归还。
 

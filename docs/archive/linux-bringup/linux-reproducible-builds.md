@@ -1,6 +1,6 @@
 # Piano Linux 构建与引导门槛
 
-本页保留救援 RAM 基线及其历史实验。当前磁盘 Linux 与不同版本角色见[项目状态](status.md)、[内核角色](devel/kernel-roles.md)；首次参与从[构建入口](devel/building.md)开始。
+本页保留救援 RAM 基线及其历史实验。当前磁盘 Linux 与不同版本角色见[项目状态](../../status.md)、[内核角色](../../devel/kernel-roles.md)；首次参与从[构建入口](../../devel/building.md)开始。
 
 当前状态（2026-10-05）：stable 的独立 7.2.6 内核已在电脑编译，38 MiB Image 带 ARM64 EFI stub。test71 已实机完成 raw ARM64 RAM smoke：PID 1/BusyBox 运行，CPU_ONLINE=0-7，MemTotal=15520788 kB，DIAGNOSTICS_READY，180 秒后自动重启 Android；实际 /proc/config.gz 解压 SHA256=1cbb6541bdd94231db305fbc6ff79658ed45e8af888d32351d6fbbbbfb06c211，与构建 config 完全一致，恢复后26启动分区 SHA 一致。console 不可用时通过 kmsg 记录，不再退出 PID 1。此前 test68 的 console 退出问题和 test69 的嵌入 DTB 地址对齐问题均已修复。
 

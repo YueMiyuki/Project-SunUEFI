@@ -186,7 +186,7 @@ python tools/check_fastboot_debug.py --test-id 82 --wait-seconds 180
 
 ## test82 实机验收与下一版 reboot lifecycle
 
-test82 已成功，源码基线为 commit `9956710`。[封存验收 JSON](../artifacts/usb-debug/fastboot-validation-test-82.json) 与 [已验证镜像](../artifacts/usb-debug/piano-fastboot-bulk-verified-test-82.img) 保存这次结果；镜像 SHA256 为 `1df2ea003098556f45d179045be83cc22fa896f0c33a18785708377c56e91be7`。Host uid **1000** 使用 stock CLI，manifest 中全部 **14 条 CLI exit=0**。
+test82 已成功，源码基线为 commit `9956710`。封存验收 JSON `artifacts/usb-debug/fastboot-validation-test-82.json` 与已验证镜像 `artifacts/usb-debug/piano-fastboot-bulk-verified-test-82.img` 保存这次结果；镜像 SHA256 为 `1df2ea003098556f45d179045be83cc22fa896f0c33a18785708377c56e91be7`。Host uid **1000** 使用 stock CLI，manifest 中全部 **14 条 CLI exit=0**。
 
 RAM pattern 为 **65,553 bytes**，SHA256 `adac32e38739c26a99b60a27239bbfb419c69f2ec5aa4a546b5fca6b813ac9a8`，下载摘要和 upload 逐字节比较都匹配。Frozen log 为 **65,536 bytes**、CRC32 **90217DD8**、generation **1**，SHA256 `490f60aa608585dc418f1de714d39aa1cd0c0f4a065cc28116d8d0be46f33df9`。`current_session_marker=false`：这次导出的确为已校验的 console tail，不能称为完整 bootlog。
 

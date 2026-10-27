@@ -38,12 +38,12 @@
 
 | 主题 | 页面 |
 | --- | --- |
-| 产品构建与核心 | [产品构建](piano-product-build.md)、[启动策略](piano-product-boot-policy.md)、[共同 pump](piano-product-pump.md) |
-| 生命周期 | [产品 owners](piano-product-owners.md)、[OS 控制](piano-product-os-controller.md)、[退出](piano-product-os-exit-contract.md) |
-| 内存与 DMA / SMMU | [内存](piano-platform-memory-contract.md)、[DMA 基础](dma-smmu-milestone.md) |
-| 显示 | [GOP](piano-gop-framebuffer-publishing.md)、[映射](piano-display-mapping-contract.md) |
-| USB | [驻留服务](piano-usb-persistent-service.md)、[日志快照](piano-usb-log-snapshot.md) |
-| UFS | [BlockIO / USB](blockio-usb-progress.md)、[退出](ufs-ebs-lifecycle.md) |
-| Linux | [构建历史](linux-reproducible-builds.md)、[完整 Linux 基线](piano-full-linux-candidate.md)、[EFI 会话](piano-linux-efi-session.md) |
+| 产品构建与核心 | [产品构建](archive/uefi-core/piano-product-build.md)、[启动策略](archive/uefi-core/piano-product-boot-policy.md)、[共同 pump](archive/uefi-core/piano-product-pump.md) |
+| 生命周期 | [产品 owners](archive/uefi-core/piano-product-owners.md)、[OS 控制](archive/uefi-core/piano-product-os-controller.md)、[退出](archive/uefi-core/piano-product-os-exit-contract.md) |
+| 内存与 DMA / SMMU | [内存](archive/memory-dma/piano-platform-memory-contract.md)、[DMA 基础](archive/memory-dma/dma-smmu-milestone.md) |
+| 显示 | [GOP](archive/uefi-core/piano-gop-framebuffer-publishing.md)、[映射](archive/display-clock/piano-display-mapping-contract.md) |
+| USB | [驻留服务](archive/storage-usb/piano-usb-persistent-service.md)、[日志快照](archive/storage-usb/piano-usb-log-snapshot.md) |
+| UFS | [BlockIO / USB](archive/storage-usb/blockio-usb-progress.md)、[退出](archive/storage-usb/ufs-ebs-lifecycle.md) |
+| Linux | [构建历史](archive/linux-bringup/linux-reproducible-builds.md)、[完整 Linux 基线](archive/linux-bringup/piano-full-linux-candidate.md)、[EFI 会话](archive/linux-bringup/piano-linux-efi-session.md) |
 
 当前功能以[项目状态](status.md)为准。已删除的一次性实验记录可从 Git 历史查阅。

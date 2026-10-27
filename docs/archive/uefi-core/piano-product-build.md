@@ -3,8 +3,8 @@
 > 文中的 `sunuefi_linux` 是当时的分区名；当前名称为 `sunuefi_root`，位置、UUID和大小不变。
 
 
-For the current device results and candidate identity, see [project status](status.md).
-For a first build, start with [building](devel/building.md); this page describes the product assembly.
+For the current device results and candidate identity, see [project status](../../status.md).
+For a first build, start with [building](../../devel/building.md); this page describes the product assembly.
 
 The product build exports exactly one boot image:
 `artifacts/product/PianoUEFI-product.img`. The same FD, product supervisor and

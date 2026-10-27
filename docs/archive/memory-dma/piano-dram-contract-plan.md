@@ -52,4 +52,4 @@ Android86的debug_kinfo BFFFFF000..C00000000（4KiB nomap）与dump_mem880000000
 
 11项host tests覆盖Reserved WB与LoaderData WB语义区别、CMA不作preboot free、整段post-EBS coverage、部分页保护、dynamic envelope不变固定reserve、Android phase隔离、overflow/overlap/trace metadata拒绝、native语法未支持行不得静默跳过、非native归档EFI占用不得吞并、DTB pin漂移不发布以及真实同机全coverage/native差异。工具断言page-aligned/nonoverlap/完整envelope、native cache override0、新free不与native/fixed/归档active占用相交，仍明确输出unknown与4个conflicts。
 
-这些检查只证明离线输入的一致性，不能替代内存、缓存和 DMA 边界的实机验证。本页描述早期设计，当前启动和内存支持以[项目状态](status.md)为准。
+这些检查只证明离线输入的一致性，不能替代内存、缓存和 DMA 边界的实机验证。本页描述早期设计，当前启动和内存支持以[项目状态](../../status.md)为准。
