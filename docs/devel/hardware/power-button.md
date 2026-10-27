@@ -4,7 +4,7 @@
 
 内核负责电源键和保护套开关上报、面板断电与恢复、系统挂起及唤醒。桌面策略使用 GNOME、logind 和 DRM 的标准接口；锁屏认证和长按关机菜单不放进内核。
 
-GNOME 的[电源键助手](../../linux/desktops/gnome/power-overlay/usr/lib/piano/power-button)只补充桌面尚未提供的按键策略：
+GNOME 的[电源键助手](../../../linux/desktops/gnome/power-overlay/usr/lib/piano/power-button)只补充桌面尚未提供的按键策略：
 
 - 短按电源或合盖：锁屏并关闭显示。
 - 再次短按或开盖：显示锁屏页面，仍需正常解锁。
@@ -22,7 +22,7 @@ GNOME 的[电源键助手](../../linux/desktops/gnome/power-overlay/usr/lib/pian
 
 ## 默认设置
 
-[标准 dconf 配置](../../linux/desktops/gnome/power-overlay/etc/dconf/db/local.d/00-power)设置 2 分钟空闲熄屏、使用电池时 5 分钟自动挂起、外接电源时 10 分钟自动挂起。键盘背光默认 80%，后续沿用用户保存的亮度。用户可在系统设置里修改这些偏好。
+[标准 dconf 配置](../../../linux/desktops/gnome/power-overlay/etc/dconf/db/local.d/00-power)设置 2 分钟空闲熄屏、使用电池时 5 分钟自动挂起、外接电源时 10 分钟自动挂起。键盘背光默认 80%，后续沿用用户保存的亮度。用户可在系统设置里修改这些偏好。
 
 构建启用 `sleep.target` 和 `suspend.target`，使用 `mem/deep`。休眠、混合睡眠及先睡眠后休眠保持禁用。
 

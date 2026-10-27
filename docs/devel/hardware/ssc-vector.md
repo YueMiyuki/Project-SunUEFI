@@ -1,6 +1,6 @@
 # 原始 SSC 向量接口
 
-这份扩展准备在正常libssc中提供额外传感器事件，复用已有SUID发现、QMI传输及open/close流程。[源码补丁](../../patches/libssc/0002-raw-vector-reports.patch)应用在libssc0.4.4及property-types修正之后；[最小客户端](../../linux/userspace/piano-ssc-vector.c)只用公开libssc API。没有新增传感器daemon、IIO假设备或桌面策略。
+这份扩展准备在正常libssc中提供额外传感器事件，复用已有SUID发现、QMI传输及open/close流程。[源码补丁](../../../patches/libssc/0002-raw-vector-reports.patch)应用在libssc0.4.4及property-types修正之后；[最小客户端](../../../linux/userspace/piano-ssc-vector.c)只用公开libssc API。没有新增传感器daemon、IIO假设备或桌面策略。
 
 默认发布配置已通过 `patches/piano-sensors/0003-libssc-raw-vector-reports.patch` 接入向量扩展和客户端，标准 ARM64 库、CLI、开发包及 GIR 使用 `+sunuefi2`。客户端的 Debian 依赖要求同版本或更新的库，避免链接旧版本缺少的公开符号。完整六包已通过真实 rootfs 消费函数；平板已安装新库和 CLI，三个通道的限时订阅均正常关闭。下一份 root 镜像尚未生成，不能把运行中的软件包升级视为新镜像已部署。
 

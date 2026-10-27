@@ -31,14 +31,14 @@ modules-load策略。新内核 `7.2.9-piano-gnome-g45bba6e91e6c` 已完整构建
 
 ## 唯一默认 release 接线
 
-[piano-camera-flash.dtso](../../linux/dts/piano-camera-flash.dtso) 禁用旧 vendor
+[piano-camera-flash.dtso](../../../linux/dts/piano-camera-flash.dtso) 禁用旧 vendor
 flash 和 `/soc/qcom,camera-flash0` trigger consumer，创建只有两个标准子节点的
 `led-controller@ee00` 并设为 `okay`，保持100mA torch、400mA/300ms flash。
 旧 vendor 多子节点结构不能直接换 compatible；标准绑定见
 [qcom,spmi-flash-led.yaml](https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/leds/qcom,spmi-flash-led.yaml)。
 没有加入电源/GPIO猜测或手工寄存器初始化。
 
-[piano-flash.config](../../linux/configs/piano-flash.config) 是现有完整内核上的小
+[piano-flash.config](../../../linux/configs/piano-flash.config) 是现有完整内核上的小
 fragment，不创建第二个 profile：
 
 ```text
@@ -59,7 +59,7 @@ MEDIA_CONTROLLER、V4L2_ASYNC 和 subdev API。`build_piano_full_kernel.py`默�
 `build.sh package`与release的additional_dtb_overlays均保留DMIC并加入flash。
 
 统一的新源码准备已经带上既有
-[cleanup 索引补丁](../../patches/linux/7.2.9/0004-leds-qcom-flash-cleanup-index.patch)。
+[cleanup 索引补丁](../../../patches/linux/7.2.9/0004-leds-qcom-flash-cleanup-index.patch)。
 它修正两个释放循环的数组越界，先检查成功计数、递减索引再释放，包括 NULL。
 此前该补丁已做单AArch64对象编译。本轮以旧7fff真实tree加补丁的临时index算出
 新tree `b8f07b7e9f9efb0cece6dc465f7052fc5d7079a8`，标准准备器复现同一tree，
@@ -97,7 +97,7 @@ regmap的11个明确寄存器。开启第一路时，module-enable `ee46=80`、c
 仍未证明：此前后摄统计没有明确亮度变化，场景距离和遮挡也未受控，不能据此
 认定灯不亮。原始读回位于本机 `private/provisioning/recovery-priority-20261008/flash-register-a8.json`。
 
-上述取整问题已有下一默认内核的[标准驱动补丁](../../patches/linux/7.2.9/0010-leds-qcom-flash-torch-rounding.patch)：仅在电流转0..255 LED编码时使用ceil，保留setter的floor、上限和温控路径；反向控件转换按相同每通道5mA档返回总电流，避免把亮度64报告成25098µA。25mA因此对应亮度64、setter25mA、ITARGET4；nearest并不足够，15mA仍会经亮度38降为10mA。1..4通道在500mA/通道上限下，ceil编码误差小于一个硬件5mA档，合法V4L2步进得以保留。正值最低档来自实际setter的ITARGET0，brightness0仍为关闭。独立ARM64对象编译及必要整数边界检查已通过，记录在`private/analysis/piano-flash-rounding-20261008/result.json`；未修改活动a589源码/O或部署新驱动。该反向转换不是寄存器测量，温控仍可能进一步降低电流，新ITARGET与光学结果需要实机读回。
+上述取整问题已有下一默认内核的[标准驱动补丁](../../../patches/linux/7.2.9/0010-leds-qcom-flash-torch-rounding.patch)：仅在电流转0..255 LED编码时使用ceil，保留setter的floor、上限和温控路径；反向控件转换按相同每通道5mA档返回总电流，避免把亮度64报告成25098µA。25mA因此对应亮度64、setter25mA、ITARGET4；nearest并不足够，15mA仍会经亮度38降为10mA。1..4通道在500mA/通道上限下，ceil编码误差小于一个硬件5mA档，合法V4L2步进得以保留。正值最低档来自实际setter的ITARGET0，brightness0仍为关闭。独立ARM64对象编译及必要整数边界检查已通过，记录在`private/analysis/piano-flash-rounding-20261008/result.json`；未修改活动a589源码/O或部署新驱动。该反向转换不是寄存器测量，温控仍可能进一步降低电流，新ITARGET与光学结果需要实机读回。
 
 此前主机已对参考board.dtb组合一次overlay，检查标准节点okay、旧vendor/trigger
 disabled及两路通道、电流和时限，结果在`build/flash-overlay-check/`。本轮另确认

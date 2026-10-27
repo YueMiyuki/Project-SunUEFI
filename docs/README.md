@@ -15,22 +15,22 @@
 
 ## 开发
 
-* [构建手册](devel/building.md)、[公开构建链](devel/public-build.md)、[测试](devel/testing.md)、[发布要求](devel/release.md)
-* [仓库地图](devel/repository-map.md)、[本地输入](devel/local-inputs.md)、[内核角色](devel/kernel-roles.md)、[补丁登记](devel/patches.md)
-* 启动状态与切换：[启动请求](devel/reboot-request.md)、[Linux 下次启动](devel/linux-next-boot.md)、[Recovery 入口](devel/recovery-entry.md)、[原生 BOOT 重打包](devel/android-boot-repack.md)、[Android 模块](devel/android-module.md)
-* 多发行版：[BSP 配置包](../linux/bsp/README.md)、[发行版装配](../linux/rootfs/README.md)、[桌面配置](../linux/desktops/README.md)、[Linux 服务](devel/linux-services.md)、[Proton/FEX 协作挂起](devel/steamos-proton-fex-suspend.md)
+* [构建手册](devel/building.md)、[测试](devel/testing.md)、[发布要求](devel/release.md)
+* [仓库地图](devel/repository-map.md)、[本地输入](devel/local-inputs.md)、[内核角色](devel/linux/kernel.md)、[补丁登记](devel/patches.md)
+* 启动状态与切换：[启动请求](devel/boot/reboot-request.md)、[Linux 下次启动](devel/boot/linux-next-boot.md)、[Recovery 入口](devel/boot/recovery-entry.md)、[原生 BOOT 重打包](devel/boot/combined-boot.md)、[Android 模块](devel/boot/android-module.md)
+* 多发行版：[BSP 配置包](../linux/bsp/README.md)、[发行版装配](../linux/rootfs/README.md)、[桌面配置](../linux/desktops/README.md)、[Linux 服务](devel/linux/services.md)、[Proton/FEX 协作挂起](devel/linux/steamos-proton-fex-suspend.md)
 * [贡献指南](../CONTRIBUTING.md)、[第三方来源](../THIRD_PARTY.md)、[许可](../LICENSE.md)
 
 ## 硬件专题
 
 | 主题 | 页面 |
 | --- | --- |
-| 显示 | [色深与面板](devel/piano-display-depth.md)、[面板选择](devel/panel-selection.md)、[夜灯后端](devel/piano-gcv2-night-light.md)、[夜灯验证](devel/piano-gcv2-validation.md)、[自动亮度](devel/piano-auto-brightness.md) |
-| 音频 | [音频时钟](devel/piano-audio-clock.md) |
-| 相机 | [相机与闪光灯](devel/piano-camera-flash.md)、[视频编解码](devel/piano-video-codec.md) |
-| 无线 | [蓝牙](devel/piano-bluetooth.md) |
-| 输入与电源 | [触控笔协议](devel/piano-pen-protocol.md)、[电源键](devel/piano-power-button.md)、[传感器](devel/piano-sensors.md)、[SSC 数据](devel/piano-ssc-vector.md)、[LED / 红外 / 指纹](devel/piano-led-ir-fingerprint.md) |
-| 启动 | [启动时间](devel/piano-boot-time.md) |
+| 显示 | [色深与面板](devel/hardware/display-depth.md)、[面板选择](devel/hardware/panel-selection.md)、[夜灯后端](devel/hardware/gcv2-night-light.md)、[夜灯验证](devel/hardware/gcv2-validation.md)、[自动亮度](devel/hardware/auto-brightness.md) |
+| 音频 | [音频时钟](devel/hardware/audio-clock.md) |
+| 相机 | [相机与闪光灯](devel/hardware/camera-flash.md)、[视频编解码](devel/hardware/video-codec.md) |
+| 无线 | [蓝牙](devel/hardware/bluetooth.md) |
+| 输入与电源 | [触控笔协议](devel/hardware/pen-protocol.md)、[电源键](devel/hardware/power-button.md)、[传感器](devel/hardware/sensors.md)、[SSC 数据](devel/hardware/ssc-vector.md)、[LED / 红外 / 指纹](devel/hardware/led-ir-fingerprint.md) |
+| 启动 | [启动时间](devel/boot/boot-time.md) |
 
 ## UEFI 和 Linux 交接的设计记录
 

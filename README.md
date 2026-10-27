@@ -70,7 +70,7 @@ UEFI 显示硬件初始化进度，Linux 启动正常有日志提示。仍存在
 
 Root 提供 `debian-gnome`、`debian-kde`、`nyarch-gnome` 和 `steamos` 四种选择；例如 Nyarch 的下载包名为 **`SunUEFI-Root-nyarch-gnome`**。
 
-首次分区尚未完成实机验证，相关限制见[已知问题](docs/user/known-issues.md#首次分区)。详细操作见[安装指南](docs/user/install-from-artifact.md)；[电脑安装](docs/user/install-from-computer.md)与[临时启动](docs/user/temporary-boot.md)作为备用方式保留。Magisk 用户打开助手的方法见[模块说明](docs/devel/android-module.md)。
+首次分区尚未完成实机验证，相关限制见[已知问题](docs/user/known-issues.md#首次分区)。详细操作见[安装指南](docs/user/install-from-artifact.md)；[电脑安装](docs/user/install-from-computer.md)与[临时启动](docs/user/temporary-boot.md)作为备用方式保留。Magisk 用户打开助手的方法见[模块说明](docs/devel/boot/android-module.md)。
 
 | 登录平板的 Linux 系统 | 默认账号密码 |
 | --- | --- |
@@ -100,7 +100,7 @@ flowchart LR
     D -.->|"目标，尚未实现"| H["Windows"]
 ```
 
-开机选择页停留约三秒，音量键切换，短按电源确认；没有操作时沿用保存的选择。Android 路线直接进入原厂内核，Linux 路线由 UEFI 从独立存储分区加载系统。实现细节见[合体 BOOT](docs/devel/android-boot-repack.md)。
+开机选择页停留约三秒，音量键切换，短按电源确认；没有操作时沿用保存的选择。Android 路线直接进入原厂内核，Linux 路线由 UEFI 从独立存储分区加载系统。实现细节见[合体 BOOT](docs/devel/boot/combined-boot.md)。
 
 ### 启动路线会被记住
 
@@ -110,7 +110,7 @@ flowchart LR
 * 在 Linux 里执行 `piano-next-boot android --reboot` 回到 Android。
 * 用 Android 标准的 `reboot recovery` 进入小米原厂 Recovery，不改动已保存的路线。
 
-引导助手提供中文／英文界面。HyperOS 更新后，点击 **重新安装引导** 即可使用新系统的内核恢复引导，保留启动选择；目前需要手动点击。使用方法见[模块说明](docs/devel/android-module.md)，底层实现见[启动状态与切换](docs/devel/reboot-request.md)。
+引导助手提供中文／英文界面。HyperOS 更新后，点击 **重新安装引导** 即可使用新系统的内核恢复引导，保留启动选择；目前需要手动点击。使用方法见[模块说明](docs/devel/boot/android-module.md)，底层实现见[启动状态与切换](docs/devel/boot/reboot-request.md)。
 
 ### UEFI 里的 Fastboot
 
@@ -132,7 +132,7 @@ SunUEFI 运行时在后台提供一个 USB Fastboot 服务，设备名为 `SunUE
 
 ## 功能与已知问题
 
-当前运行使用 CSOT 面板配置，选择方式见[面板选择](docs/devel/panel-selection.md)。
+当前运行使用 CSOT 面板配置，选择方式见[面板选择](docs/devel/hardware/panel-selection.md)。
 
 ### 可以使用
 
@@ -149,7 +149,7 @@ SunUEFI 运行时在后台提供一个 USB Fastboot 服务，设备名为 `SunUE
 | 触控笔 | 定位与压感绘画、笔输入、轻捏按键、笔端震动和磁吸连接恢复 |
 | 四扬声器 | 沿用原厂功放增益，音量可调 |
 | 夜灯 | GNOME 夜灯调整色温 |
-| HDR 内容 | 可播放；当前显示传输为十位，12-bit／FRC 与连续 VRR 的实现范围见[显示说明](docs/devel/piano-display-depth.md) |
+| HDR 内容 | 可播放；当前显示传输为十位，12-bit／FRC 与连续 VRR 的实现范围见[显示说明](docs/devel/hardware/display-depth.md) |
 | 前后相机 | 预览、录像、自动曝光／对焦／白平衡及实体隐私灯 |
 | 麦克风 | 原生单声道录音，睡眠恢复 |
 | 传感器 | 自动旋转、光线、距离、罗盘及标准 SensorProxy 接口 |
@@ -196,9 +196,9 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
 
 模块输出在 `artifacts/android/`，与 `artifacts/product/` 中的 UEFI 使用同一份核心。GitHub Actions 默认构建 Debian GNOME、Debian KDE、Nyarch GNOME 和 SteamOS，每个系统目标都提供配套的模块、ESP 和 root 镜像；也可以手动选择单个目标。
 
-完整的 Debian / GNOME 系统包需要 ARM64 构建机，以及允许 chroot 的 `--privileged` 容器，依次运行 `./build.sh linux`、`mesa`、`sensors`、`ffmpeg --install-dependencies`、`release-rootfs`、`package`、`installer`。需要主机检查时手动运行 `./build.sh check`，不用连接平板。完整流程、输入材料和各步骤的输出位置见[构建手册](docs/devel/building.md)与[公开构建链](docs/devel/public-build.md)。
+完整的 Debian / GNOME 系统包需要 ARM64 构建机，以及允许 chroot 的 `--privileged` 容器，依次运行 `./build.sh linux`、`mesa`、`sensors`、`ffmpeg --install-dependencies`、`release-rootfs`、`package`、`installer`。需要主机检查时手动运行 `./build.sh check`，不用连接平板。完整流程、输入材料和各步骤的输出位置见[构建手册](docs/devel/building.md)。
 
-**SteamOS ARM64（实验版）**：使用 Valve ARM64 根系统、Steam 客户端、KDE 与 Gamescope，默认进入游戏模式，可以切换桌面模式。预装 ARM64 Proton／FEX、DXVK 和 vkd3d-proton，Milthm 与原神已运行；原神需单独设置 FEX 参数。安装仍通过助手选择 ESP 和 root 镜像，详见 [SteamOS 构建说明](docs/devel/steamos.md)。
+**SteamOS ARM64（实验版）**：使用 Valve ARM64 根系统、Steam 客户端、KDE 与 Gamescope，默认进入游戏模式，可以切换桌面模式。预装 ARM64 Proton／FEX、DXVK 和 vkd3d-proton，Milthm 与原神已运行；原神需单独设置 FEX 参数。安装仍通过助手选择 ESP 和 root 镜像，详见 [SteamOS 构建说明](docs/devel/linux/steamos.md)。
 
 ## 项目站在哪些项目之上
 

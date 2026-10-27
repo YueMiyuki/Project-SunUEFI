@@ -31,4 +31,4 @@ python3 build/firmware-workspace/tools/prepare_nv_runtime_guard.py verify
 
 新增/更新登记说明目标仓库与 base、目的、应用位置/顺序、verify 和相关测试、上游状态及替代/撤销条件。标准 Git patch 通常便于 diff 审查和移植；严格转换在固定版本下便于拒绝未知状态。更换形式时比较实际升级成本，并验证相同的成功和负例；不以自动兼容未知源码作为健壮性结论。
 
-kernel 补丁是否已被上游吸收，需分别提供 ancestry、patch-id/fingerprint 等证据；缺对象保留 unknown。删除或替代补丁前保留可恢复来源，重新验证对应角色，见 [内核角色](kernel-roles.md) 和 [测试入口](testing.md)。
+kernel 补丁是否已被上游吸收，需分别提供 ancestry、patch-id/fingerprint 等证据；缺对象保留 unknown。删除或替代补丁前保留可恢复来源，重新验证对应角色，见 [内核角色](linux/kernel.md) 和 [测试入口](testing.md)。

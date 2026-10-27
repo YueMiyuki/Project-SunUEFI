@@ -21,4 +21,4 @@ Both default patch series now include capture-pool lifetime handling. With
 the default Iris kernel fix, FFmpeg 7 and 9 both decode all 36 frames across
 640x480 -> 1280x720 -> 640x480 and encode 12 H.264 frames. Other codecs and
 player-specific hardware selection need separate checks. See
-[the codec development notes](../../../../docs/devel/piano-video-codec.md).
+[the codec development notes](../../../../docs/devel/hardware/video-codec.md).

@@ -84,7 +84,7 @@ v2方法 `+0x30=0x26dec` 是另一条路径：HAL `0x26804..0x26834` 以cmd2/arg
 
 ## 笔的磁吸检测、供电与连接恢复
 
-默认内核的 [`0041-power-sc96231-pen-charger.patch`](../../patches/linux/7.2.9/0041-power-sc96231-pen-charger.patch)驱动 SC96231 发射器；[设备树覆盖](../../linux/dts/piano-pen-charger.dtso)将 QUP2 SE5 转换为主线 I²C，总线地址为 `0x38`。不再保留两个同时占用 Hall GPIO 的驱动：充电驱动接管同一个 `Xiaomi Piano Pen Dock`，上报标准 `SW_PEN_INSERTED`。
+默认内核的 [`0041-power-sc96231-pen-charger.patch`](../../../patches/linux/7.2.9/0041-power-sc96231-pen-charger.patch)驱动 SC96231 发射器；[设备树覆盖](../../../linux/dts/piano-pen-charger.dtso)将 QUP2 SE5 转换为主线 I²C，总线地址为 `0x38`。不再保留两个同时占用 Hall GPIO 的驱动：充电驱动接管同一个 `Xiaomi Piano Pen Dock`，上报标准 `SW_PEN_INSERTED`。
 
 实现依据是同机 HyperOS 4 的最终 DTB、`sc96231_tx.ko`／`mca_wireless_revchg.ko` 的反汇编，以及一次原厂实际启停的函数参数采集。原厂的独立笔供电通过 ADSP HBOOST 完成：属性 `0x2010` 选择源 1，按 5.0、5.5、6.0、6.5 V 升压，间隔 20 ms；`0x200f` 的客户端 2 控制启停。该电源以标准 regulator 提供给 SC96231，不改 USB VBUS。实际 Piano 路径使 GPIO14 高电平启用，不能单凭旧节点的 `reverse-txon-low` 属性推断极性。
 
@@ -126,7 +126,7 @@ python3 tools/piano_pen_protocol.py runtime-context /path/to/48-byte-context-con
 
 `metadata` 的输入从 `frame_data_packet` 开始。Linux `/proc/nvt_thp_stream` 每条记录的32字节 record header 和257字节 SPI/event前缀须先去掉，不能直接传整个流；当前捕获路径的最大 payload 是7934字节。解析器核验外层 additive checksum 与长度补码，且要求 metadata 和全部 Tip/Ring 矩阵位于该校验范围内。另一个尾部 pen checksum、hand packet 暂不解析。Android 内核可能已将 additive checksum 字段改写为 CRC32，不能把这样的 HAL mmap 帧混入这个输入格式。
 
-Linux唯一流读取者 `piano-touch-view` 现有可选 [`--capture FILE --capture-seconds N`](../../tools/patches/piano-touch-view-raw-capture.patch)：默认关闭，N为1..10秒、默认5秒，内存上限16MiB。它保存自己已读到的完整NTP1记录，包含原内核头、序列、时间戳、epoch与所有普通/SC/17/29帧；不只保留笔帧，不另开FIFO。窗口结束或达到字节上限后一次写出新文件并继续原有输入，stderr给出实际字节数、错误和帧类型统计；应选择本地tmpfs新路径，不能覆盖旧捕获。后续调试应让现有owner带此选项启动，不能在服务旁再运行第二个reader。两个runtime builder通过同一 `derive_touch_source` 应用这个默认关闭补丁。此捕获入口已在现有触控进程中实机使用，最新结果见下文。
+Linux唯一流读取者 `piano-touch-view` 现有可选 [`--capture FILE --capture-seconds N`](../../../tools/patches/piano-touch-view-raw-capture.patch)：默认关闭，N为1..10秒、默认5秒，内存上限16MiB。它保存自己已读到的完整NTP1记录，包含原内核头、序列、时间戳、epoch与所有普通/SC/17/29帧；不只保留笔帧，不另开FIFO。窗口结束或达到字节上限后一次写出新文件并继续原有输入，stderr给出实际字节数、错误和帧类型统计；应选择本地tmpfs新路径，不能覆盖旧捕获。后续调试应让现有owner带此选项启动，不能在服务旁再运行第二个reader。两个runtime builder通过同一 `derive_touch_source` 应用这个默认关闭补丁。此捕获入口已在现有触控进程中实机使用，最新结果见下文。
 
 当前 `nt36532e` 的 `nvt_thp_read_frame` 原样读SPI，`nvt_thp_publish_frame` 检查补码后把原buffer直接送同一FIFO；没有原厂Android的checksum→CRC32重写。因此上述Linux捕获仍保留原始双校验字段，但内核valid flag只检查头补码，不能代替CPU适配器的两层校验。当前驱动没有1032B common7/0x440接口，但下述实际writer已经证明这条压力路径绕过kernel queue；不再把新增kernel读取API作为前提。不能从raw29 pressure拼接一个common记录，也不能把HAL发送sysfs `touch_thp_ic_cmd_data` 当作压力读取来源。
 
@@ -138,11 +138,11 @@ Python 调用可使用 `parse_metadata(data)`、`read_config(path)`、`profile(c
 
 ## 原厂算法 worker
 
-固定 ALG 只有 `libdl/liblog/libc/libm` 四项依赖、32个 Bionic 导入，没有 libc++、Binder、属性或设备 ioctl 导入；普通AArch64 RELA也无需 Android packed-reloc loader。[GNU worker 源码](../../linux/userspace/pen/)已实际完成隔离的配置/init：派生库只修改链接元数据，原库与指令区不变；真实 GNU mutex/标准流适配处理 Bionic mutex 存储与 `__sF` 差异。2026-10-08在无网络、只读文件系统、空 `/dev` 的 Bubblewrap/QEMU 中，用真实原厂ini和9字节硬件头执行normal/stylus配置reader、构造context及stylus init/exit，exit0；resolution100、scaled尺寸213600×320000、columns60/rows40和stylus enabled1与已有配置一致。未加载HAL startup、执行帧处理或生成uinput。运行暴露并修复了GNU版本表标签残留和ALG level0空日志回调两处故障，没有填充假callback。
+固定 ALG 只有 `libdl/liblog/libc/libm` 四项依赖、32个 Bionic 导入，没有 libc++、Binder、属性或设备 ioctl 导入；普通AArch64 RELA也无需 Android packed-reloc loader。[GNU worker 源码](../../../linux/userspace/pen/)已实际完成隔离的配置/init：派生库只修改链接元数据，原库与指令区不变；真实 GNU mutex/标准流适配处理 Bionic mutex 存储与 `__sF` 差异。2026-10-08在无网络、只读文件系统、空 `/dev` 的 Bubblewrap/QEMU 中，用真实原厂ini和9字节硬件头执行normal/stylus配置reader、构造context及stylus init/exit，exit0；resolution100、scaled尺寸213600×320000、columns60/rows40和stylus enabled1与已有配置一致。未加载HAL startup、执行帧处理或生成uinput。运行暴露并修复了GNU版本表标签残留和ALG level0空日志回调两处故障，没有填充假callback。
 
 实际 stylus 接口的slot0/1是init/exit，slot8 `0x881e0` 将内部frame的四组signed16矩阵扩展到算法缓冲，slot7 `0x87fcc` 执行坐标/压力/倾角处理并在尾部调用 `0x888e0` 报告构造器；后者明确检查callback是否存在。输入需要HAL内部frame及非对齐指针，并非SPI payload。原厂v2 decoder只在真实类型29时复制笔metadata和四矩阵；类型17保持17，ALG再发外部command23/value2，不能强制改成29。
 
-[CPU适配器](../../linux/userspace/pen/piano-pen-frame.c)已按同版HAL的 `0x2fe44/0x30718` 实现类型29的笔输入前缀：内部跨度1297B，header在0x3c、36B metadata在0x10d、四个pointer在0x131/139/141/149，20B trailer在0x151。矩阵长度来自实际ini的12×40、60×8，每组480个int16，四组共3840B。它核验原始包的外层与笔尾层additive checksum/补码/边界；手指四分包位图齐全且累计和为10时才发布完整矩阵，重复分包不能替代缺失分包。频率跳转请求保留原字，不在CPU worker发硬件指令或返回假ACK。Android mmap中被内核改写成CRC32的包不属于此输入格式。
+[CPU适配器](../../../linux/userspace/pen/piano-pen-frame.c)已按同版HAL的 `0x2fe44/0x30718` 实现类型29的笔输入前缀：内部跨度1297B，header在0x3c、36B metadata在0x10d、四个pointer在0x131/139/141/149，20B trailer在0x151。矩阵长度来自实际ini的12×40、60×8，每组480个int16，四组共3840B。它核验原始包的外层与笔尾层additive checksum/补码/边界；手指四分包位图齐全且累计和为10时才发布完整矩阵，重复分包不能替代缺失分包。频率跳转请求保留原字，不在CPU worker发硬件指令或返回假ACK。Android mmap中被内核改写成CRC32的包不属于此输入格式。
 
 worker的 `--decode29` 接受已捕获的原始包；`--prepare29` 还需要真实外部1032B common记录，byte1=7、u16+2=0x440，原厂slot2读取body中的两个u32 `+0xc/+0x10` 来更新压力ring。真实本机BTF确认common_data是8B头加256个s32 body，`+8` 是data_buf[0]，不是长度；u16+4的data_len是s32数量，此入口要求3..256个实际body字。HAL的另一条common读取路径已追明为 `0x11dc8` 打开 `/dev/xiaomi-touch`，touchid/hardware ioctl后在 `0x11fdc..0x12000` 把同一FD交给getcmd等子模块，再由 `0x160f8/0x16390` 原样读取/转发；这不证明压力记录由kernel生产。
 
@@ -154,7 +154,7 @@ CPU前缀仍不能交给完整 `parse_data_package`：该函数还读取真实�
 
 ## 独立开源核心与打包入口
 
-[`linux/userspace/pen/`](../../linux/userspace/pen/README.md) 的 C ABI 核心基于 Apache-2.0 开源项目 [xiaomi-sheng-thp 的固定提交](https://github.com/ianchb/xiaomi-sheng-thp/tree/34046210932d654a4c0df0121ecc31c008f8148c)，使用 Piano 的真实尺寸、原厂 mapping 和 P81c 默认参数，不沿用 Sheng 的位置表。核心校验两层原始 checksum与四分包位图，再处理 Tip/Ring 矩阵、倾角和真实 Report5 压力；当前已编译并读取实际 BOE／CSOT 配置，但尚无实际 type29 用来验证最终坐标。
+[`linux/userspace/pen/`](../../../linux/userspace/pen/README.md) 的 C ABI 核心基于 Apache-2.0 开源项目 [xiaomi-sheng-thp 的固定提交](https://github.com/ianchb/xiaomi-sheng-thp/tree/34046210932d654a4c0df0121ecc31c008f8148c)，使用 Piano 的真实尺寸、原厂 mapping 和 P81c 默认参数，不沿用 Sheng 的位置表。核心校验两层原始 checksum与四分包位图，再处理 Tip/Ring 矩阵、倾角和真实 Report5 压力；当前已编译并读取实际 BOE／CSOT 配置，但尚无实际 type29 用来验证最终坐标。
 
 在仓库根目录运行 `make -C linux/userspace/pen`，生成 `build/pen-core/libpiano-pen-core.a` 与 `build/pen-core/piano-pen-offline`。C ABI 用于随后接入已有触控进程，离线工具不创建输入设备。BLE 时间戳必须采用 `CLOCK_BOOTTIME`，与 NTP记录的 `ktime_get_boottime()` 同源；不能在睡眠后混用 MONOTONIC 时间。选择原厂校准应以触控控制器的 LCD ID／实际工厂配置为依据，不能根据显示面板标签代选。当前触控 LCD ID为1，加载 BOE触控固件，即便显示链路采用 CSOT配置。
 
@@ -171,7 +171,7 @@ CPU前缀仍不能交给完整 `parse_data_package`：该函数还读取真实�
 
 流程是 `52 → 00/01/02/03 → 04/30/31/32 → 04/30/31/32 → 33 → 51 → 5F/5A/5C/61`。参数30含本机适配器地址和当次笔ID，第二轮的时序槽值由3变1；频率31使用原厂实际默认表，电压32为`2800`；时间戳33是Unix秒数，与输入采集的BOOTTIME时基不同。不能静态重放另一台机器的适配器地址或旧的笔ID。
 
-[`piano-pen-bluetooth.py`](../../linux/userspace/pen/piano-pen-bluetooth.py) 已实现该序列，每步等待真实回应，并按真正的 `SW_PEN_INSERTED` 发送Hall状态。无线参数和解算校准是两类数据；本机无线参数放在BSP的 `p81c-radio.json`，BOE／CSOT位置校准仍来自实际原厂ini。程序通过统一runtime安装，参数通过BSP和硬件配置组装安装，不新增服务或第二个THP流读取者。
+[`piano-pen-bluetooth.py`](../../../linux/userspace/pen/piano-pen-bluetooth.py) 已实现该序列，每步等待真实回应，并按真正的 `SW_PEN_INSERTED` 发送Hall状态。无线参数和解算校准是两类数据；本机无线参数放在BSP的 `p81c-radio.json`，BOE／CSOT位置校准仍来自实际原厂ini。程序通过统一runtime安装，参数通过BSP和硬件配置组装安装，不新增服务或第二个THP流读取者。
 
 原厂还有一条独立的地址获取通路。固定设备模块 `sc96231_tx.ko` 的 `sc96231_get_pen_mac` 从 `0x200001de` 读取两字节、从 `0x200001e0` 读取四字节；MCA 的 `mca_wireless_rev_pen_data_handle_work` 调用该函数后发送 uevent。原厂蓝牙扩展的 `oobhelper/f.java::onUEvent` 处理 `POWER_SUPPLY_PEN_MAC`，获取指定地址的 `BluetoothDevice`，按绑定状态进入连接或配对流程。这解释了原厂并非仅依赖用户打开扫描列表。该静态调用链不证明充电芯片主动唤醒 BLE 的电气时序，不能把上述地址读取直接当作唤醒命令。
 
@@ -190,7 +190,7 @@ Linux此前显示144Hz、hand180、pen240。两边笔扫描率相同；这一次
 
 当前590内核配置使用 `CONFIG_CMDLINE_FORCE=y`，因此只给ESP的boot header追加video参数不会生效；Mutter默认又选择DRM preferred模式。冷启动候选只交换Piano面板模式表的144／120顺序，使120成为preferred，并保留全部模式。当时的候选用于此项对照；2026-10-10 已将 120 Hz 纳入默认内核，保留其他模式；构建来源在 `build/panel-cold120-candidate/`。原厂触控portrait尺寸2136×3200与Linux原生显示模式3200×2136不同，不能用错video参数。
 
-触控面板监听生命周期修复已经从draft转为正式 [`0020-nvt-panel-follower-lifetime.patch`](../../patches/linux/7.2.9/0020-nvt-panel-follower-lifetime.patch)，纳入默认内核源码准备流程。它只修注销与释放顺序，不启用笔接口或改变刷新率；新源码树已生成，完整新内核部署仍需后续构建。
+触控面板监听生命周期修复已经从draft转为正式 [`0020-nvt-panel-follower-lifetime.patch`](../../../patches/linux/7.2.9/0020-nvt-panel-follower-lifetime.patch)，纳入默认内核源码准备流程。它只修注销与释放顺序，不启用笔接口或改变刷新率；新源码树已生成，完整新内核部署仍需后续构建。
 
 
 ## 标准桌面输入已接通
@@ -216,4 +216,4 @@ Linux此前显示144Hz、hand180、pen240。两边笔扫描率相同；这一次
 碰屏不再输入加号，轻捏恢复笔端震动。自带 GTK 画板只在笔输入时隐藏指针，
 鼠标和触控板的指针保持正常；其他应用的笔指针由各自应用与合成器决定。
 
-2026-10-20 的连接抓包发现，笔会从 750 ms 省电间隔请求切到约 105 ms；内核在远端特征发现阶段因状态仍为 `BT_CONFIG` 而拒绝该请求。[`0043` 候选](../../patches/linux/7.2.9/drafts/0043-bluetooth-early-le-parameters.patch)允许已有 LE handle 在此阶段协商，保留参数校验。候选已编译并加载；初始化仍可能等待数秒至十余秒，尚未作为默认补丁或完整延迟修复发布。
+2026-10-20 的连接抓包发现，笔会从 750 ms 省电间隔请求切到约 105 ms；内核在远端特征发现阶段因状态仍为 `BT_CONFIG` 而拒绝该请求。[`0043` 候选](../../../patches/linux/7.2.9/drafts/0043-bluetooth-early-le-parameters.patch)允许已有 LE handle 在此阶段协商，保留参数校验。候选已编译并加载；初始化仍可能等待数秒至十余秒，尚未作为默认补丁或完整延迟修复发布。

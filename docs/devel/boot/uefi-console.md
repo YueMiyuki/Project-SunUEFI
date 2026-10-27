@@ -46,7 +46,7 @@ SimpleInit/LVGL 处理，物理显示模式保持原样；实机已确认横屏�
 
 ## 内置菜单与自动保存
 
-[`config/simpleinit.static.uefi.cfg`](../../config/simpleinit.static.uefi.cfg)
+[`config/simpleinit.static.uefi.cfg`](../../../config/simpleinit.static.uefi.cfg)
 原样内置在 SimpleInit 的 rootfs 中，先作为静态配置加载，再加载
 `persist/sunuefi/simpleinit.uefi.cfg` 中的用户设置。首次使用不需要复制
 任何文件：目录由固件创建，修改后的设置由 SimpleInit 自动保存。
@@ -88,9 +88,9 @@ ext4 驱动使用固定 lwext4 源码提供标准 SimpleFileSystem，只允许
 文件系统先停止日志、卸载并同步，再停止 USB、UFS、SMMU 和时钟。
 存在未关闭文件或无法确认 DMA 已停止时拒绝系统交接，不强行释放。
 
-lwext4 的固定来源在 [`config/uefi-ext4.json`](../../config/uefi-ext4.json)，
+lwext4 的固定来源在 [`config/uefi-ext4.json`](../../../config/uefi-ext4.json)，
 不编译分区或格式化工具。完整原始 `persist` 备份在
-[`vendor/piano/backups/`](../../vendor/piano/backups/)，不参与固件构建。
+[`vendor/piano/backups/`](../../../vendor/piano/backups/)，不参与固件构建。
 
 实现位于 `uefi/components/ext4/` 和 `uefi/components/nv/`，由
 `tools/firmware/prepare_ext4.py`、`tools/prepare_nv_runtime_guard.py` 接入构建。

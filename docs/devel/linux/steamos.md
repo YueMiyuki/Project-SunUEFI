@@ -10,9 +10,9 @@ Proton/FEX 的兼容性仍按游戏区分，不能据此认为所有 Windows 游
 
 | Steam 游戏模式 | 原神游戏内 |
 | --- | --- |
-| ![中文 Steam 游戏模式与游戏库](../assets/gallery/steamos-gaming-mode.webp) | ![原神角色进入游戏世界](../assets/gallery/steamos-genshin-world.webp) |
+| ![中文 Steam 游戏模式与游戏库](../../assets/gallery/steamos-gaming-mode.webp) | ![原神角色进入游戏世界](../../assets/gallery/steamos-genshin-world.webp) |
 | **原神官方启动器** | **魔法少女的魔女审判** |
-| ![原神官方启动器](../assets/gallery/steamos-genshin-launcher.webp) | ![魔法少女的魔女审判剧情画面](../assets/gallery/steamos-witch-trial.webp) |
+| ![原神官方启动器](../../assets/gallery/steamos-genshin-launcher.webp) | ![魔法少女的魔女审判剧情画面](../../assets/gallery/steamos-witch-trial.webp) |
 
 ## 下载与安装
 

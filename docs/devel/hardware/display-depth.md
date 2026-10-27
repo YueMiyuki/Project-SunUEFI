@@ -13,7 +13,7 @@ Piano 的默认内核使用 RGB101010 和 DSC 1.1：输入是 **10 bpc**，压�
 | `DEGAMMA_LUT` | 1025 项均匀采样、每色 16 位，映射到 IGCv5 高精度曲线 |
 | `CTM` | 现有 PCC 色彩矩阵 |
 
-GC 和 IGC 在同一 REGDMA 缓冲区提交到实际使用的两路 DSPP，完成后一起生效。设备已完成恒等、非线性、恢复旁路的标准 LUT 更新，传输完成状态正常。实现及资源管理见 [GCv2／IGCv5 后端](piano-gcv2-night-light.md)。
+GC 和 IGC 在同一 REGDMA 缓冲区提交到实际使用的两路 DSPP，完成后一起生效。设备已完成恒等、非线性、恢复旁路的标准 LUT 更新，传输完成状态正常。实现及资源管理见 [GCv2／IGCv5 后端](gcv2-night-light.md)。
 
 HDR 内容播放可用。GNOME 51 没有单独的 8／10／12 位色深选择器；当前已确认的物理传输仍为十位，不能把 HDR 内容播放等同于 12-bit 输出或面板 FRC。下面的原厂分析和底层接入要求保留为技术记录，不再把此前 HDR 播放问题列为日常使用限制。
 
@@ -32,8 +32,8 @@ HyperOS 4 的实际配置位于 `/odm/etc/display/qdcm_calib_data_xiaomi_p81_35_
 
 - `native_hdr` 的输出 Gamma 为 2.2，包含 P3 面板校准、17 点色调映射、实时亮度补偿和内容统计；CSOT 配置中的满屏峰值约 844.5 nit，SDR 参考峰值为 400 nit。这些是配置值，不是本次物理亮度测量。
 - HDR 模式配置了 LUMA dither，但 `temporalEnable=0`；配置内容不能代替实际播放时的寄存器状态，也不能单凭该字段认定面板 FRC。
-- [`0045` 高精度后端](../../patches/linux/7.2.9/0045-drm-igcv5-high-precision-grid.patch)暴露均匀 1025 项 `DEGAMMA_LUT`，由驱动选取两组硬件采样点。组合 DMA 扩大到 16 KiB；实机恒等、非线性和旁路恢复已完成，提交 2142 个 word，两路 DSPP 均返回完成状态。
-- Linux 7.3 的 [`0016` 补丁](../../patches/linux/7.3/0016-drm-igcv5-high-precision-dither.patch)按原厂 IGC 控制字，在存在 Degamma LUT 时打开高精度内部抖动，强度为 4；空 LUT 仍保持旁路。该内核已启动 KDE 和 Gamescope，但活动 IGC 曲线下的物理色阶还需检查。它不改变十位 DSC，也不代表面板 FRC 或完整 HDR 已实现。
+- [`0045` 高精度后端](../../../patches/linux/7.2.9/0045-drm-igcv5-high-precision-grid.patch)暴露均匀 1025 项 `DEGAMMA_LUT`，由驱动选取两组硬件采样点。组合 DMA 扩大到 16 KiB；实机恒等、非线性和旁路恢复已完成，提交 2142 个 word，两路 DSPP 均返回完成状态。
+- Linux 7.3 的 [`0016` 补丁](../../../patches/linux/7.3/0016-drm-igcv5-high-precision-dither.patch)按原厂 IGC 控制字，在存在 Degamma LUT 时打开高精度内部抖动，强度为 4；空 LUT 仍保持旁路。该内核已启动 KDE 和 Gamescope，但活动 IGC 曲线下的物理色阶还需检查。它不改变十位 DSC，也不代表面板 FRC 或完整 HDR 已实现。
 
 ### HDR 亮度与背光
 
@@ -59,4 +59,4 @@ HyperOS 4 的实际配置位于 `/odm/etc/display/qdcm_calib_data_xiaomi_p81_35_
 
 后续实现需要完整处理内容的传递函数、色域、面板亮度和色调映射，再通过标准 DRM/KMS 能力交给桌面使用。不能只添加 HDR 属性或虚构 EDID 来显示开关。Mutter 当前还从 EDID 联合检查 BT.2020、PQ 和静态 HDR metadata 能力；无 EDID 的内屏需要真实的能力描述与对应输出处理。
 
-[`tools/android/piano_drm_snapshot.c`](../../tools/android/piano_drm_snapshot.c)可在 Android 和 Linux 中只读导出 DRM 属性及 LUT blob。将同一画面设置下的 SDR 与实际 HDR 播放状态对照，同时确认活动 CRTC、HDR 图层和电源状态；blob 存在或 DMA 完成不能单独证明物理 HDR 输出。
+[`tools/android/piano_drm_snapshot.c`](../../../tools/android/piano_drm_snapshot.c)可在 Android 和 Linux 中只读导出 DRM 属性及 LUT blob。将同一画面设置下的 SDR 与实际 HDR 播放状态对照，同时确认活动 CRTC、HDR 图层和电源状态；blob 存在或 DMA 完成不能单独证明物理 HDR 输出。

@@ -16,7 +16,7 @@
 
 实际Linux起初没有RGB，LPG的deferred-probe原因为未取得LPG chan SDAM。正确提供者模块名为 `nvmem_qcom_spmi_sdam`；加载它及 `leds_qcom_lpg` 后，实际platform device绑定 `qcom-spmi-lpg`，出现 `red`、`green`、`blue`，初始brightness为0、max_brightness为255。没有读取SDAM内容或写brightness，尚不证明实际可见灯的位置或用途。
 
-[通用模块加载文件](../../linux/bsp/common/etc/modules-load.d/piano-rgb.conf)已写入BSP manifest和完整root stager，也已安装到当前平板；下一次正常启动会按同一策略加载，不添加daemon或重复DT节点。实际记录在 `private/provisioning/recovery-priority-20261008/a8-rgb-provider-load.txt`。另一个无关的 `sdam@7000/sm1510_present@5d` cell 曾因无效位范围阻止其提供者注册；打包器现保留完整原始字节并移除无效位切片，详见[启动设备树处理](kernel-roles.md#piano-启动配置)。LPG 使用的是 8400/8500 两个 SDAM。
+[通用模块加载文件](../../../linux/bsp/common/etc/modules-load.d/piano-rgb.conf)已写入BSP manifest和完整root stager，也已安装到当前平板；下一次正常启动会按同一策略加载，不添加daemon或重复DT节点。实际记录在 `private/provisioning/recovery-priority-20261008/a8-rgb-provider-load.txt`。另一个无关的 `sdam@7000/sm1510_present@5d` cell 曾因无效位范围阻止其提供者注册；打包器现保留完整原始字节并移除无效位切片，详见[启动设备树处理](../linux/kernel.md#piano-启动配置)。LPG 使用的是 8400/8500 两个 SDAM。
 
 ## 红外发射
 
@@ -32,11 +32,11 @@
 
 最小标准适配方向是：将控制器转为 `qcom,geni-spi`、时钟名 `se`，逐项按当前GENI/GPI的clock、interconnect、DMA binding转换资源；子节点用 `ir-spi-led`，配置开启 `LIRC` 和 `IR_SPI`。现有产品DT仍是厂商 `qcom,spi-geni` / `se-clk`，不能只替换子节点compatible。标准驱动每个载波使用16个位样本、SPI时钟为载波×16；请求40%占空比时当前公式得到7/16高位，约43.75%，并不等同于原厂1.92MHz量化波形。移植可复用标准rc-core/LIRC接口及已确认的低电平间隔，但需明确是否保留原厂编码、实际word顺序与约40%占空比。原厂两层均无供电控制，标准驱动的regulator请求仍需按真实无可控供电接口处理，不能虚构supply或默默依赖dummy regulator。相关标准接口见 [IR SPI绑定](https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/leds/irled/ir-spi-led.yaml)。
 
-[控制器独立草案](../../linux/dts/piano-ir-spi-controller.dtso)已使用当前内核headers编译并与参考产品DT合并检查，尚未接入产品构建或部署。GCC ID123、GIC SPI462、SE7、GPIO28–31都与原厂最终DT和当前 `sm8750.dtsi` 对应；DMA改为GPI2三cell参数 `0/1,7,SPI`，三个ICC路径使用现有标准provider及两cell参数。新default/sleep pinctrl位于真实 `piano_tlmm_ml`，保留原厂6mA/2mA、bias-disable，未添加输出电平操作。共享QUP2 wrapper、GPI2掩码和Linux拥有的SID `0x423/0x436`均未改变；同地址I2C节点仍禁用。
+[控制器独立草案](../../../linux/dts/piano-ir-spi-controller.dtso)已使用当前内核headers编译并与参考产品DT合并检查，尚未接入产品构建或部署。GCC ID123、GIC SPI462、SE7、GPIO28–31都与原厂最终DT和当前 `sm8750.dtsi` 对应；DMA改为GPI2三cell参数 `0/1,7,SPI`，三个ICC路径使用现有标准provider及两cell参数。新default/sleep pinctrl位于真实 `piano_tlmm_ml`，保留原厂6mA/2mA、bias-disable，未添加输出电平操作。共享QUP2 wrapper、GPI2掩码和Linux拥有的SID `0x423/0x436`均未改变；同地址I2C节点仍禁用。
 
 该草案只准备标准SPI控制器，现有CS0子节点已改为 `ir-spi-led` 但保持 **disabled**，没有供电、假设备或发射操作。合并检查证明资源能解析，不证明控制器已绑定或完成DMA；下一次正常产品集成后先检查GENI/SPI provider绑定及probe日志，不写SPI数据。当前GENI驱动会检查真实SE协议和FIFO状态，必要时加载SPI固件或取得GPI通道，因此仍可能报告协议/固件/依赖错误。精确属性差异保存在私有 `ir-controller-overlay-review.json`；未声称整份继承厂商DT通过上游schema校验。
 
-[标准发送驱动候选](../../patches/linux/7.2.9/drafts/piano-ir-spi-rc-core.patch)在现有 `ir-spi` 内新增显式 `xiaomi,piano-ir-spi` 设备分支，使用真实rc-core/LIRC回调及 `spi_sync_transfer()`，没有用户空间直接MMIO或私有发送syscall。原有 `ir-spi-led` 的16位编码和供电请求保持原样。Piano分支默认40%占空比、固定1.92MHz、native 32-bit MSB-first打包；载波限制到原厂声明范围30–56kHz，LIRC占空比请求按采样分辨率检查。不存在的可控供电不请求dummy regulator，也不添加supply。
+[标准发送驱动候选](../../../patches/linux/7.2.9/drafts/piano-ir-spi-rc-core.patch)在现有 `ir-spi` 内新增显式 `xiaomi,piano-ir-spi` 设备分支，使用真实rc-core/LIRC回调及 `spi_sync_transfer()`，没有用户空间直接MMIO或私有发送syscall。原有 `ir-spi-led` 的16位编码和供电请求保持原样。Piano分支默认40%占空比、固定1.92MHz、native 32-bit MSB-first打包；载波限制到原厂声明范围30–56kHz，LIRC占空比请求按采样分辨率检查。不存在的可控供电不请求dummy regulator，也不添加supply。
 
 输入按正常LIRC脉冲/间隔解释：必须为正值、奇数个、最多1024段，总时长不超过rc-core的1秒上限。采用累计时间量化，保留真实请求时长，不复制原厂减5µs或负值处理。对齐前额外保留一个零word，使最后一个SPI word必定为低电平；完成和失败使用SPI核心返回结果。候选已在独立副本用当前实际ARM64编译参数生成对象，并通过 `git apply --check`；未构建完整模块、未做schema校验、未接入配置或产品DT、未部署或发射。控制器草案仍保持原样和child disabled；未来启用时必须同时接入新compatible、LIRC/IR_SPI配置与模块打包，再验证实际SPI和光学行为。
 
@@ -56,10 +56,10 @@ Linux 7.3 的 `qcomtee` 驱动提供标准 `/dev/tee0`。
 
 原始 QTEE 共享内存分配器使用 `alloc_pages_exact()`，超过伙伴分配器
 支持的最大阶数时会报错。项目的
-[`0014-qcomtee-large-shared-memory.patch`](../../patches/linux/7.3/0014-qcomtee-large-shared-memory.patch)
+[`0014-qcomtee-large-shared-memory.patch`](../../../patches/linux/7.3/0014-qcomtee-large-shared-memory.patch)
 让大缓冲区使用可回收的 CMA 连续内存，小缓冲区保留原来的路径，
 并继续登记和注销安全世界的共享内存桥。
-[`piano-cma.dtso`](../../linux/dts/piano-cma.dtso) 将默认池从 36 MiB
+[`piano-cma.dtso`](../../../linux/dts/piano-cma.dtso) 将默认池从 36 MiB
 扩大到 256 MiB，保留原厂允许的分配地址范围。这部分内存空闲时仍能
 供 Linux 使用，不是永久划走的固件内存。
 
@@ -67,9 +67,9 @@ Linux 7.3 的 `qcomtee` 驱动提供标准 `/dev/tee0`。
 提供供电、复位和中断：原厂 DT 指定 GPIO73 复位、GPIO85 IRQ，
 `fp_3v3_vreg-supply` 指向 PM-HUMU L9。认证数据由安全服务处理；
 Goodix 客户端使用 `QSEECom_send_modified_cmd()` 发送请求。
-[`0017-uio-piano-fingerprint-control.patch`](../../patches/linux/7.3/0017-uio-piano-fingerprint-control.patch)
+[`0017-uio-piano-fingerprint-control.patch`](../../../patches/linux/7.3/0017-uio-piano-fingerprint-control.patch)
 提供内核供电、复位和中断控制，设备树位于
-[`piano-fingerprint.dtso`](../../linux/dts/piano-fingerprint.dtso)。
+[`piano-fingerprint.dtso`](../../../linux/dts/piano-fingerprint.dtso)。
 打开 `piano-goodix` UIO 设备时打开供电并释放复位，关闭时停止中断、
 拉低复位并归还电源引用；没有 MMIO 映射，也不把中断当成认证结果。
 Linux 已完成供电、复位和关闭。普通桌面应用的认证仍需 libfprint 后端。
@@ -89,16 +89,16 @@ QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
 传感器类型为 5。无需给每条命令申请大缓冲区，也无需为这个查询启动
 文件／时间监听服务。
 
-[`0018` 内核修正](../../patches/linux/7.3/0018-qcomtee-public-buffers-cma.patch)
+[`0018` 内核修正](../../../patches/linux/7.3/0018-qcomtee-public-buffers-cma.patch)
 使应用共享内存使用设备树声明的连续内存池，保留驱动私有小消息的
 普通分配方式。地址范围由池的配置决定，不通过伪造指针或用户空间
 内存热补丁处理。
 
 原生客户端位于
-[`piano-goodix.c`](../../linux/userspace/fingerprint/piano-goodix.c)，
+[`piano-goodix.c`](../../../linux/userspace/fingerprint/piano-goodix.c)，
 使用固定版本的 Qualcomm MinkIPC／quic-teec 与 QCBOR，由四个发行版
 共用的运行时构建器静态编译；来源记录在
-[`config/fingerprint.json`](../../config/fingerprint.json)。
+[`config/fingerprint.json`](../../../config/fingerprint.json)。
 执行 `sudo piano-fingerprint-ctl info` 可查询设备信息，`--help` 不访问设备。
 签名程序按固件清单随镜像提供，不包含用户模板或密码。
 
@@ -111,7 +111,7 @@ QSEECOMPAT 的 lookup 返回 `architecture=2`，命令应使用 64 位地址，
 提取，属于通用算法参数，不是用户模板。CAP S／T 的选择依据设备返回的标志，
 芯片类型 49 使用 `DLWeightLightDubaiU4_12_10_14MisTouch`。
 来源库 SHA256、符号、文件偏移、大小和输出校验值全部记录在
-[`固件清单`](../../vendor/firmware/hyperos4-fingerprint/manifest.json)，
+[`固件清单`](../../../vendor/firmware/hyperos4-fingerprint/manifest.json)，
 不会安装原厂可执行库。
 
 协议顺序如下，所有命令都通过公开 QTEE 接口进入原厂签名程序：
@@ -155,7 +155,7 @@ sharing key，已有绑定可用时直接使用，避免重置其他客户端的
 没有把密钥、令牌或指纹模板保存到普通文件。
 
 另已补齐安全程序实际使用的
-[旧 GPFS 文件命令](../../linux/bsp/patches/qtee/README.md)，当前仅作为待集成源码保留，
+[旧 GPFS 文件命令](../../../linux/bsp/patches/qtee/README.md)，当前仅作为待集成源码保留，
 不增加默认后台服务。诊断使用的 RPMB 提供者拒绝写入，未修改原厂安全存储。
 
 完整命令协议和 libfprint 后端仍在适配，因此不能在 Linux 中录入或验证指纹。

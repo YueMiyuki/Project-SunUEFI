@@ -1,7 +1,7 @@
 # Piano 视频编解码
 
 视频编解码使用 Linux 的 Qualcomm Iris 驱动和标准 V4L2 接口。FFmpeg 的适配放在
-[`linux/bsp/patches/ffmpeg/`](../../linux/bsp/patches/ffmpeg/)，四个发行版的构建都会安装带补丁的完整软件包。
+[`linux/bsp/patches/ffmpeg/`](../../../linux/bsp/patches/ffmpeg/)，四个发行版的构建都会安装带补丁的完整软件包。
 
 ## 软件包与构建
 

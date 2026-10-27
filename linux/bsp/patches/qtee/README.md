@@ -16,4 +16,4 @@ Piano HyperOS 4 的安全程序仍使用 GPFS 的旧绝对路径命令：
 初始化流程。完整录入和认证继续适配，不能用文件服务注册成功代替。
 
 固件和客户端说明见
-[指纹适配](../../../../docs/devel/piano-led-ir-fingerprint.md)。
+[指纹适配](../../../../docs/devel/hardware/led-ir-fingerprint.md)。

@@ -24,7 +24,7 @@ BlueZ 不会提供可用适配器。
 
 ## Linux 自动配置
 
-[`bluetooth-address.py`](../../linux/bsp/common/usr/lib/piano/bluetooth-address.py)
+[`bluetooth-address.py`](../../../linux/bsp/common/usr/lib/piano/bluetooth-address.py)
 属于通用 BSP，由现有 `piano-radio.service` 的 `radio-start` 在 BlueZ 启动前运行一次。
 它等待实际 Bluetooth MGMT 控制器事件，只处理板载 QCA 控制器。已配置的控制器直接
 跳过，不重置地址或用户设置。
@@ -54,9 +54,9 @@ UEFI 的 `PianoEspBootSource` 读取 `EFI/Piano/stable/boot.img`，
 电脑安装器和 Android 模块的默认刷写流程已取消强制地址注入，原厂地址文件缺失不会
 阻止 ESP／root 安装。对旧系统仍保留显式工具：
 
-* 电脑端 [`tools/provision_piano_bluetooth.py`](../../tools/provision_piano_bluetooth.py)，
+* 电脑端 [`tools/provision_piano_bluetooth.py`](../../../tools/provision_piano_bluetooth.py)，
   安装器的 `provision-bluetooth` 子命令可调用它。
-* Android 原生工具 [`piano-bluetooth-provision.c`](../../android/native/piano-bluetooth-provision.c)
+* Android 原生工具 [`piano-bluetooth-provision.c`](../../../android/native/piano-bluetooth-provision.c)
   保留 `piano-storage provision-bluetooth` 命令。
 
 两条路径均保留内核、initramfs、命令行及其余设备树内容，只写目标蓝牙节点的
@@ -75,7 +75,7 @@ UEFI 当前没有用于读取原厂 persist 的 ext4 文件系统链。地址初
 BlueZ 状态为 `Powered: yes`。读取完成后 persist 已卸载，无需安装器预配置。
 SoC 派生逻辑也已核对同机输出稳定；本次控制器实际使用的是原厂地址。
 蓝牙手写笔连接、压感绘画和
-轻捏反馈可用，具体输入实现见 [触控笔协议](piano-pen-protocol.md)。
+轻捏反馈可用，具体输入实现见 [触控笔协议](pen-protocol.md)。
 
 此前替换内核时误用未配置地址的通用 DTB，曾导致适配器消失；现在由启动程序补齐
 这一来源，不再把设备专属 DTB 当作功能前提。

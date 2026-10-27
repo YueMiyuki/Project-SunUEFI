@@ -13,7 +13,7 @@ Linux 基线为上游 `v7.3`，提交
 
 补丁按平台、显示、输入与无线、媒体、音频、Gunyah、BORE 分组，
 后续接口修正单独追加。原始来源、补丁摘要、应用顺序与每一步的源码树
-记录在 [`series.json`](../../patches/linux/7.3/series.json)；
+记录在 [`series.json`](../../../patches/linux/7.3/series.json)；
 旧版本补丁保留作来源参照，不会再叠加到新版本上。
 
 `./build.sh linux` 从固定上游提交准备源码，在 `build/kernel-worktrees/`
@@ -37,8 +37,8 @@ Linux 基线为上游 `v7.3`，提交
 * 不另设 CPU 频率上限，不引入 x86 专用优化或已经不适用于当前 BORE 的
   sysctl 参数。300 Hz 也不等于屏幕刷新率或输入采样率。
 
-具体配置位于 [`piano-platform.config`](../../linux/configs/piano-platform.config)，
-来源及许可见 [THIRD_PARTY.md](../../THIRD_PARTY.md)。
+具体配置位于 [`piano-platform.config`](../../../linux/configs/piano-platform.config)，
+来源及许可见 [THIRD_PARTY.md](../../../THIRD_PARTY.md)。
 
 ## Gunyah
 
@@ -54,7 +54,7 @@ Linux 基线为上游 `v7.3`，提交
 
 GNOME 的“关于”页面对高通主系统域省略通用的 `vm-other` 行，
 底层 systemd 检测与 Gunyah 接口保留。桌面补丁与打包状态见
-[系统信息适配](../../linux/desktops/gnome/patches/control-center/README.md)。
+[系统信息适配](../../../linux/desktops/gnome/patches/control-center/README.md)。
 Gunyah 虚拟机运行仍需实机验证，不能以设备节点出现代替。
 
 
@@ -93,7 +93,7 @@ USB PHY 通过真实的 USB-C 连接器拓扑接入标准方向和模式切换�
 
 ## USB Type-C
 
-[`piano-usb-typec.dtso`](../../linux/dts/piano-usb-typec.dtso) 连接 PMIC GLINK、
+[`piano-usb-typec.dtso`](../../../linux/dts/piano-usb-typec.dtso) 连接 PMIC GLINK、
 QMP PHY 和 DWC3 的标准端点，参照高通上游的
 [`sm8750-qrd.dts`](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sm8750-qrd.dts)。
 同机 HyperOS 4 的实际配置和引脚状态确认，GPIO61 是插头方向输入；
@@ -120,7 +120,7 @@ ADSP 初始化加载标准 `pmic_glink_altmode` 和 `ucsi_glink`，MCA 只处理
 
 ## UFS 多队列
 
-[`piano-ufs-mcq.dtso`](../../linux/dts/piano-ufs-mcq.dtso) 补齐同机原厂使用的
+[`piano-ufs-mcq.dtso`](../../../linux/dts/piano-ufs-mcq.dtso) 补齐同机原厂使用的
 MCQ 寄存器窗口及 ITS 中断连接。普通控制器位于 `0x1d84000`，
 MCQ 配置、厂商状态和队列门铃分别从 `0x1da0000`、`0x1da4000`、
 `0x1da5000` 开始；主线驱动使用一个 28 KiB 的 `mcq` 窗口访问它们。
@@ -133,12 +133,12 @@ ITS 的 UFS 设备编号沿用原厂的 `0x60`，DMA 仍使用既有 SMMU 路由
 
 ## CDSP
 
-[`piano-dsp-resources.dtso`](../../linux/dts/piano-dsp-resources.dtso) 使用主线
+[`piano-dsp-resources.dtso`](../../../linux/dts/piano-dsp-resources.dtso) 使用主线
 NSP NoC 绑定、两单元 interconnect 参数和 AP 的 BCM voter，将 CDSP 到内存的
 带宽路径交给 `qcom_q6v5`。驱动在启动签名固件前申请带宽，交接完成后释放；
 不再依赖 Android 留下的总线状态。打包器保留这条已转换的路径。
 
-[`piano-cdsp-fastrpc.dtso`](../../linux/dts/piano-cdsp-fastrpc.dtso) 将原厂的
+[`piano-cdsp-fastrpc.dtso`](../../../linux/dts/piano-cdsp-fastrpc.dtso) 将原厂的
 11 个非安全计算会话连接到 Linux 管理的 apps SMMU，保留每个会话实际的
 stream ID 和 mask。原厂安全会话 9 不作为普通 Linux 计算会话使用。
 正常 DMA 映射由内核完成，没有在用户空间写 SMMU 寄存器。

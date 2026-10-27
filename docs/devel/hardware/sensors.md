@@ -67,7 +67,7 @@ importer 默认读取 `super` 的 primary metadata slot 0，并选择 `odm_a`、
 `system_heap` 暂不作为产品服务依赖。2026-10-08 的冷启动启用该 heap 后，反向 RPC 返回 `0xe`；此前 fastrpc ioctl fallback 能读 JSON。已确认的两条路径差异如下：
 
 * [FastRPC 1.0.7 rpcmem](https://github.com/qualcomm/fastrpc/blob/v1.0.7/src/rpcmem_linux.c) 优先打开 `/dev/dma_heap/system`；只有打开失败才改用 fastrpc 分配 ioctl。前者导入一般页组成的 DMA-BUF，后者来自 compute-cb 的 `dma_alloc_coherent`，受其 DMA mask 约束。
-* 当前 [fastrpc 映射](../../upstream/linux-piano/drivers/misc/fastrpc.c) 只取首段 SG DMA 地址，并用一个连续地址区间传给 DSP。identity/direct domain 下非连续物理 SG 不满足这一表示；translated DMA domain 可由 IOMMU 提供连续 IOVA。
+* 当前 [fastrpc 映射](../../../upstream/linux-piano/drivers/misc/fastrpc.c) 只取首段 SG DMA 地址，并用一个连续地址区间传给 DSP。identity/direct domain 下非连续物理 SG 不满足这一表示；translated DMA domain 可由 IOMMU 提供连续 IOVA。
 * listener 最小 buffer 为4 KiB，所以还需核对单段情况。DMA32 的高物理页可能经 SWIOTLB bounce；system_heap 提供 CPU/device 同步回调，但当前 rpcmem/listener 未调用 DMA-BUF CPU 同步接口，fastrpc 也没有相应 SG 同步。未取得失败 buffer 的实际物理/DMA地址、SG段数和同步状态前，不把 bounce 作为已确认根因。
 * [AEE 错误定义](https://github.com/qualcomm/fastrpc/blob/v1.0.7/inc/AEEStdErr.h) 中 `0xe` 是 `AEE_EBADPARM`、`0x14` 是 `AEE_EUNSUPPORTED`；`mod_table` 日志不能直接解释为内核 `-EFAULT` 或 SMMU fault。
 
@@ -101,7 +101,7 @@ lux、Kelvin或Hz。后置事件包含六个浮点分量，原厂handler原样�
 真实 rootfs 消费函数检查；此时下一份 root 镜像尚未生成，不把当前平板安装
 结果等同于新镜像已部署。GIR 在同一源码构建中生成，库的 SONAME 仍为 2。
 
-后续 `+sunuefi2` 增加[公开向量接口及限时客户端](piano-ssc-vector.md)，
+后续 `+sunuefi2` 增加[公开向量接口及限时客户端](ssc-vector.md)，
 默认发布配置已选择0003补丁，平板上前置色温、后置光线和防闪烁订阅均收到
 真实数据并正常关闭。它保留全部分量，不向未知数据指定物理单位，不新增
 daemon或改变GNOME的既有光线接口。标准包依赖阻止新客户端混用旧库。

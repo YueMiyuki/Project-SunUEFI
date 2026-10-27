@@ -27,7 +27,7 @@ fastboot -s SunUEFI-piano getvar product
 
 ## 蓝牙
 
-Linux 启动时自动读取本机原厂蓝牙地址，手工刷写通用镜像也不需要单独填写地址。触控笔在默认 120 Hz 下支持定位、压感、轻捏和震动；其他限制见[笔协议](../devel/piano-pen-protocol.md)。
+Linux 启动时自动读取本机原厂蓝牙地址，手工刷写通用镜像也不需要单独填写地址。触控笔在默认 120 Hz 下支持定位、压感、轻捏和震动；其他限制见[笔协议](../devel/hardware/pen-protocol.md)。
 
 ## 指纹、12-bit／FRC、连续 VRR、Windows
 

@@ -4,7 +4,7 @@
 
 ## 硬件资源
 
-实现对照 [MiCode 固定显示源码](https://github.com/MiCode/vendor_opensource_display-drivers/tree/aa06fd1757c28dce96fbe4e04d4530ec21b52aac)和原厂最终设备树：REGDMA3 的 MMIO 为 `0x0af80000/0x7000`，XIN 为 7，GCv2 相对 DSPP 的偏移为 `0x17c0`。实际启动设备树通过 [piano-regdma-resource.dtso](../../linux/dts/piano-regdma-resource.dtso)提供命名资源。
+实现对照 [MiCode 固定显示源码](https://github.com/MiCode/vendor_opensource_display-drivers/tree/aa06fd1757c28dce96fbe4e04d4530ec21b52aac)和原厂最终设备树：REGDMA3 的 MMIO 为 `0x0af80000/0x7000`，XIN 为 7，GCv2 相对 DSPP 的偏移为 `0x17c0`。实际启动设备树通过 [piano-regdma-resource.dtso](../../../linux/dts/piano-regdma-resource.dtso)提供命名资源。
 
 驱动使用正常 DPU GPUVM 中的 8 KiB GEM 缓冲区与真实 IOVA，不把 CPU 物理地址当作 DMA 地址。LUT 命令与最终描述符共享映射；描述符按照实际命令长度对齐。CTL 只使用 catalog 中存在的实例，寄存器范围在访问前核对。
 
@@ -15,10 +15,10 @@
 - 两类曲线组成一批完整颜色状态，提交到当前分配的两路 DSPP。只有共同完成才更新相应 flush；关闭曲线使用旁路状态。
 - DMA 队列失败时保留既有的生命周期和退出规则，不能释放仍可能被硬件使用的内存。
 
-IGCv5 实现位于 [`0044-drm-msm-dpu-igcv5-degamma.patch`](../../patches/linux/7.2.9/0044-drm-msm-dpu-igcv5-degamma.patch)。设备上的恒等、非线性和旁路恢复均取得真实 REGDMA 完成，双 DSPP mask 为 `0x60000`。组合曲线为 1950 个 word，旁路恢复为 1558 个 word，均在缓冲区内；输出色彩精度与 HDR 映射仍须按对应功能单独验证。
+IGCv5 实现位于 [`0044-drm-msm-dpu-igcv5-degamma.patch`](../../../patches/linux/7.2.9/0044-drm-msm-dpu-igcv5-degamma.patch)。设备上的恒等、非线性和旁路恢复均取得真实 REGDMA 完成，双 DSPP mask 为 `0x60000`。组合曲线为 1950 个 word，旁路恢复为 1558 个 word，均在缓冲区内；输出色彩精度与 HDR 映射仍须按对应功能单独验证。
 
 ## 桌面兼容
 
-Mutter 的空 Gamma 恢复曾触发空数组访问，修复位于 [0001-kms-empty-gamma-bypass.patch](../../linux/desktops/gnome/patches/mutter/0001-kms-empty-gamma-bypass.patch)，Debian 和 Nyarch 构建都包含它。
+Mutter 的空 Gamma 恢复曾触发空数组访问，修复位于 [0001-kms-empty-gamma-bypass.patch](../../../linux/desktops/gnome/patches/mutter/0001-kms-empty-gamma-bypass.patch)，Debian 和 Nyarch 构建都包含它。
 
-内屏没有 EDID，GNOME 的颜色配置使用实际 colord 设备建立未校准的 sRGB 默认配置，保留用户自定义配置。它用于正常的 SDR 和夜灯联动，不声明额外 HDR 能力。色深和原厂处理的边界见[显示位深与 HDR](piano-display-depth.md)。
+内屏没有 EDID，GNOME 的颜色配置使用实际 colord 设备建立未校准的 sRGB 默认配置，保留用户自定义配置。它用于正常的 SDR 和夜灯联动，不声明额外 HDR 能力。色深和原厂处理的边界见[显示位深与 HDR](display-depth.md)。

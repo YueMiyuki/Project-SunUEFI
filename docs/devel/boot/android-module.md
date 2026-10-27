@@ -2,7 +2,7 @@
 
 SunUEFI 引导助手在 Android 中安装和维护合体 BOOT，提供 Android／UEFI 启动选择及独立存储管理。0.5 模块既支持从当前原厂 BOOT 安装，也支持更新已有 SunUEFI 核心；Android 内核始终取自设备当前 BOOT，安装引导不自动分区。
 
-普通安装步骤见[安装指南](../user/install-from-artifact.md)。本页说明引导助手的行为和实现。
+普通安装步骤见[安装指南](../../user/install-from-artifact.md)。本页说明引导助手的行为和实现。
 
 ## 使用
 
@@ -37,7 +37,7 @@ SukiSU 安装、模块激活和 WebUI 状态读取已在设备上使用。Kernel
 
 引导写入前核对当前活动槽、ROM、BOOT 实际内容及源镜像摘要，写入后同步并完整读回。引导操作不写 Recovery、vbmeta、GPT 或 userdata；存储操作由独立工具负责，只在确认具体计划后调整对应文件系统和分区表。旧核心升级已用真实 96 MiB BOOT 文件验证原镜像重建完全一致；这一结果不代表已经完成所有 HyperOS OTA 场景的实机验证。
 
-只有将原厂 BOOT 安装为合体 BOOT 的 `repack` 路径检查 BL 属性；属性未报告解锁时，按[安装指南中的实体音量键提示](../user/install-from-artifact.md#1-安装引导助手)确认。`piano-boot-repack confirm-bootloader` 只从平台设备下的 `gpio-keys`／`pmic_resin` 读取三次完整按下和松开，临时独占按键，忽略长按重复和预先按住的键。确认通过后，Shell 只向本次安装的子进程传递 `PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER=1`，公共入口会清除外部继承值，不保存永久设置。原生 `repack` 写入前再次检查属性或本次确认，型号、活动槽、源摘要、格式、范围、同步及读回检查不变。已有合体 BOOT 的请求更新、核心升级和原样还原仍完整验证当前包装，不再检查 BL 属性；独立存储不在 AVB 校验范围内，也不增加 BL 检查。
+只有将原厂 BOOT 安装为合体 BOOT 的 `repack` 路径检查 BL 属性；属性未报告解锁时，按[安装指南中的实体音量键提示](../../user/install-from-artifact.md#1-安装引导助手)确认。`piano-boot-repack confirm-bootloader` 只从平台设备下的 `gpio-keys`／`pmic_resin` 读取三次完整按下和松开，临时独占按键，忽略长按重复和预先按住的键。确认通过后，Shell 只向本次安装的子进程传递 `PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER=1`，公共入口会清除外部继承值，不保存永久设置。原生 `repack` 写入前再次检查属性或本次确认，型号、活动槽、源摘要、格式、范围、同步及读回检查不变。已有合体 BOOT 的请求更新、核心升级和原样还原仍完整验证当前包装，不再检查 BL 属性；独立存储不在 AVB 校验范围内，也不增加 BL 检查。
 
 源码位于 `android/module/`，引导原生工具位于 `android/native/`，在线 F2FS 调整工具位于 `tools/android/`。`manager.sh` 连接 WebUI 与原生工具：轻量读取使用 `piano-boot-request`；完整检查、识别已有引导、更新、重新打包和改选使用 `piano-boot-repack`。
 
@@ -76,6 +76,6 @@ SukiSU 安装、模块激活和 WebUI 状态读取已在设备上使用。Kernel
 
 GitHub Actions 的 `uefi` 和 `debian-gnome` 目标同一轮构建模块，独立上传 ZIP、构建清单和摘要。它们使用相同的构建入口，无需先从设备导出已有核心。模块安装合体 BOOT 与首次分区是两件事：安装引导不会创建 ESP／root；存储页的新分区流程仍需实机验证。
 
-原厂 F2FS 挂载前扩容仍由系统负责，不能用离线工具直接调整已挂载的 Android 数据分区。存储细节见 [Android 存储扩容](android-storage.md)，BOOT 包装和无损重建见 [原生重打包工具](android-boot-repack.md)，启动路线与原厂 Recovery 优先规则见 [重启请求](reboot-request.md)。
+原厂 F2FS 挂载前扩容仍由系统负责，不能用离线工具直接调整已挂载的 Android 数据分区。存储细节见 [Android 存储扩容](android-storage.md)，BOOT 包装和无损重建见 [原生重打包工具](combined-boot.md)，启动路线与原厂 Recovery 优先规则见 [重启请求](reboot-request.md)。
 
-ESP／root 刷写不再要求模块预先写入蓝牙地址。当前 Linux BSP 在无线初始化时自动读取原厂 persist；原厂地址缺失时可从硬件标识派生稳定地址。公开镜像保持通用，手工刷写也使用同一条初始化路径，见[蓝牙地址](piano-bluetooth.md)。
+ESP／root 刷写不再要求模块预先写入蓝牙地址。当前 Linux BSP 在无线初始化时自动读取原厂 persist；原厂地址缺失时可从硬件标识派生稳定地址。公开镜像保持通用，手工刷写也使用同一条初始化路径，见[蓝牙地址](../hardware/bluetooth.md)。

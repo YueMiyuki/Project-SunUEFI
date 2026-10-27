@@ -34,7 +34,7 @@
 
 同一配置有针对官方GSD48.1和51.0两种接口的补丁：48.1使用原backlight API，51.0使用标准Shell brightness API。两份真实官方发布包均校验SHA256并完成`patch --fuzz=0`应用。48.1已在隔离Debian ARM64环境完成正常整包构建，版本`48.1-1+sunuefi1`；实际runtime包中的AArch64程序与配置、`.changes`校验均通过。51.0目前完成源码准备，未编译整包。没有因此声称实机亮度体验通过。
 
-`tools/build_gsd_packages.py`供默认release/root/CI调用：克隆已完成的Debian trixie ARM64 base，修复仅克隆内的DNS，配置带Debian archive keyring的源码APT源，默认安装原始构建依赖，沿Debian原rules生产包。`build/gsd/runtime`只提供正常daemon/common两包，`SOURCE.json`记录实际APT源索引、`.dsc`/archives、补丁、版本、源文件和runtime哈希；匹配的成功产物直接复用。现有成功job已用collect-only收集，未下载或重编。下一默认DT打包已接正式板级身份；旧DT不会误启策略。普通Debian/Arch及默认release构建入口见[策略打包说明](../../linux/desktops/gnome/ambient-policy/README.md)。
+`tools/build_gsd_packages.py`供默认release/root/CI调用：克隆已完成的Debian trixie ARM64 base，修复仅克隆内的DNS，配置带Debian archive keyring的源码APT源，默认安装原始构建依赖，沿Debian原rules生产包。`build/gsd/runtime`只提供正常daemon/common两包，`SOURCE.json`记录实际APT源索引、`.dsc`/archives、补丁、版本、源文件和runtime哈希；匹配的成功产物直接复用。现有成功job已用collect-only收集，未下载或重编。下一默认DT打包已接正式板级身份；旧DT不会误启策略。普通Debian/Arch及默认release构建入口见[策略打包说明](../../../linux/desktops/gnome/ambient-policy/README.md)。
 
 ## 标准设置界面
 

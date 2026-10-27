@@ -49,4 +49,4 @@ SunUEFI 目前不使用 Recovery 分区安装。独立的 Recovery 镜像会被�
 
 ## 关于数据
 
-`fastboot boot` 只在内存里运行。安装器会写入 `sunuefi_esp` 和 `sunuefi_root` 两个分区，不会碰其他分区。合体 BOOT 会改写 BOOT 分区；恢复原样需要原厂 BOOT 镜像，可用[原生 BOOT 重打包工具](../devel/android-boot-repack.md)无损还原。动手之前备份 BOOT 分区。
+`fastboot boot` 只在内存里运行。安装器会写入 `sunuefi_esp` 和 `sunuefi_root` 两个分区，不会碰其他分区。合体 BOOT 会改写 BOOT 分区；恢复原样需要原厂 BOOT 镜像，可用[原生 BOOT 重打包工具](../devel/boot/combined-boot.md)无损还原。动手之前备份 BOOT 分区。

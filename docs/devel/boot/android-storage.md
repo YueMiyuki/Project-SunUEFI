@@ -40,7 +40,7 @@ ARM64 反汇编中，`libfs_mgr.so` 的 F2FS 检查流程在 `0x3b630` 检查 `r
 
 ## 重启后的只读检查
 
-源码位于 [`tools/android/piano_resize_f2fs.c`](../../tools/android/piano_resize_f2fs.c)。
+源码位于 [`tools/android/piano_resize_f2fs.c`](../../../tools/android/piano_resize_f2fs.c)。
 
 ```sh
 piano-resize-f2fs status --expect-bytes 新userdata容量字节数

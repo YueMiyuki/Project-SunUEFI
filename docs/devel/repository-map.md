@@ -12,7 +12,7 @@
 | `uefi/platforms/pianoProbePkg/` | tracked 诊断平台快照，也是产品组装模板；`prepare_handoff_probe.py` 会从基础平台重新准备，注意覆盖范围 |
 | `uefi/platforms/pianoGuiPkg/`、`pianoLinuxPkg/`、`pianoProductPkg/` | ignored 生成平台；修改生成工具、模板或 canonical 源码，不以手改副本作为最终修复 |
 | `config/`、`linux/configs/`、`linux/dts/` | 产品合约、内核配置片段与 DT overlay；改动绑定所用构建角色和实际输出 |
-| `linux/kernel-profiles.json`、`upstream/linux-piano` | RAM 内核角色锁与 Gitlink；完整/磁盘角色见 [内核角色](kernel-roles.md) |
+| `linux/kernel-profiles.json`、`upstream/linux-piano` | RAM 内核角色锁与 Gitlink；完整/磁盘角色见 [内核角色](linux/kernel.md) |
 | `tools/`、`tests/` | 准备、校验、封装及测试入口；其中部分工具会操作设备，按各工具的实际行为选择入口 |
 | `upstream/` | 正式依赖由固定 Git submodule 登记；额外本地缓存仍忽略。改动通过 patch/overlay 重现 |
 | `build/firmware-workspace/` | 产品构建使用的本地副本；在这里应用上游补丁与生成平台，上游子模块保持原样 |
@@ -31,4 +31,4 @@
 
 Linux 设备配置位于 `linux/bsp/`，桌面默认位于 `linux/desktops/`，发行版配方位于 `linux/rootfs/`。三者通过统一构建入口组合，不能把配置层视为包含所有驱动和 Mesa 的二进制包。
 
-硬件服务的 unit、启动脚本和原生程序目前来自不同目录，具体来源及 rootfs 安装顺序见 [Linux 服务源码地图](linux-services.md)。旧 `bootprofiles/` 已迁移到 `uefi/` 与 `linux/`；本地残留的 BootShim 二进制和 Python 缓存不再是构建输入。
+硬件服务的 unit、启动脚本和原生程序目前来自不同目录，具体来源及 rootfs 安装顺序见 [Linux 服务源码地图](linux/services.md)。旧 `bootprofiles/` 已迁移到 `uefi/` 与 `linux/`；本地残留的 BootShim 二进制和 Python 缓存不再是构建输入。

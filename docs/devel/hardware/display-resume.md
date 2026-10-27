@@ -25,10 +25,10 @@ Piano 使用两路 DSI 驱动同一块面板，默认 120 Hz。30／48／50／60
 
 PLL 注册、DPU 停止顺序和 PHY 接口时钟补丁分别参考 Junhao Xie 的 [67b3cbd4bab](https://github.com/BigfootACA/linux/commit/67b3cbd4bab5687c3aa3c9fe5a14c37433e28bbf)、[8f353c130fee](https://github.com/BigfootACA/linux/commit/8f353c130fee0fcf09afbe10e7fc58f901931418)、[b95037aef0a0](https://github.com/BigfootACA/linux/commit/b95037aef0a0bf5cd612e7517a67644887e9fd5d)，保留原作者署名。
 
-正常启动、120 Hz 下关闭／恢复显示、RTC 和电源键唤醒已有实机结果。显示恢复后可以继续操作，触控和网络可恢复；这不等同于待机耗电已达到原厂水平。整机睡眠的其他驱动处理见[电源管理](piano-power-button.md)。
+正常启动、120 Hz 下关闭／恢复显示、RTC 和电源键唤醒已有实机结果。显示恢复后可以继续操作，触控和网络可恢复；这不等同于待机耗电已达到原厂水平。整机睡眠的其他驱动处理见[电源管理](power-button.md)。
 
 ## 144 Hz 与时序差异
 
 90／144 Hz 与 120 Hz 的水平时序不同，不能直接套用上述 VFP 更新。此前的花屏和笔输入问题已解决；原厂命令顺序、双路状态恢复与触控扫描协调保留。历史故障用于解释实现，不再列为当前使用限制。
 
-原厂切换流程见[原厂刷新率分析](piano-oem-refresh.md)；显示位深、HDR 和 FRC 的边界见[色彩处理](piano-display-depth.md)。
+原厂切换流程见[原厂刷新率分析](oem-refresh.md)；显示位深、HDR 和 FRC 的边界见[色彩处理](display-depth.md)。

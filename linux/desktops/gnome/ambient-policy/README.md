@@ -2,7 +2,7 @@
 
 在 GNOME 自有 power manager 内增加可选设备配置，不增加服务或改传感器值。`piano.ini`只匹配`xiaomi,piano`和测量单位`lux`，沿原厂实际的三条门限曲线分别等待1000/1000/5000ms。其他设备和缺配置保持上游行为。配置安装到`/usr/share/gnome-settings-daemon/ambient-profiles/piano.ini`；需要同时安装编译后的GSD包，仅复制配置不能使未打补丁的GSD获得此功能。
 
-原厂 nits 曲线尚未校准到 Linux 背光，保留上游亮度归一化与平滑。当前实现范围与实际来源见[自动亮度文档](../../../../docs/devel/piano-auto-brightness.md)。
+原厂 nits 曲线尚未校准到 Linux 背光，保留上游亮度归一化与平滑。当前实现范围与实际来源见[自动亮度文档](../../../../docs/devel/hardware/auto-brightness.md)。
 
 ## 默认 release / CI
 
