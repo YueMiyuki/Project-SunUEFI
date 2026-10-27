@@ -1,20 +1,18 @@
 # UEFI Fastboot
 
-SunUEFI 运行期间在后台提供一个 USB Fastboot 服务，用来调试和请求启动。即使物理屏幕白屏、没有菜单，也能通过它读日志、截图。它在固件把控制权交给 Linux 时退出。
+UEFI Fastboot 是 SunUEFI 运行期间在后台提供的 USB Fastboot 服务，用来读日志、截图、只读读取分区和请求启动。屏幕白屏、没有菜单时也能用。固件把控制权交给 Linux 时，它随之退出。
 
-## 和另外两个“Fastboot”的区别
+## 和另外两个 Fastboot 的区别
 
-| | 设备序列号 | 什么时候 | 刷写 |
+| 名称 | 设备序列号 | 什么时候出现 | 刷写 |
 | --- | --- | --- | --- |
 | 原厂 Bootloader Fastboot | 平板真实序列号 | `adb reboot bootloader` | 可以 |
-| UEFI Fastboot | `SunUEFI-piano` | 固件运行期间 | 拒绝 |
-| Linux 的 USB 网络 / SSH | — | Linux 起来之后 | 不适用 |
+| UEFI Fastboot | `SunUEFI-piano` | SunUEFI 运行期间 | 拒绝 |
+| Linux 的 USB 网络 / SSH | 无 | Linux 启动之后 | 不适用 |
 
-下面所有命令都带 `-s SunUEFI-piano`，确保操作的是 UEFI 服务而不是原厂 Bootloader。
+下面所有命令都带 `-s SunUEFI-piano`，确保操作的是 UEFI 服务，而不是原厂 Bootloader。服务在 UEFI 菜单、固件设置和 Shell 里一直保持连接，切换页面不会退出。
 
-服务在 UEFI 菜单、固件设置和 Shell 中保持连接，切换页面不会退出。正常开机进入 UEFI 和临时 Fastboot 启动使用同一套 USB 初始化。
-
-## 状态
+## 查看状态
 
 ```sh
 fastboot -s SunUEFI-piano getvar product        # piano-sunuefi
@@ -33,7 +31,7 @@ fastboot -s SunUEFI-piano oem screenshot
 fastboot -s SunUEFI-piano get_staged uefi-screenshot.bmp  # 24 位 BMP
 ```
 
-截图读取的是帧缓冲，不代表物理屏幕当前显示的内容。
+截图读取的是帧缓冲，不一定是物理屏幕此刻显示的内容。
 
 ## 读取分区
 
@@ -41,21 +39,21 @@ fastboot -s SunUEFI-piano get_staged uefi-screenshot.bmp  # 24 位 BMP
 fastboot -s SunUEFI-piano fetch 分区名 文件
 ```
 
-只读，每次请求最多 64 KiB，由工具分块。
+只读。单次请求最多 64 KiB，fastboot 工具会自动分块。
 
 ## 启动与退出
 
 | 命令 | 作用 |
 | --- | --- |
-| `oem boot-stable` | 读取 ESP 中的 `\EFI\Piano\stable\boot.img` 并启动 Linux |
-| `oem setup` / `oem shell` / `oem simpleinit` | 切换到 UEFI 设置、Shell 或 SimpleInit 菜单 |
-| `reboot` | 清理资源后重启，沿用已保存的启动路线 |
-| `continue` | 同样重启，不会改变启动选择或直接启动 Linux |
-| `stage 文件` | 下载到内存，上限 64 MiB（目标是 1 GiB） |
-| `oem sha256`、`oem discard` | 对暂存数据计算哈希或丢弃 |
+| `oem boot-stable` | 读取 ESP 里的 `\EFI\Piano\stable\boot.img`，启动 Linux |
+| `oem setup`、`oem shell`、`oem simpleinit` | 切换到 UEFI 设置、Shell 或 SimpleInit 菜单 |
+| `reboot` | 释放 USB、存储、时钟和 SMMU 后重启，沿用已保存的启动路线 |
+| `continue` | 同样重启，不改变启动选择，也不会直接启动 Linux |
+| `stage 文件` | 把文件下载到内存，最大 64 MiB |
+| `oem sha256`、`oem discard` | 对暂存的数据计算哈希，或丢弃它 |
 
-## 不支持的
+## 不支持的命令
 
-* `flash`、`erase`、`flashing`、槽位切换和未知的 `oem` 命令一律拒绝。
-* `oem log` 不存在，用 `oem ramlog`。
-* `boot 文件` 还不是通用的系统 / EFI 启动入口。
+`flash`、`erase`、`flashing`、切换槽位和未知的 `oem` 命令一律被拒绝。读日志用 `oem ramlog`，`oem log` 会失败。`boot 文件` 还不是通用的系统或 EFI 启动入口。
+
+电脑看不到 `SunUEFI-piano` 时，见[故障恢复](recovery.md)。

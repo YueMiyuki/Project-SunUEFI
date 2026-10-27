@@ -59,7 +59,7 @@ default kernel. No state is invented when the pen does not respond. Logs use
 `CLOCK_BOOTTIME`, matching THP frame timestamps. The tool releases its BlueZ
 notification subscription on exit and does not own the touch FIFO or generate
 input events. A successful response confirms control communication, not drawing
-support. See [pen protocol](../../docs/devel/piano-pen-protocol.md).
+support. See [pen protocol](../../docs/devel/hardware/pen-protocol.md).
 
 `--send-dock-state` additionally reads the real `SW_PEN_INSERTED` switch from
 the Piano pen-dock driver and sends OEM `51 01` with detached=1/attached=0.
@@ -73,7 +73,7 @@ standard Gamma change and restores the original ramps in `finally`. A failed
 software readback/restore returns status2. `piano_gcv2_report.py` reads previously
 captured DRM JSON and kernel text entirely offline. Neither a D-Bus reply nor a
 compositor screenshot establishes the panel's hardware color result; use the
-[GCv2 validation steps](../../docs/devel/piano-gcv2-validation.md).
+[GCv2 validation steps](../../docs/devel/hardware/gcv2-validation.md).
 
 The initial guest run on2026-10-08 captured a3200×2136 PNG with sRGB caps and a
 successful Stop reply. Input commands still require observing their effect;

@@ -1,29 +1,36 @@
 # 构建手册
 
-所有构建都在电脑或 CI 上进行，不会向连接的平板写入。统一入口是仓库根目录的 `./build.sh`。
+在电脑或 CI 上用 `./build.sh` 构建 UEFI 镜像、Android 引导助手和各发行版的系统镜像。所有构建都只在本机和容器里进行，不会向连接的平板写入。
 
-## 取得源码和检查
+## 环境要求
+
+| 目标 | 构建机 | 容器权限 |
+| --- | --- | --- |
+| UEFI 镜像、Android 引导助手模块 | x86_64 或 ARM64 的 Linux，装有 Docker | 普通容器 |
+| 完整系统镜像（Debian GNOME / KDE、Nyarch GNOME、SteamOS） | ARM64 的 Linux，装有 Docker | `--privileged`，用于 chroot 和挂载 |
+
+GitHub Actions 的 `uefi` 和 `linux` 目标在 x86_64 runner 上构建，四个发行版目标在 ARM64 runner 上构建。
+
+## 取得源码和主机检查
 
 ```sh
 ./build.sh sources     # 取得固定版本的上游子模块，不递归下载测试数据
-./build.sh check       # 按需手动运行主机检查，不需要平板
+./build.sh check       # 主机检查，不需要平板
 ```
 
-上游源码放在 `upstream/`，保持固定提交。本地修改在 `patches/`、`uefi/`、`linux/`、`tools/`。构建在 `build/` 下的副本里应用补丁，不要改构建副本。
+上游源码放在 `upstream/`，固定在指定提交。本地修改在 `patches/`、`uefi/`、`linux/`、`tools/`。构建在 `build/` 下的副本里应用补丁，不要改构建副本。
 
 ## 构建容器
 
-容器基础镜像记录在 `config/build-container.json`，定义是 `containers/Dockerfile`：
-
-Debian 基础镜像优先从 ECR Public 的官方镜像站下载；遇到镜像元数据下载失败时，自动改用 Docker Hub，两个来源固定同一个 OCI 摘要。下载来源变化不改变基础镜像内容。
+基础镜像记录在 `config/build-container.json`，定义是 `containers/Dockerfile`。Debian 基础镜像优先从 ECR Public 下载，元数据下载失败时改用 Docker Hub，两个来源固定同一个 OCI 摘要。
 
 ```sh
-python3 tools/build_container.py
+python3 tools/build_container.py     # 生成镜像 sunuefi-builder
 ```
 
-APT 包版本会被记录，但不承诺位级可复现。
+APT 包版本会被记录，但构建结果不保证逐字节一致。
 
-## UEFI 和安装工具
+## UEFI 和引导助手
 
 ```sh
 docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
@@ -34,97 +41,121 @@ docker run --rm -v "$PWD:/workspace" -w /workspace sunuefi-builder bash -euc '
   python -m pip install -r requirements-build.txt
   ./build.sh uefi
   ./build.sh module
-  ./build.sh installer --product artifacts/product/PianoUEFI-product.img --output artifacts/installer-uefi
 '
 ```
 
-`./build.sh uefi` 使用 `vendor/piano` 的板级输入和 `patches/firmware`，输出 `artifacts/product/PianoUEFI-product.img` 与 `manifest.json`。完整 UEFI 构建还需要本地提取的原厂材料，见[本地输入](local-inputs.md)。
+`./build.sh uefi` 使用 `vendor/piano` 的板级输入和 `patches/firmware`，输出 `artifacts/product/PianoUEFI-product.img` 和 `manifest.json`。完整 UEFI 构建还需要本地提取的原厂材料，见[本地输入](local-inputs.md)。
 
-`./build.sh module` 读取刚构建的产品，编译前置选择器和六个静态 ARM64 工具，生成 `artifacts/android/SunUEFI-Piano-版本.zip`、`manifest.json` 与 `SHA256SUMS`。它不需要平板、原厂 BOOT 或私有采集目录；Android 内核在模块安装时从设备当前 BOOT 提取。构建机可以是 x86_64 或 ARM64，默认从经过签名校验的 Debian ARM64 软件包准备编译 sysroot，不执行其中的 ARM64 程序。具体输入和安装行为见 [Android 引导助手](android-module.md)。
+`./build.sh module` 读取刚构建的产品，编译前置选择器和六个静态 ARM64 工具，生成 `artifacts/android/SunUEFI-Piano-版本.zip`、`manifest.json` 和 `SHA256SUMS`。它不需要平板、原厂 BOOT 或私有采集目录，Android 内核在模块安装时从设备当前 BOOT 提取。默认从经过签名校验的 Debian ARM64 软件包准备编译用的 sysroot，不执行其中的 ARM64 程序。输入和安装行为见 [Android 引导助手](boot/android-module.md)。
 
-## 完整 Debian / GNOME
+合体 BOOT 的底层工具单独提供：
 
-Actions 默认 `all` 同时构建 `debian-gnome`、`debian-kde`、`nyarch-gnome`、
-`steamos`。KDE 沿用下面的 Debian 流程，将根系统步骤改为
-`./build.sh release-rootfs --desktop kde`。
+```sh
+./build.sh trampoline --stock-boot 当前ROM的boot.img --output 输出目录   # 生成前置选择器入口
+./build.sh boot-repack                                                   # 编译原生 BOOT 重打包 / 还原工具
+./build.sh boot-request --sysroot ...                                    # 编译 piano-boot-request
+./build.sh module-package --inspect                                      # 模块打包工具，只检查已有输入
+```
 
-需要 ARM64 构建机，容器需要 `--privileged` 才能 chroot 并挂载：
+原理见[合体 BOOT](boot/combined-boot.md)。
+
+## 完整系统
+
+四个目标共用同一份内核和 UEFI，各自构建根系统：
+
+| 目标 | 根系统 | 构建目录 |
+| --- | --- | --- |
+| `debian-gnome` | Debian 13 + GNOME | `build/distros/release` |
+| `debian-kde` | Debian 13 + KDE Plasma | `build/distros/release` |
+| `nyarch-gnome` | Arch Linux ARM + GNOME（Nyarch） | `build/distros/nyarch-gnome-piano` |
+| `steamos` | Valve ARM64 SteamOS | `build/distros/steamos-piano` |
+
+默认内核是 Linux `7.3`，版本后缀 `-piano-sunuefi-cachy`。硬件适配、Gunyah 和对应版本的 CachyOS BORE 调度补丁按主题维护，固定输入见 [`patches/linux/7.3/series.json`](../../patches/linux/7.3/series.json)，当前选择记录在 `build/release/source-manifest.json`。内核和模块输出到 `artifacts/kernels/release/`。只准备内核源码用 `python3 tools/prepare_release_kernel.py --refresh`。具体改动见[内核与调度配置](linux/kernel.md)。
+
+重建内核时，旧的产物清单先作废，编译完成后才原子发布新的，避免旧 Image 配新模块。
+
+### Debian GNOME 和 Debian KDE
 
 ```sh
 ./build.sh linux
 ./build.sh mesa
 ./build.sh sensors
 ./build.sh ffmpeg --install-dependencies
-./build.sh release-rootfs
+./build.sh release-rootfs                    # KDE 加 --desktop kde
 ./build.sh package --root-size-mib 8192
-./build.sh installer --bundle artifacts/release
+python3 tools/package_sparse_images.py --bundle artifacts/release --output artifacts/fastboot-sparse
 ```
 
-* 默认内核源码基线为正式版 Linux `7.3`，使用 `-piano-sunuefi-cachy` 后缀。硬件适配、Gunyah 和对应版本的 CachyOS BORE 按主题维护，固定输入见 [`patches/linux/7.3/series.json`](../../patches/linux/7.3/series.json)。当前选择记录在 `build/release/source-manifest.json`；内核与模块输出到 `artifacts/kernels/release/`。只准备源码：`python3 tools/prepare_release_kernel.py --refresh`。具体改动见[内核与调度配置](kernel-roles.md)。
-* 重建内核时，旧产物清单先作废，编译完成后才原子发布新的，避免旧 Image 与新模块混用。O 目录与产物目录有文件锁。
-* 基础根系统已构建后，用 `./build.sh release-rootfs --resume` 更新内核、硬件包和配置，不重新运行 debootstrap。
-* 其他目标：`./build.sh rootfs --distro ID --desktop ID --plan` 列出 Ubuntu / Deepin / Arch 与 KDE 等组合的计划，目前只有 Debian / GNOME 完整验证。
+基础根系统已经构建过时，用 `./build.sh release-rootfs --resume` 更新内核、硬件包和配置，不重新运行 debootstrap。`./build.sh rootfs --distro ID --desktop ID --plan` 会列出其他发行版和桌面组合的计划，目前只有上表的四个目标能完整构建。
 
-本地和 GitHub 的完整构建使用同一个 `release-rootfs` 入口，默认包含中文、
-拼音输入法、Chromium、GNOME 动画、蓝牙地址自动初始化和触控笔组件。
-根系统生成后检查这些包与必需文件，记录到 `manifest.json` 的 `default_system`；
-缺失时构建失败，不依赖首次启动后的手工补装。APT 使用有签名的更新仓库，
-因此不同日期构建的软件包版本可能不同，不要求二进制逐字节一致。
+本地和 GitHub 的完整构建走同一个 `release-rootfs` 入口。默认系统包含中文界面、拼音输入法、Chromium、GNOME 动画、蓝牙地址自动初始化和触控笔组件。根系统生成后会检查这些软件包和必需文件，结果记录在 `manifest.json` 的 `default_system`，缺少任何一项构建就失败。
 
-### 软件包的本地构建
-
-SteamOS 的独立目标、原生 FFmpeg 软件包与相同 ESP/root 打包流程见 [SteamOS ARM64](steamos.md)。
-
-* **CPU 型号**：`linux/dts/piano-cpu-model.dtso` 给八个 CPU 节点加标准 `model` 属性，内核小补丁把它输出为 `/proc/cpuinfo` 的 `model name`，让 GNOME 显示 Snapdragon 8 Elite。MIDR、核心拓扑、时钟和板型号保持原值。
-* **gnome-settings-daemon**（`./build.sh gsd`）：在副本里编译带 Piano 自动亮度策略的标准包，使用原厂 lux 阈值和延迟，不修改传感器读数，再经 APT 安装。
-* **Mutter**（`./build.sh mutter`）：修正空 Gamma 曲线的恢复，以及无 EDID 的内置屏幕颜色配置。保留标准颜色服务和用户配置，不伪造 EDID；通用 sRGB 是未校准的默认值，不等于原厂色彩校准。来源与补丁见[Mutter 适配说明](../../linux/desktops/gnome/patches/mutter/README.md)。
-
-## Nyarch / GNOME
-
-在相同 ARM64 构建容器中，完成 `sources`、`uefi`、`module`、`linux` 后运行
-`./build.sh nyarch-gnome-rootfs`。它下载 Arch Linux ARM 基础系统，通过签名仓库安装
-当前软件包，构建 Nyarch 应用和 Piano 原生硬件包，再安装 Material UwU、
-模糊主题与桌面扩展。源码和扩展选择见 `config/nyarch.json`。
-
-打包时向 `./build.sh package` 传入
-`--rootfs build/distros/nyarch-gnome-piano/rootfs`、
-`--rootfs-manifest build/distros/nyarch-gnome-piano/manifest.json`、
-`--initramfs build/distros/nyarch-gnome-piano/initramfs/initramfs.cpio.gz` 和
-`--root-size-mib 16384`，之后按相同流程运行 `installer`。
-
-所有发行版通过 `tools/stage_piano_firmware.py` 安装同一套设备固件。
-`config/release.json` 的 `firmware.overlays` 选择完整的 HyperOS 4 ADSP/
-ADSP-DTB 更新，覆盖旧版对应文件；来源、大小和 SHA256 随固件清单保存。
-
-## 合体 BOOT 相关工具
+### Nyarch GNOME 和 SteamOS
 
 ```sh
-./build.sh trampoline --stock-boot 当前ROM的boot.img --output 输出目录   # 生成前置选择器入口
-./build.sh boot-repack                                                   # 编译原生 BOOT 重打包 / 还原工具
-./build.sh boot-request --sysroot ...                                    # 编译 piano-boot-request
-./build.sh module                                                        # 从当前 UEFI 产品编译并打包 Android 模块
-./build.sh module-package --inspect                                      # 低层打包工具：只检查已有输入
+./build.sh uefi && ./build.sh module && ./build.sh linux
+./build.sh nyarch-gnome-rootfs               # SteamOS 用 steamos-rootfs
+./build.sh package \
+  --rootfs build/distros/nyarch-gnome-piano/rootfs \
+  --rootfs-manifest build/distros/nyarch-gnome-piano/manifest.json \
+  --initramfs build/distros/nyarch-gnome-piano/initramfs/initramfs.cpio.gz \
+  --root-size-mib 16384
+python3 tools/package_sparse_images.py --bundle artifacts/release --output artifacts/fastboot-sparse
 ```
 
-模块支持从当前原厂 BOOT 安装合体引导、更新已有核心，以及在 HyperOS 更新后通过“重新安装引导”恢复启动选择器。分区和镜像刷写在助手的“存储”页完成。见[原生 BOOT 重打包](android-boot-repack.md)、[Android 模块](android-module.md)。
+SteamOS 把命令里的 `nyarch-gnome-piano` 换成 `steamos-piano`。Nyarch 从 Arch Linux ARM 基础系统开始，通过签名仓库安装软件包，再构建 Nyarch 应用和 Piano 的原生硬件包，源码和扩展选择在 `config/nyarch.json`。SteamOS 的构建细节见 [SteamOS ARM64](linux/steamos.md)。
 
-## CI
+所有发行版都由 `tools/stage_piano_firmware.py` 安装同一套设备固件。`config/release.json` 的 `firmware.overlays` 选用完整的 HyperOS 4 ADSP 和 ADSP-DTB 更新，覆盖旧文件，来源、大小和 SHA256 记录在固件清单里。
 
-GitHub Actions 的 **Build products** 默认构建 Debian GNOME、Debian KDE、Nyarch GNOME 和 SteamOS。手动运行时可以选择 `all`、任一发行版，或仅构建 `uefi`／`linux`。
+### 单独构建的软件包
 
-完整构建提供以下下载：
+CPU 型号由 `linux/dts/piano-cpu-model.dtso` 给八个 CPU 节点加标准 `model` 属性，内核补丁把它输出为 `/proc/cpuinfo` 的 `model name`，让 GNOME 显示 Snapdragon 8 Elite。MIDR、核心拓扑、时钟和板型号保持原值。
+
+`./build.sh gsd --sysroot 已完成的基础根目录` 在独立副本里编译带 Piano 自动亮度策略的 gnome-settings-daemon，使用原厂 lux 阈值和延迟，不修改传感器读数，由 APT 安装。默认的 `release-rootfs` 会自动完成这一步，策略只匹配 `xiaomi,piano` 板级标识。
+
+`./build.sh mutter` 编译修正了空 Gamma 曲线恢复和无 EDID 内置屏幕颜色配置的 Mutter，保留标准颜色服务和用户配置，不伪造 EDID。通用 sRGB 是未校准的默认值，不是原厂色彩校准。来源与补丁见 [Mutter 适配说明](../../linux/desktops/gnome/patches/mutter/README.md)。
+
+## 产物位置
+
+| 目录 | 内容 |
+| --- | --- |
+| `artifacts/product/` | `PianoUEFI-product.img` 和 `manifest.json` |
+| `artifacts/android/` | 引导助手模块 `SunUEFI-Piano-版本.zip`、`manifest.json`、`SHA256SUMS` |
+| `artifacts/kernels/release/` | 内核 Image、模块和 `manifest.json` |
+| `artifacts/release/` | `package` 的输出：`esp.img`、`root.ext4.img` 和 `manifest.json` |
+| `artifacts/fastboot-sparse/` | 稀疏版 `esp.img`、`root.ext4.img`，以及 `manifest.json` 和 `SHA256SUMS` |
+| `artifacts/installer/` | `installer` 的默认输出目录 |
+
+## CI 下载
+
+GitHub Actions 的 **Build products** 在 `main` 上有相关改动时自动运行，也可以手动选择 `all`、`uefi`、`linux` 或任一发行版。只改文档不会触发构建，唯一的例外是 `docs/user/install-from-artifact.md`，改动它会触发整套产品构建。选择规则在 `tools/ci_build_targets.py`。
 
 | 下载名称 | 内容 |
 | --- | --- |
 | `SunUEFI-Module` | Android 引导助手模块 ZIP |
 | `SunUEFI-UEFI-Fastboot` | 用于 `fastboot boot` 的独立 UEFI 镜像 |
-| `SunUEFI-ESP` | 共用的稀疏 ESP 镜像 |
-| `SunUEFI-Root-发行版` | 对应发行版的稀疏 root 镜像 |
+| `SunUEFI-ESP` | 各发行版共用的稀疏 ESP 镜像 |
+| `SunUEFI-Root-发行版` | 对应发行版的稀疏 root 镜像，发行版为 `debian-gnome`、`debian-kde`、`nyarch-gnome`、`steamos` |
 | `logs` | 合并的构建日志、来源清单和校验记录 |
 
-模块、UEFI 和 ESP 每轮只上传一份，各发行版分别上传 root 镜像。安装时将所选发行版的 root 与同一轮 ESP 配套使用；日常安装步骤见[安装指南](../user/install-from-artifact.md)。
+模块、UEFI 镜像和 ESP 每次只上传一份，root 镜像按发行版分别上传。安装时把所选发行版的 root 镜像和同一次构建的 ESP 配套使用，步骤见[安装指南](../user/install-from-artifact.md)。
 
-不再单独运行 `host-checks.yml` 的 portable 检查。需要对应检查时，在本地运行 `./build.sh check`。依赖和来源记录见[公开构建链](public-build.md)。
+## 安装器
+
+`./build.sh installer` 和 `./build.sh install` 是两件事。
+
+`installer` 只在电脑上整理文件。它把 `install_piano.py`、启动脚本 `install.sh` 和 `install.cmd`、`INSTALL.md`、校验记录复制到一个新目录，`--bundle artifacts/release` 会把磁盘镜像一并放进 `bundle/`，`--product` 则只放 UEFI 镜像。目录必须是新的，已有的目录会被拒绝。
+
+`install` 才会连接平板，由 `tools/install_piano.py` 提供四个操作：
+
+| 操作 | 作用 |
+| --- | --- |
+| `inspect` | 只读检查平板的分区表（默认） |
+| `plan` | 检查平板和镜像，生成安装计划 |
+| `apply --plan 计划.json --bundle 镜像目录 --execute` | 更新已有的 `sunuefi_esp` 和 `sunuefi_root`，并读回校验 |
+| `provision-bluetooth --execute` | 为这台平板写入蓝牙配置 |
+
+命令行安装器只更新已有的独立分区，首次分区在引导助手里完成。不带 `--execute` 时不会写入任何内容。
 
 ## 继续阅读
 

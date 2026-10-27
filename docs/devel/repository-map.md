@@ -1,34 +1,36 @@
-# 目录与编辑边界
+# 仓库地图与编辑边界
 
-构建主线是 canonical 源码与固定输入 → 准备平台 → 编译 → 身份校验 → 封装。Git 跟踪状态和“是否由工具生成”是两个维度，不能简单把所有 tracked 文件视为手写源码。
+构建分五步：取固定版本的源码和输入，准备平台，编译，校验产物，打包。仓库里有一部分文件由脚本生成，下表标出了哪些可以直接改，哪些改动会在下次构建时被覆盖。
 
-| 目录/文件 | 用途与编辑方式 |
-| --- | --- |
-| `uefi/core/` | ProductCore、USB/UFS、输入与共享协议的 canonical 源码；直接修改对应文件并验证实际使用路径 |
-| `uefi/components/os-boot/`、`uefi/handoff/early-memory/` 等 | 按功能拆分的 canonical 源码；产品准备工具复制并校验编译副本 |
-| `uefi/components/product-support/` | 产品 GOP、RAM 日志与 BDS 支持来源；不要用 GUI staging 副本替代 |
-| `uefi/components/product-pump/`、`product-handoff/`、`nv/` | 产品库、协议和标准组件接入来源；与对应准备工具共同维护 |
-| `uefi/platforms/pianoPkg/` | tracked 板级平台快照；`prepare_piano.py` 会根据采集和参考模板重写部分内容，修改前核对生成规则 |
-| `uefi/platforms/pianoProbePkg/` | tracked 诊断平台快照，也是产品组装模板；`prepare_handoff_probe.py` 会从基础平台重新准备，注意覆盖范围 |
-| `uefi/platforms/pianoGuiPkg/`、`pianoLinuxPkg/`、`pianoProductPkg/` | ignored 生成平台；修改生成工具、模板或 canonical 源码，不以手改副本作为最终修复 |
-| `config/`、`linux/configs/`、`linux/dts/` | 产品合约、内核配置片段与 DT overlay；改动绑定所用构建角色和实际输出 |
-| `linux/kernel-profiles.json`、`upstream/linux-piano` | RAM 内核角色锁与 Gitlink；完整/磁盘角色见 [内核角色](kernel-roles.md) |
-| `tools/`、`tests/` | 准备、校验、封装及测试入口；其中部分工具会操作设备，按各工具的实际行为选择入口 |
-| `upstream/` | 正式依赖由固定 Git submodule 登记；额外本地缓存仍忽略。改动通过 patch/overlay 重现 |
-| `build/firmware-workspace/` | 产品构建使用的本地副本；在这里应用上游补丁与生成平台，上游子模块保持原样 |
-| `.venv/` | 本地 Python 环境，不入库 |
-| `build/`、`artifacts/` | ignored 工作目录与产物；manifest/哈希是构建证据，不是硬件验收 |
-| `private/` | ignored 采集、恢复和原始证据；公开仓库不依赖其被自动分发 |
-| `docs/status.md`、其他 `docs/` | 当前状态与专题/历史证据；历史文档保留日期、test-id 和镜像身份 |
+## 目录用途
 
-## 产品平台怎样产生
+| 目录/文件 | 来源 | 用途与修改方式 |
+| --- | --- | --- |
+| `uefi/core/` | 手写源码 | ProductCore、USB/UFS、输入与共享协议的源码，直接修改 |
+| `uefi/components/` | 手写源码 | 按功能拆分的组件（`os-boot`、`linux-loader`、`product-handoff` 等），直接修改 |
+| `uefi/handoff/` | 手写源码 | 前置选择器、BootShim 和冷启动早期内存代码，直接修改 |
+| `uefi/platforms/pianoPkg/` | 手写模板 | 基础平台描述与组件引用，修改前核对生成工具 |
+| `uefi/platforms/pianoProbePkg/` | 手写模板 | 诊断平台模板，也是产品组装的基线 |
+| `uefi/platforms/pianoProductPkg/` | 脚本生成 | 产品构建的临时平台，不提交，不要手工修改里面的文件 |
+| `config/` | 手写配置 | 内核版本、固件清单、发行版依赖等配置，直接修改 |
+| `linux/configs/`、`linux/dts/` | 手写配置 | 内核配置片段与设备树 overlay，直接修改 |
+| `linux/bsp/`、`linux/rootfs/`、`linux/desktops/` | 手写配方 | 多发行版支持、根系统装配与桌面环境配置，直接修改 |
+| `tools/` | 手写脚本 | 构建、打包、检查脚本，直接修改 |
+| `tests/` | 手写测试 | 主机端 Python 和原生 C 测试，直接修改 |
+| `upstream/` | 子模块 | 固定提交的上游源码，不要直接在里面修改，改动通过 `patches/` 表达 |
+| `vendor/piano/` | 输入文件 | 板级 DTB、xbl-config DTB 和原厂 PE，由 `tools/piano_vendor_inputs.py` 校验 |
+| `build/firmware-workspace/` | 脚本生成 | 产品固件的临时构建副本，不提交 |
+| `build/`、`artifacts/` | 脚本生成 | 构建产物与中间文件，不提交 |
+| `docs/` | 手写文档 | 用户和开发者文档，直接修改 |
 
-[`prepare_product.py`](../../tools/prepare_product.py) 从 `pianoProbePkg` 复制模板，叠加 `product-support`，再从 `uefi/core/` 与 `uefi/components/` 复制实际核心和分层源码。工具生成 ProductCore INF、DSC/FDF、SimpleInit 摘要和经核对的存储基线，最后复制到 `upstream/Mu-Silicium/Platforms/Xiaomi/pianoProductPkg` 并记录 prepared manifest。
+## 产品固件怎样产生
 
-动态组装本身不要求把生成物再次提交。修改组件清单或绑定时改生成规则；修改行为时改 canonical C/头文件；修改模板时同时检查重建规则。生成文件用于检查组装结果，其手工改动会在重新准备时丢失，也可能被身份校验拒绝。
+`./build.sh uefi` 运行以下五步：
 
-`build_integrity.py` 会核对实际编译输入、canonical 来源和输出。不要通过删哈希、改成功标记或替换旧产物来绕过检查；重新准备、构建与封装的关系见 [构建说明](building.md)。
+1. `tools/firmware_workspace.py` 在 `build/firmware-workspace/` 建立独立副本，不污染 `upstream/` 中的子模块。
+2. `tools/apply_firmware_patches.py` 在副本里应用 `patches/firmware/series.json` 中的补丁。
+3. `tools/prepare_product_handoff.py`、`prepare_product_pump.py`、`prepare_product_ui.py`、`prepare_nv_runtime_guard.py` 和 `build_simpleinit.sh` 安装运行时钩子和菜单。
+4. `tools/prepare_product.py` 以 `pianoProbePkg` 为基线，组装 ProductCore INF、DSC/FDF 和 `uefi/components/` 中的组件，写入副本中的 `pianoProductPkg`。
+5. `tools/build_stage0.sh product` 编译固件，`tools/build_integrity.py` 核对输入与输出，`tools/package_product.py` 完成最终打包。
 
-Linux 设备配置位于 `linux/bsp/`，桌面默认位于 `linux/desktops/`，发行版配方位于 `linux/rootfs/`。三者通过统一构建入口组合，不能把配置层视为包含所有驱动和 Mesa 的二进制包。
-
-硬件服务的 unit、启动脚本和原生程序目前来自不同目录，具体来源及 rootfs 安装顺序见 [Linux 服务源码地图](linux-services.md)。旧 `bootprofiles/` 已迁移到 `uefi/` 与 `linux/`；本地残留的 BootShim 二进制和 Python 缓存不再是构建输入。
+修改功能时改 `uefi/core/` 和 `uefi/components/` 中的源文件；修改打包或依赖时改对应工具。

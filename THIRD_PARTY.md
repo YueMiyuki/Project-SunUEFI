@@ -1,6 +1,6 @@
 # 第三方来源与本地材料
 
-SunUEFI 站在这些项目之上：EDK2 / Mu-Silicium 提供 UEFI 基础和高通平台集成，simple-init 提供 UEFI 里的图形菜单，linux-piano 与 Linux 内核提供板级驱动，debian-piano、piano-firmware、piano-mesa、piano-sensors 提供根系统、设备固件、GPU 用户空间和传感器通信，MiCode 与本机原厂系统用作对照参考。各项目负责什么、我们增加了什么，见[首页](README.md#项目站在哪些项目之上)。
+SunUEFI 站在这些项目之上：EDK2 / Mu-Silicium 提供 UEFI 基础和高通平台集成，simple-init 提供 UEFI 里的图形菜单，linux-piano 与 Linux 内核提供板级驱动，debian-piano、piano-firmware、piano-mesa、piano-sensors 提供根系统、设备固件、GPU 用户空间和传感器通信，MiCode 与本机原厂系统用作对照参考。各项目负责什么、我们增加了什么，见[上游项目](docs/devel/upstreams.md)。
 
 本页是精确来源索引：固定的提交、使用它们的脚本和已知的许可线索。完整提交号以链接的锁文件和脚本为准。许可线索来自仓库中的文件声明，没有逐一重新核对上游许可正文。
 
@@ -16,11 +16,11 @@ SunUEFI 站在这些项目之上：EDK2 / Mu-Silicium 提供 UEFI 基础和高�
 | lwext4 | [gkostka/lwext4](https://github.com/gkostka/lwext4)，固定来源和归档摘要见 [uefi-ext4.json](config/uefi-ext4.json) | [prepare_ext4.py](tools/firmware/prepare_ext4.py) 暂存标准 ext4 库，UEFI 文件协议适配在 `uefi/components/ext4/`；不编译格式化或分区工具 | 多数文件 BSD-3-Clause；`ext4_extent.c`、`ext4_xattr.c` 含 GPL-2.0，组合库按 GPL-2.0 处理，保留源码版权与许可。 |
 | Linux / linux-piano | [blu-sharky/linux-piano](https://github.com/blu-sharky/linux-piano)、[torvalds/linux](https://github.com/torvalds/linux)；救援 pin 见 [kernel-profiles.json](linux/kernel-profiles.json) | [build_kernel.py](tools/build_kernel.py)；完整基线见 [full builder](tools/build_piano_full_kernel.py) / [next builder](tools/build_piano_next_full.py) | 选定内核的 `COPYING`、`LICENSES/` 和文件声明；不改变主机脚本的许可。 |
 | BigfootACA 高通显示补丁（Junhao Xie） | [PLL 初始化 `67b3cbd4bab5`](https://github.com/BigfootACA/linux/commit/67b3cbd4bab5687c3aa3c9fe5a14c37433e28bbf)、[DPU 停止顺序 `8f353c130fee`](https://github.com/BigfootACA/linux/commit/8f353c130fee0fcf09afbe10e7fc58f901931418)、[PHY 运行时接口时钟 `b95037aef0a0`](https://github.com/BigfootACA/linux/commit/b95037aef0a0bf5cd612e7517a67644887e9fd5d) | 默认内核补丁 `0024`、`0026`、`0034`；分别修正 PLL 初始化、视频流水线停止顺序和 PHY 接口时钟的运行时管理 | 保留原作者与 Signed-off-by；沿用相应 Linux 源文件的 SPDX 和内核许可。PHY 补丁仅调整本地已有恢复辅助代码附近的上下文。 |
-| MiCode 板级资料 / 公开内核 | [MiCode/Xiaomi_Kernel_OpenSource](https://github.com/MiCode/Xiaomi_Kernel_OpenSource)，`45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71`；DTS pin 见 [来源集](docs/piano-full-linux-candidate.md) | [PianoKeys.c](uefi/core/PianoKeys.c) 等注明参考来源 | 原声明保留；本地 Keys 为 GPL-2.0-only，TouchProbe 为 GPL-2.0-or-later。 |
-| Debian/Piano 用户态、Mesa、固件 | 组件/精确 commit 见 [Linux 来源集](docs/piano-full-linux-candidate.md) | [stage_piano_full_userspace.py](tools/stage_piano_full_userspace.py) 等暂存到派生根系统 | 包、服务源码、Mesa 与固件按各自通知处理。 |
+| MiCode 板级资料 / 公开内核 | [MiCode/Xiaomi_Kernel_OpenSource](https://github.com/MiCode/Xiaomi_Kernel_OpenSource)，`45fb9bd6ae5ba2942fc1d53e4b6b46ef76992f71`；DTS pin 见 [来源集](docs/archive/linux-bringup/piano-full-linux-candidate.md) | [PianoKeys.c](uefi/core/PianoKeys.c) 等注明参考来源 | 原声明保留；本地 Keys 为 GPL-2.0-only，TouchProbe 为 GPL-2.0-or-later。 |
+| Debian/Piano 用户态、Mesa、固件 | 组件/精确 commit 见 [Linux 来源集](docs/archive/linux-bringup/piano-full-linux-candidate.md) | [stage_piano_full_userspace.py](tools/stage_piano_full_userspace.py) 等暂存到派生根系统 | 包、服务源码、Mesa 与固件按各自通知处理。 |
 | xiaomi-sheng-thp 笔解算 | [ianchb/xiaomi-sheng-thp](https://github.com/ianchb/xiaomi-sheng-thp)，`34046210932d654a4c0df0121ecc31c008f8148c` | [Piano 参数化核心](linux/userspace/pen/piano-pen-core.h) 从独立矩阵解算与滤波代码派生，读取本机实际校准配置；不启动上游的第二个触控服务 | Apache-2.0；保留 [完整许可证](linux/userspace/pen/Apache-2.0.txt)、源文件 SPDX 和 [来源／修改说明](linux/userspace/pen/OPEN_CORE_ORIGIN.txt)。当前仅完成真实配置和压力报告处理，坐标仍需实际笔矩阵验证。 |
 
-`sources.lock.json` 只覆盖部分依赖，其他 pin 仍在脚本中。内核 linked-worktree 获取方式见 [内核复现说明](docs/linux-reproducible-builds.md)。
+`sources.lock.json` 只覆盖部分依赖，其他 pin 仍在脚本中。内核 linked-worktree 获取方式见 [内核复现说明](docs/archive/linux-bringup/linux-reproducible-builds.md)。
 
 小米平板相关参考还包括 [code002-2/Xiaomi-pad-6s-pro-Linux](https://github.com/code002-2/Xiaomi-pad-6s-pro-Linux/tree/053169b1ed48335d8139694ea6ccaacf52462dd9) 及其引用的 [debian-sheng](https://github.com/ianchb/debian-sheng)、[xiaomi-mipps-auth](https://github.com/ianchb/xiaomi-mipps-auth/tree/9176efbdf276b874fc0a97912a914449a88155fb) 和 [xiaomi-sheng-fingerprint](https://github.com/ianchb/xiaomi-sheng-fingerprint/tree/76e7301163b0e708f609c9864b3e5833e9f57402)。分别用于多发行版集成、MiPPS 认证和标准 libfprint/fprintd 接入的参考。指纹项目使用 FPC1553，Piano 原厂使用 Goodix，不能直接互换传感器协议。MiPPS 工具标注 GPL-2.0-only；指纹后端为 Apache-2.0，libfprint/fprintd 补丁及 QTEE 依赖遵循各自许可。
 

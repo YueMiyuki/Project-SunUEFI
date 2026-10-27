@@ -1,10 +1,10 @@
 # HMCL 与 JavaFX 图形加速
 
-HMCL 可以在平板上使用 ARM64 Java 运行。若启动器显示“软件渲染”，先区分启动器界面的 JavaFX 渲染与 Minecraft 自己的 OpenGL 渲染，两者是独立的。
+HMCL 启动器显示“软件渲染”时，给它加一个 Java 参数就能用上 GPU：`-Dprism.forceGPU=true`。启动器界面用的是 JavaFX，Minecraft 自己用 OpenGL，两者互不影响。
 
-当前 Azul Zulu JavaFX 的 Linux 驱动白名单没有包含 `freedreno`。即使 Mesa 已提供 Adreno 硬件加速，JavaFX 仍可能提示 `Failed Graphics Hardware Qualifier check`，随后使用 `SWPipeline`。
+Azul Zulu 的 JavaFX 在 Linux 上有一份驱动白名单，里面没有 `freedreno`。即使 Mesa 已经提供 Adreno 硬件加速，JavaFX 仍会提示 `Failed Graphics Hardware Qualifier check`，随后退回 `SWPipeline`。这个参数跳过白名单检查。
 
-只给 HMCL 增加以下参数即可绕过这项厂商白名单检查：
+直接运行 jar 时：
 
 ```sh
 java -Dprism.forceGPU=true -jar HMCL.jar
@@ -16,8 +16,10 @@ java -Dprism.forceGPU=true -jar HMCL.jar
 HMCL_JAVA_OPTS="-Dprism.forceGPU=true" bash HMCL.sh
 ```
 
-Java 需包含适合 ARM64 的 JavaFX。不要在系统中全局设置 `JAVA_TOOL_OPTIONS`，也无需把显卡名称改成其他厂商。该参数不会强制 Minecraft 使用某个驱动，游戏仍按自己的 LWJGL/OpenGL 初始化流程运行。
+Java 需要带适用于 ARM64 的 JavaFX。不要在系统里全局设置 `JAVA_TOOL_OPTIONS`，也不用把显卡名称改成别的厂商。这个参数不会强制 Minecraft 选用某个驱动，游戏仍按自己的 LWJGL / OpenGL 流程初始化。
 
-定位问题时临时增加 `-Dprism.verbose=true`。当前平板的 HMCL 3.17.0.359 / Zulu Java 25.0.4.1 已从 `SWPipeline` 切换到 `ES2Pipeline`；Mesa `glxinfo -B` 同时报告 Adreno 830v1、`Accelerated: yes`。这是启动器 GPU 渲染的结果，不代表已测量游戏帧率。
+## 怎样确认生效
 
-JavaFX 的对应实现见 [X11GLFactory.java](https://github.com/openjdk/jfx/blob/master/modules/javafx.graphics/src/main/java/com/sun/prism/es2/X11GLFactory.java)。
+临时加上 `-Dprism.verbose=true`，日志里会显示用的是哪条渲染管线。在 HMCL 3.17.0.359 和 Zulu Java 25.0.4.1 上，加参数前是 `SWPipeline`，加参数后是 `ES2Pipeline`，`glxinfo -B` 同时显示 Adreno 830v1 和 `Accelerated: yes`。这说明启动器走了 GPU 渲染，不代表游戏帧率。
+
+JavaFX 里对应的实现是 [X11GLFactory.java](https://github.com/openjdk/jfx/blob/master/modules/javafx.graphics/src/main/java/com/sun/prism/es2/X11GLFactory.java)。

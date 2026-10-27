@@ -4,4 +4,4 @@
 
 这是笔本体的固件，与平板上的 Novatek NT36532 触控控制器固件不同。本项目不会在 Linux 启动时自动刷写它。固件原始字节由厂商提供，项目没有给它另行授予开源许可。
 
-容器与程序分析见 [固件分析](../../docs/devel/p81c-firmware.md)，原厂升级和日常震动协议见 [P81C 协议](../../docs/devel/p81c-ota-protocol.md)。
+容器与程序分析见 [固件分析](../../docs/devel/hardware/p81c-firmware.md)，原厂升级和日常震动协议见 [P81C 协议](../../docs/devel/hardware/p81c-ota-protocol.md)。
