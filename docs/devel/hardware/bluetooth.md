@@ -7,7 +7,7 @@
 同机原厂 Android 的 `BluetoothAddress::GetLocalAddress` 从
 `/mnt/vendor/persist/bluetooth/.bt_nv.bin` 读取六字节地址，再反转字节顺序。
 已核对的原厂文件是 raw6 格式，没有额外记录头；Android 的 AIDL 实现依赖这份
-QTI HIDL 库。分析依据是原厂 `OS3.0.309.0.WPYCNXM` 的实际二进制与 persist 文件，
+QTI HIDL 库。分析依据是原厂 `OS3.0.309.0.WPYCNXM` 的二进制与 persist 文件，
 没有假定芯片提供可直接读取的 OTP 地址。
 
 Linux 的 `hci_qca.c` / `btqca.c` 在控制器仍使用固件默认地址时，要求引导端提供
@@ -26,7 +26,7 @@ BlueZ 不会提供可用适配器。
 
 [`bluetooth-address.py`](../../../linux/bsp/common/usr/lib/piano/bluetooth-address.py)
 属于通用 BSP，由现有 `piano-radio.service` 的 `radio-start` 在 BlueZ 启动前运行一次。
-它等待实际 Bluetooth MGMT 控制器事件，只处理板载 QCA 控制器。已配置的控制器直接
+它等待 Bluetooth MGMT 控制器事件，只处理板载 QCA 控制器。已配置的控制器直接
 跳过，不重置地址或用户设置。
 
 只有控制器报告缺少公共地址、并支持设置地址时，程序才临时挂载
@@ -48,7 +48,7 @@ Python 和挂载工具依赖由各发行版 BSP 配方声明，蓝牙功能继�
 
 UEFI 的 `PianoEspBootSource` 读取 `EFI/Piano/stable/boot.img`，
 `PianoRawLinuxBoot` 使用其中的 BOOTv2 内嵌 DTB。**只更新 ESP 的 `board.dtb`
-不会改变这条启动路径。** 旧系统没有自动地址程序时，更新内核需保留实际启动文件的
+不会改变这条启动路径。** 旧系统没有自动地址程序时，更新内核需保留启动文件的
 地址属性；当前 BSP 可在启动时自行配置，不再要求安装器修改通用镜像。
 
 电脑安装器和 Android 模块的默认刷写流程已取消强制地址注入，原厂地址文件缺失不会
@@ -70,12 +70,12 @@ UEFI 当前没有用于读取原厂 persist 的 ext4 文件系统链。地址初
 
 ## 当前设备结果
 
-2026-10-10，在 `7.2.9-piano-gnome-gd33a42990baf` 的实际启动文件中移除
+2026-10-10，在 `7.2.9-piano-gnome-gd33a42990baf` 的启动文件中移除
 `local-bd-address` 后正常重启，程序自动从 persist 提交地址，控制器完成初始化，
 BlueZ 状态为 `Powered: yes`。读取完成后 persist 已卸载，无需安装器预配置。
-SoC 派生逻辑也已核对同机输出稳定；本次控制器实际使用的是原厂地址。
+SoC 派生逻辑也已核对同机输出稳定；测试控制器使用的是原厂地址。
 蓝牙手写笔连接、压感绘画和
 轻捏反馈可用，具体输入实现见 [触控笔协议](pen-protocol.md)。
 
-此前替换内核时误用未配置地址的通用 DTB，曾导致适配器消失；现在由启动程序补齐
+之前替换内核时误用未配置地址的通用 DTB，曾导致适配器消失；现在由启动程序补齐
 这一来源，不再把设备专属 DTB 当作功能前提。

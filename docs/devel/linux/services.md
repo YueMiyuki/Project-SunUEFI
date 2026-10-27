@@ -22,15 +22,15 @@
 
 键盘背光使用内核 LED 节点 `nanosic::kbd_backlight`，经 UPower 和桌面电源组件调节。`linux/bsp/common/usr/lib/systemd/system/upower.service.d/20-piano-keyboard.conf` 让 UPower 在键盘初始化后启动；release 适配工具也读取这同一份文件，不另写一套调光服务。
 
-当前相机服务在用户会话开始前创建 V4L2 loopback 节点，并由 `piano-camerad` 发送 systemd 就绪通知。真实相机驱动仍由 `piano-camera.service` 在显示、触屏初始化后加载；应用请求视频时才启动采集。`CAMERA_START=0` 同时禁用这两部分。升级时需要一起更新 unit 和 helper，旧程序不发送就绪通知，不能与新的 `Type=notify` unit 混用。
+当前相机服务在用户会话开始前创建 V4L2 loopback 节点，并由 `piano-camerad` 发送 systemd 就绪通知。相机驱动仍由 `piano-camera.service` 在显示、触屏初始化后加载；应用请求视频时才启动采集。`CAMERA_START=0` 同时禁用这两部分。升级时需要一起更新 unit 和 helper，旧程序不发送就绪通知，不能与新的 `Type=notify` unit 混用。
 
-2026-10-08 的 `g086a94c4529d` 实机已绑定主线接口驱动 `qcom-camss`、后置 `s5kjn1 7-0010`、前置 `ov32d40 5-0010` 和对焦 `dw9768 7-000c`。原厂最终 DT 与现有 [相机 overlay](../../../upstream/debian-piano-current/boot/dtbo-piano-camera.dts) 对应：后置走 CCI0 master1、GPIO115/116、CSIPHY1；前置走 QUP2 SE1 I²C、GPIO4/5、CSIPHY4。内核的 `drivers/media/platform/qcom/camss/` 已包含 SM8750、CSID980 和 TFE Gen4 支持，两个 sensor 位于 `drivers/media/i2c/{s5kjn1,ov32d40}.c`。这不是重新移植缺失驱动的场景；`video40/41` 是 loopback，不能单凭枚举判定有图像。此版本经普通 BOOT 启动后，两路各做了30帧短采集，硬件各输出28帧；真实前后预览已检查，未再出现 CCM `Bad address`。后置等待90帧后画面比初始预览更清晰。长期帧率、同时采集和 GNOME 应用体验仍未验证。
+2026-10-08 的 `g086a94c4529d` 实机已绑定主线接口驱动 `qcom-camss`、后置 `s5kjn1 7-0010`、前置 `ov32d40 5-0010` 和对焦 `dw9768 7-000c`。原厂最终 DT 与现有 [相机 overlay](../../../upstream/debian-piano-current/boot/dtbo-piano-camera.dts) 对应：后置走 CCI0 master1、GPIO115/116、CSIPHY1；前置走 QUP2 SE1 I²C、GPIO4/5、CSIPHY4。内核的 `drivers/media/platform/qcom/camss/` 已包含 SM8750、CSID980 和 TFE Gen4 支持，两个 sensor 位于 `drivers/media/i2c/{s5kjn1,ov32d40}.c`。这不是重新移植缺失驱动的场景；`video40/41` 是 loopback，不能单凭枚举判定有图像。此版本经普通 BOOT 启动后，两路各做了30帧短采集，硬件各输出28帧；前后预览已检查，未再出现 CCM `Bad address`。后置等待90帧后画面比初始预览更清晰。长期帧率、同时采集和 GNOME 应用体验仍未验证。
 
-相机硬件当前只交给 `piano-camerad` 管理；它配置 CSID→TFE PIX、缩放和 NV12，并提供曝光、白平衡、对焦控制。[WirePlumber 配置](../../../linux/bsp/optional/camera/etc/wireplumber/wireplumber.conf.d/50-piano-camera.conf) 因此禁用 `monitor.libcamera` 和直连 CAMSS 节点，应用使用 loopback。标准 [libcamera v0.7.1 simple pipeline](https://gitlab.freedesktop.org/camera/libcamera/-/blob/v0.7.1/src/libcamera/pipeline/simple/simple.cpp) 有通用 CAMSS/software ISP 支持，但尚未接入这里的 TFE 硬件 ISP 路径；不要同时开启两个管理程序争用传感器。若以后改用 libcamera，需要先完成实际 media 路径、硬件控件及图像调校的接入。
+相机硬件当前只交给 `piano-camerad` 管理；它配置 CSID→TFE PIX、缩放和 NV12，并提供曝光、白平衡、对焦控制。[WirePlumber 配置](../../../linux/bsp/optional/camera/etc/wireplumber/wireplumber.conf.d/50-piano-camera.conf) 因此禁用 `monitor.libcamera` 和直连 CAMSS 节点，应用使用 loopback。标准 [libcamera v0.7.1 simple pipeline](https://gitlab.freedesktop.org/camera/libcamera/-/blob/v0.7.1/src/libcamera/pipeline/simple/simple.cpp) 有通用 CAMSS/software ISP 支持，但尚未接入这里的 TFE 硬件 ISP 路径；不要同时开启两个管理程序争用传感器。若以后改用 libcamera，需要先完成 media 路径、硬件控件及图像调校的接入。
 
 相机3A指自动曝光、白平衡和对焦，当前这部分必要算法由 `piano-camerad` 使用内核 sensor/ISP 控件实现。前摄自然光日志中，高亮像素占比在3%..8%间变化；旧 AE 跨过4%时会突然降约19%曝光量，又因平均亮度不足而提高增益。稳定性补丁改为连续高亮响应、每相机统计滤波、约5%亮度误差死区和单次6%变化上限，保留既有曝光/增益分配、白平衡与对焦。用户确认现场是自然光、没有开室内灯，因此没有强制新增50Hz防闪烁参数。
 
-修正后的 ARM64 camerad 已部署。本机前摄的一次900帧采集中，启动3秒后的810帧全画面 YAVG 为76.54..77.76，曝光和两项增益保持2808/15872/6958；程序自身的局部亮度统计为93..95，采样范围不同，不能直接比较这两组亮度的绝对值。采集只保留统计，没有保存相机视频。这确认了该场景下控制循环稳定，尚未测量光照突变和完整模式切换，也不代表完整原厂3A调校。原始统计在本地 `private/analysis/front-ae-stable-20261008/`。
+修正后的 ARM64 camerad 已部署。本机前摄的一次900帧采集中，启动3秒后的810帧全画面 YAVG 为76.54..77.76，曝光和两项增益保持2808/15872/6958；程序自身的局部亮度统计为93..95，采样范围不同，不能直接比较这两组亮度的绝对值。采集只保留统计，没有保存相机视频。这确认了该场景下控制循环稳定，尚未测量光照突变和完整模式切换，也不代表完整原厂3A调校。原始统计在本地 `内部记录目录
 
 ## 两条 rootfs 构建路径
 
@@ -40,6 +40,6 @@
 
 ## 仍需收敛的地方
 
-本地适配仍在构建时用 Python 修改固定上游脚本，完整的派生脚本没有作为源码直接存放在 `linux/`；通用 BSP 与 Debian release 的配置安装入口也尚未完全统一。这两处应逐步合并为同一份运行时补丁及安装来源。迁移时比较实际生成文件，保留当前能运行的服务行为。
+本地适配仍在构建时用 Python 修改固定上游脚本，完整的派生脚本没有作为源码直接存放在 `linux/`；通用 BSP 与 Debian release 的配置安装入口也尚未完全统一。这两处应逐步合并为同一份运行时补丁及安装来源。迁移时比较生成文件，保留当前能运行的服务行为。
 
 旧 `bootprofiles/` 的源码已分别迁入 `uefi/` 和 `linux/`。该目录本地剩余的 `BootShim.bin`、`BootShim.elf` 与 `__pycache__` 是历史编译产物，当前工具使用 `uefi/handoff/bootshim/`，不从旧目录构建。

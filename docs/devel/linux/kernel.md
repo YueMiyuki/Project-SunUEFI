@@ -21,7 +21,7 @@ Linux 基线为上游 `v7.3`，提交
 `upstream/` 中的工作区不被改写。本地与 CI 使用同一入口和配置。
 
 7.3 改动了 DRM 原子提交、显存分配、内存反向映射等内部接口，因此升级
-包含实际的驱动移植。保留旧功能代码并不保证运行行为完全相同，升级后
+包含的驱动移植。保留旧功能代码并不保证运行行为完全相同，升级后
 仍需检查实机显示、输入、无线、音频、相机和电源。更新时必须同时安装
 新内核的模块、`v4l2loopback` 相机模块和 initramfs，不能只替换 `Image`。
 
@@ -46,8 +46,8 @@ Linux 基线为上游 `v7.3`，提交
 不会替换原厂 Hypervisor，也不等于直接提供 KVM。
 驱动编进内核，以保留借出内存时取消内核直接映射的处理。
 
-原厂设备树中的资源句柄只对本次启动有效。UEFI 在早期保留这些数据，
-在 raw 和 EFI 两条 Linux 交接路径中更新目标设备树。没有取得有效数据
+原厂设备树中的资源句柄只对测试启动有效。UEFI 在早期保留这些数据，
+在 raw 和 EFI 两条 Linux 启动交接路径中更新目标设备树。没有取得有效数据
 时只禁用 Gunyah 资源管理器，Linux 仍可正常启动。
 源码位于 `uefi/handoff/early-memory/PianoColdBootObjects.c` 和
 `uefi/core/PianoProductBootObjects.c`。
@@ -66,7 +66,7 @@ Gunyah 虚拟机运行仍需实机验证，不能以设备节点出现代替。
 内存和电源资源保留，只删除主线 PAS 驱动不使用的旧 ICC 属性。
 
 显示和相机的旧 GPIO 稳压器、CCI、调试 UART，以及没有消费者的旧触控供电
-和 USB 空 PHY 节点也不参与探测。实际显示、相机和蓝牙使用各自的主线节点，
+和 USB 空 PHY 节点也不参与探测。显示、相机和蓝牙使用各自的主线节点，
 不再等待 Android 的 `pinctrl@f000000`。主线替代节点必须存在且启用，才停用
 对应的旧显示／相机节点。Demura 的零地址、零长度占位项禁用，有效的内存
 预留保持不变。
@@ -76,9 +76,9 @@ Gunyah 虚拟机运行仍需实机验证，不能以设备节点出现代替。
 位切片，不猜测其正确位宽。这样 SDAM 提供者及同区的 OCP 记录可以正常注册。
 
 原厂在本板同样无法探测的四个可选 PMIC，以及不属于 AP 的两个硬件投票 RSC
-节点，在最终树中禁用；AP 的 `rsc@16500000` 和实际外设供电保持启用。
+节点，在最终树中禁用；AP 的 `rsc@16500000` 和外设供电保持启用。
 `piano-platform.config` 排除 NXP 的 SCMI 扩展，保留 Qualcomm 使用的标准协议。
-USB PHY 通过真实的 USB-C 连接器拓扑接入标准方向和模式切换接口。
+USB PHY 通过的 USB-C 连接器拓扑接入标准方向和模式切换接口。
 
 这套配置已从正常启动的内核日志核对：上述引用、SPMI、SCMI、DRM 桥及 RSC
 报错消失，ADSP、音频、键盘、蓝牙和 USB 调试连接保持工作。
@@ -96,7 +96,7 @@ USB PHY 通过真实的 USB-C 连接器拓扑接入标准方向和模式切换�
 [`piano-usb-typec.dtso`](../../../linux/dts/piano-usb-typec.dtso) 连接 PMIC GLINK、
 QMP PHY 和 DWC3 的标准端点，参照高通上游的
 [`sm8750-qrd.dts`](https://github.com/torvalds/linux/blob/master/arch/arm64/boot/dts/qcom/sm8750-qrd.dts)。
-同机 HyperOS 4 的实际配置和引脚状态确认，GPIO61 是插头方向输入；
+同机 HyperOS 4 的配置和引脚状态确认，GPIO61 是插头方向输入；
 UCSI 读取该信号，通过 Type-C switch 控制 QMP，而不是在设备树中固定方向。
 原厂 DWC3 的速率上限为 SuperSpeed，也就是 5 Gbit/s。
 
@@ -107,7 +107,7 @@ DWC3 使用双角色模式并注册 USB role switch，默认仍为设备模式�
 PMIC GLINK 下同时存在 USB 连接器和手写笔稳压器。内核补丁 0019、0020
 使 GLINK 的模式和 UCSI 驱动只枚举连接器；0021 使 UCSI 核心优先匹配明确的
 `reg` 端口编号，随后才使用旧固件的顺序回退。否则排在前面的稳压器会被当成
-端口，界面虽然能报告方向，实际却没有取得 PHY 的方向开关。
+端口，界面虽然能报告方向，却没有取得 PHY 的方向开关。
 0022 补齐已在开机前连接的 USB 伙伴所需的初始 USB 模式设置，
 使其与热插拔路径一致；模式设置先于方向和角色通知。
 
@@ -127,23 +127,23 @@ MCQ 配置、厂商状态和队列门铃分别从 `0x1da0000`、`0x1da4000`、
 ITS 的 UFS 设备编号沿用原厂的 `0x60`，DMA 仍使用既有 SMMU 路由。
 
 2026-10-22 正常重启后，驱动启用 8 个 I/O 队列、1 个轮询队列，
-队列深度为 64；8 路 ESI 中断均有实际完成记录，SteamOS 从内部存储启动。
-这解决了此前缺少 MCQ 资源而退回普通队列的问题。启动时写
+队列深度为 64；8 路 ESI 中断均有完成记录，SteamOS 从内部存储启动。
+这解决了之前缺少 MCQ 资源而退回普通队列的问题。启动时写
 `wExceptionEventControl` 仍被设备拒绝，属于另一项待处理的属性兼容问题。
 
 ## CDSP
 
 [`piano-dsp-resources.dtso`](../../../linux/dts/piano-dsp-resources.dtso) 使用主线
 NSP NoC 绑定、两单元 interconnect 参数和 AP 的 BCM voter，将 CDSP 到内存的
-带宽路径交给 `qcom_q6v5`。驱动在启动签名固件前申请带宽，交接完成后释放；
+带宽路径交给 `qcom_q6v5`。驱动在启动签名固件前申请带宽，启动交接完成后释放；
 不再依赖 Android 留下的总线状态。打包器保留这条已转换的路径。
 
 [`piano-cdsp-fastrpc.dtso`](../../../linux/dts/piano-cdsp-fastrpc.dtso) 将原厂的
-11 个非安全计算会话连接到 Linux 管理的 apps SMMU，保留每个会话实际的
+11 个非安全计算会话连接到 Linux 管理的 apps SMMU，保留每个会话的
 stream ID 和 mask。原厂安全会话 9 不作为普通 Linux 计算会话使用。
 正常 DMA 映射由内核完成，没有在用户空间写 SMMU 寄存器。
 
-2026-10-22 正常重启后，CDSP 收到真实 ready／handover 中断并进入 running，
+2026-10-22 正常重启后，CDSP 收到 ready／handover 中断并进入 running，
 11 个计算会话均使用 DMA domain。`cdsprpcd` 已打开 DSP 端的
 `adsp_default_listener`，无需重启服务，之前连续出现的能力查询错误消失。
 这证明固件启动和 RPC 基础通信可用；具体神经网络、视觉及计算库仍需

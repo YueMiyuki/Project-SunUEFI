@@ -36,14 +36,14 @@ RTC 节点和 `rtc_pm8xxx` 模块存在，但初始没有加载。手动加载�
 再用 Mutter 的 `PowerSaveMode` 关闭和开启显示。
 logind 报告 `LockedHint=yes`，但物理屏幕仍黑：打开显示链路
 没有唤醒 GNOME 屏保。当前助手独占读取电源键，Mutter 收不到
-对应的真实用户活动。
+对应的用户活动。
 
 `org.gnome.Mutter.IdleMonitor.ResetIdletime` 虽然能在 introspection
-中看到，实际仅允许设置调试环境变量后调用，不能作为产品方案。
+中看到，仅允许设置调试环境变量后调用，不能作为产品方案。
 `ScreenSaver.SetActive(false)` 则会退出屏保和锁定状态，不能用于
 正常唤醒，不能让物理按键跳过密码认证。
 
 GNOME 标准实现通过 ScreenShield 的 `WakeUpScreen` 通知电源组件
-临时退出空闲状态。后续应从真实输入事件进入这条路径，同时保留
+临时退出空闲状态。后续应从输入事件进入这条路径，同时保留
 长按关机菜单和开盖唤醒。实验运行配置已撤回，合盖和短按电源恢复
 原有的背光控制，没有部署调试环境变量、虚拟输入或自动解锁。

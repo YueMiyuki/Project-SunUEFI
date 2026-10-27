@@ -54,7 +54,7 @@ Steam 的系统更新入口使用 pacman 软件包更新，与 KDE Discover 共�
 `config/steamos.json` 固定 Valve 镜像、casync 数据源、完整镜像 SHA256 和提取器提交。`config/steam-client.json` 固定公开 ARM64 handheld 客户端各个包的地址、大小和 SHA256。`config/steam-runtime.json` 固定完整 ARM64 Proton 与 Steam Linux Runtime。构建不会读取电脑或平板上已登录的 Steam 目录。
 
 镜像默认以源码提交时间统一文件时间；显式使用 `SOURCE_DATE_EPOCH=0`
-时以一秒代替零。Qt 6.11 将精确为零的文件时间视为无效，SDDM 因而
+时以一秒代替零。Qt 6.11 将为零的文件时间视为无效，SDDM 因而
 跳过全部登录配置，退回无法驱动本机显示的默认 Xorg 路径。有效时间戳
 使原有 Wayland 和自动登录配置在首次启动时直接生效。
 
@@ -76,7 +76,7 @@ ARM64 包构建和包管理命令使用独立的进程命名空间；命令退�
 
 原设备的 `steamos-dump-info.service` 同样停用。它会把头显 EEPROM、电池、
 A/B 槽位和 U-Boot 环境查询结果写入内核日志，在平板上产生“没有电池”
-和“分区不存在”等误导信息。平板的实际电池由标准 `power_supply` 和 UPower
+和“分区不存在”等误导信息。平板的电池由标准 `power_supply` 和 UPower
 报告，启动使用 SunUEFI 的 ESP 与独立 root 分区。
 
 `/etc/piano/linux-debug.conf` 中的 `usb=acm-ncm` 同时提供 USB 网络和
@@ -103,7 +103,7 @@ Nyarch 相同的芯片识别补丁，保留标准 Mesa 路径和 Valve 的软件
 这些结果不能替代硬件视频解码或游戏兼容性验证。
 
 Gamescope 使用参考项目的移动设备适配，并增加分离 DRM 节点的处理：
-GPU 节点负责渲染，实际支持 KMS 的 DPU 节点负责输出。游戏模式分辨率为
+GPU 节点负责渲染，支持 KMS 的 DPU 节点负责输出。游戏模式分辨率为
 3200×2136，菜单按会话配置保持 120 Hz，不再自动切到面板最高的 144 Hz。会话使用
 `gamescope-session.service`，供 SteamOS Manager 识别游戏模式和切换桌面。
 登录后菜单与游戏模式、KDE 桌面的来回切换均可用。Milthm 已通过
@@ -149,7 +149,7 @@ Gamescope 的指针适配保留 libinput 的加速位移，同时向游戏提供
 的 4 秒采集中显示了 477 帧，主要间隔为 8.33 毫秒。该结果针对光标更新，
 不代表所有游戏均能达到 120 帧。
 
-FFmpeg 的 H.264 8-bit 测试已实际调用 Iris，解码 720p 的 60 帧并正常退出。
+FFmpeg 的 H.264 8-bit 测试已调用 Iris，解码 720p 的 60 帧并正常退出。
 HEVC Main10 已修复 P010 格式映射，720p 的 60 帧解码无错误，首帧与软件
 解码逐字节一致。这验证了十位视频解码，不代表 HDR 显示链路已经完成。
 
@@ -161,7 +161,7 @@ Nyarch 的 FFmpeg 使用其当前软件包对应的适配和 ABI，不能直接�
 [Steam Deck 3.9.3 官方包清单](https://steamdeck-images.steamos.cloud/steamdeck/20261015.100/steamdeck-20261015.100-3.9.3.manifest.pacman)，
 补充 Bluetooth、NetworkManager 的 KDE 界面、显示设置和系统信息。
 当前底包为 Valve ARM64 0.6.0，构建时先通过 Valve 公开滚动软件源完整升级。
-`[core]` 和 `[extra]` 实际来自
+`[core]` 和 `[extra]` 来自
 `holo-packages.steamos.cloud/archlinux-deckard/archlinux/main`，不是 Arch Linux ARM
 软件源；`nyarch-gnome` 才使用 Arch Linux ARM 作为基础。公开滚动源也不同于
 底包原先固定到某次构建的快照源，不能假定其中所有包已按同一版库重编。
@@ -175,7 +175,7 @@ pacman 包；`kscreen` 另有构建顺序补丁。缓存同时核对配方、补
 和输出包摘要；恢复构建时也会重新安装缓存包，避免被前面的基础升级替换。
 
 实机更新后，`kscreen-doctor` 正常识别内屏，标准亮度接口设置 50% 后背光
-请求值与实际值均为 `1024/2047`。电源管理页面可以重复打开，截图显示正常
+请求值与值均为 `1024/2047`。电源管理页面可以重复打开，截图显示正常
 的睡眠选项和 2 分钟熄屏／接电 10 分钟挂起。调试期间的 sleep inhibitor
 会让新版 logind 返回 `inhibited`，KDE 据此暂时隐藏睡眠；停止临时限制后
 能力查询恢复为 `yes`，无需更改桌面配置或伪造硬件能力。
@@ -204,7 +204,7 @@ ARM64 Steam 客户端当前把 CPU 名称报告为 `Unknown`，频率取 CPU0 �
 避免首次启动仅因清单缺失而重下整套客户端。在线更新与登录仍由 Steam 负责。
 启动器同时建立 `sdkarm64` 链接并保持有效的日志输出，避免游戏因找不到
 `steam-launch-wrapper` 或向运行容器传递无效标准输出而退出。Gamescope
-默认传递真实触摸事件，允许游戏接收多指输入，实际玩法仍取决于游戏支持。
+默认传递触摸事件，允许游戏接收多指输入，玩法仍取决于游戏支持。
 
 SteamOS Manager 使用 Valve 26.4.1 源码，补丁位于
 `patches/steamos-manager/`：缺少 tracefs 时停用内核诊断采集，继续提供
@@ -219,7 +219,7 @@ Steam 自动亮度尚未接通：传感器通过 SensorProxy 提供照度，而�
 
 KDE 会话明确选择 DRM 后端，避免合成器重启时继承旧显示变量而误选嵌套
 后端。KWin 使用 Adreno 的 OpenGL ES 3.2 硬件合成；不启用 Qt Quick
-软件后端，不改变游戏的 OpenGL/Vulkan 能力。此前桌面 OpenGL 路径在
+软件后端，不改变游戏的 OpenGL/Vulkan 能力。之前桌面 OpenGL 路径在
 贴边预览创建内部 Qt 窗口时触发 QRhi 上下文失败，导致合成器退出。
 
 默认安装标准 `power-profiles-daemon`，供 KDE 显示电源方案。当前设备
@@ -229,11 +229,11 @@ KDE 会话明确选择 DRM 后端，避免合成器重启时继承旧显示变�
 2026-10-21 实机记录：清理原设备服务后，Linux 7.3 的内核和系统服务启动
 约 18 秒，不含 UEFI；Steam 登录界面已显示。完整游戏模式、模式切换、
 硬件视频解码与 7.3 的 ADSP 稳定性仍在调试。对照同一 SteamOS 根系统，
-7.2.9 的 ADSP 和传感器正常，7.3 存在 DSP 崩溃，尚未发布本轮升级。
+7.2.9 的 ADSP 和传感器正常，7.3 存在 DSP 崩溃，尚未发布升级。
 
 进一步对照已确认：7.3 关闭 BORE、Gunyah、MGLRU 和动态抢占后仍会崩溃；
 同时替换旧版 PAS 与 FastRPC 驱动也不能解决。停用传感器时音频可以单独
-运行，重新启动传感器服务后复现 ADSP watchdog。保留固件内存映射的候选
+运行，重新启动传感器服务后复现 ADSP watchdog。保留固件内存映射的草案
 补丁无效，已移出默认构建。7.2.9 作为运行对照，继续保留新版 SteamOS 会话修正。
 
 后续将 SCM/PAS 固件接口、MDT 加载器及其调用者整体回退到 7.2.9，
@@ -254,7 +254,7 @@ DSP 退出时唤醒轮询调用，并等待活动调用结束后再拆除 DMA �
 保持这两路投票时，录音结束和设备空闲均正常。`0013` 仅为 SM8750 保留
 `LPASS_HW_MACRO_VOTE`、`LPASS_HW_DCODEC_VOTE` 的注册期引用，采样时钟仍由
 runtime PM 管理，探测失败和移除时归还引用。其他型号保持原来的行为。
-这修正了本轮已复现的触发条件，不代表长期稳定性或待机功耗已经测完。
+这修正了已复现的触发条件，不代表长期稳定性或待机功耗已经测完。
 
 正常 PipeWire／WirePlumber 下，电脑与平板已完成双向测试音播放和录音；
 测试后 ADSP 保持运行，没有禁止音频服务启动的诊断配置。四路功放为原厂

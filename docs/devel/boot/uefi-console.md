@@ -36,12 +36,12 @@ SimpleInit/LVGL 处理，物理显示模式保持原样；实机已确认横屏�
 
 标准 UEFI 启动管理器读取 `Boot####` 和 `BootOrder`。ESP 中的 `boot.img`
 是 Android 格式的 Linux 启动包，不能直接当作 EFI 应用交给标准启动管理器。
-产品现在先查找真实 ESP 和启动文件，再登记一个指向固件内
+产品现在先查找 ESP 和启动文件，再登记一个指向固件内
 `PianoLinuxBoot.efi` 的 Linux 启动项。该应用向驻留核心请求启动，
-随后复用同一套文件加载、安全退出和内核交接流程。
+随后复用同一套文件加载、安全退出和内核启动交接流程。
 
 入口在启动时发现并登记，普通非易失变量通过下文的文件后端保存。
-标准 EFI／UKI 系统交接还需要完整 EFI 内存描述，不能把 Android 格式的
+标准 EFI／UKI 系统启动交接还需要完整 EFI 内存描述，不能把 Android 格式的
 启动包改名为 `.efi` 使用。
 
 ## 内置菜单与自动保存
@@ -78,15 +78,15 @@ persist/sunuefi/
 变量文件包含普通非易失变量的名字、GUID、属性和数据。写入使用递增序号、
 CRC32 和两个交替副本；刷新后独立读回比较，再使用新的序号。启动时选择
 完整且序号最大的副本，通过标准 `SetVariable()` 恢复，不替换已经初始化
-的变量缓存。系统交接前完成保存并禁止新的非易失变量修改。退出 Boot
+的变量缓存。系统启动交接前完成保存并禁止新的非易失变量修改。退出 Boot
 Services 后不再访问 UFS，NV 写入返回不支持；带认证属性的 Secure Boot
 变量不通过这个普通文件后端持久化。
 
 ext4 驱动使用固定 lwext4 源码提供标准 SimpleFileSystem，只允许
 `persist/sunuefi/` 中的文件写入，其他路径只读。父磁盘仍由
-`PianoReadOnlyBlock` 保持代码级只读，私有写入只接受实际 GPT 分区范围。
+`PianoReadOnlyBlock` 保持代码级只读，私有写入只接受 GPT 分区范围。
 文件系统先停止日志、卸载并同步，再停止 USB、UFS、SMMU 和时钟。
-存在未关闭文件或无法确认 DMA 已停止时拒绝系统交接，不强行释放。
+存在未关闭文件或无法确认 DMA 已停止时拒绝系统启动交接，不强行释放。
 
 lwext4 的固定来源在 [`config/uefi-ext4.json`](../../../config/uefi-ext4.json)，
 不编译分区或格式化工具。完整原始 `persist` 备份在
@@ -118,7 +118,7 @@ EDL 未在设备上执行。
 
 USB 初始化与 Linux 加载结果会保存在固件内存中，并在菜单运行时每五秒输出摘要，
 避免早期日志被 UFS 文件读取记录覆盖。摘要只重发已保存的状态，不重新访问 USB
-寄存器。读取失败时可区分 ESP 文件读取、镜像解析和后续交接阶段。
+寄存器。读取失败时可区分 ESP 文件读取、镜像解析和后续启动交接阶段。
 
 ## 中文默认语言与 FAT 挂载
 
@@ -133,11 +133,11 @@ FAT 驱动返回 Unsupported，不发布 SimpleFileSystem。
 
 ## USB 复位与供电
 
-此前正常 BOOT 进入 UEFI 时，ABL 已关闭 PHY，DWC31 2.00a 的 `DCTL.CSFTRST` 持续置位，200 ms 后超时；只开控制器时钟或清除 SUSPHY／ENBLSLPM 不能恢复。
+之前正常 BOOT 进入 UEFI 时，ABL 已关闭 PHY，DWC31 2.00a 的 `DCTL.CSFTRST` 持续置位，200 ms 后超时；只开控制器时钟或清除 SUSPHY／ENBLSLPM 不能恢复。
 
-`PianoUsbPhy.c` 按同机 `mu_wide_platforms` 的 UsbConfigDxe 和原厂 XBL 表初始化 M31／QMP PHY，并通过原厂 RPMh 协议申请 `ldod2`、`ldog3`、`ldof1`、`ldob5`、`ldob15` 供电。中继器原先虽有使能位，但 `FD08=00`，缺少实际供电；补齐后正常 BOOT 可枚举，`CSFTRST` 在 20 ms 内完成。
+`PianoUsbPhy.c` 按同机 `mu_wide_platforms` 的 UsbConfigDxe 和原厂 XBL 表初始化 M31／QMP PHY，并通过原厂 RPMh 协议申请 `ldod2`、`ldog3`、`ldof1`、`ldob5`、`ldob15` 供电。中继器原先虽有使能位，但 `FD08=00`，缺少供电；补齐后正常 BOOT 可枚举，`CSFTRST` 在 20 ms 内完成。
 
-PHY 是 8 位寄存器，32 位读取会复制字节，例如写入 `1` 返回 `0x01010101`。退出时按有效位校验，不能把这种正常读回误报为失败。设备核心先停止 DMA、释放缓冲并撤销 SMMU，再停 PHY、恢复 RPMh 原投票和归还时钟；任何一步无法确认完成仍拒绝交接。
+PHY 是 8 位寄存器，32 位读取会复制字节，例如写入 `1` 返回 `0x01010101`。退出时按有效位校验，不能把这种正常读回误报为失败。设备核心先停止 DMA、释放缓冲并撤销 SMMU，再停 PHY、恢复 RPMh 原投票和归还时钟；任何一步无法确认完成仍拒绝启动交接。
 
 合体 BOOT 已完成身份、日志、3200×2136 截图读取和 Fastboot 普通重启，
 重启后重新枚举并启动原有 Linux。Linux 保留日志记录 PHY 停止、15 项供电

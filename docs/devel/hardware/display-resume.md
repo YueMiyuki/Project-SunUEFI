@@ -12,12 +12,12 @@ Piano 使用两路 DSI 驱动同一块面板，默认 120 Hz。30／48／50／60
 
 ## 关闭和恢复显示
 
-以下修正共同处理此前的黑屏、灰屏和关闭时彩色残影：
+以下修正共同处理之前的黑屏、灰屏和关闭时彩色残影：
 
 | 补丁 | 作用 |
 | --- | --- |
 | `0024-dsi-pll-defer-unprogrammed-clock.patch` | 避免注册时钟提供者时提前启动未配置的 PLL |
-| `0025-dsi-sm8750-restore-bonded-slave.patch` | 保存并恢复主、从两路 PHY 的实际分频状态 |
+| `0025-dsi-sm8750-restore-bonded-slave.patch` | 保存并恢复主、从两路 PHY 的分频状态 |
 | `0026-dpu-video-stop-order.patch` | 在停止视频时序前清理 DPU 流水线，使清理能在帧边界完成 |
 | `0034-dsi-phy-runtime-interface-clock.patch` | 通过 runtime PM 管理 PHY 接口时钟 |
 | `0036-backlight-ktz8866-wait-disable-ramp.patch` | 等待两颗背光芯片渐灭完成，再关闭面板和视频链路 |
@@ -29,6 +29,6 @@ PLL 注册、DPU 停止顺序和 PHY 接口时钟补丁分别参考 Junhao Xie �
 
 ## 144 Hz 与时序差异
 
-90／144 Hz 与 120 Hz 的水平时序不同，不能直接套用上述 VFP 更新。此前的花屏和笔输入问题已解决；原厂命令顺序、双路状态恢复与触控扫描协调保留。历史故障用于解释实现，不再列为当前使用限制。
+90／144 Hz 与 120 Hz 的水平时序不同，不能直接套用上述 VFP 更新。之前的花屏和笔输入问题已解决；原厂命令顺序、双路状态恢复与触控扫描协调保留。历史故障用于解释实现，不再列为当前使用限制。
 
 原厂切换流程见[原厂刷新率分析](oem-refresh.md)；显示位深、HDR 和 FRC 的边界见[色彩处理](display-depth.md)。

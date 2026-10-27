@@ -14,7 +14,7 @@ SunUEFI 引导助手在 Android 中安装和维护合体 BOOT，提供 Android�
 
 新合体 BOOT 在开机时显示 Android／UEFI 选择页，倒计时约三秒后沿用保存的路线。音量上选择 Android，音量下选择 UEFI 并直接启动 Linux，短按并松开电源键确认；这次临时选择不改变模块中保存的路线。画面、音量键的选中反馈、默认 Android 启动，以及临时选择 UEFI 后从 ESP 启动 Linux 均已在设备上使用。原厂 `reboot recovery` 的优先规则保留，固件设置的独立入口尚未开放。
 
-存储页显示独立存储分区的容量，并通过 Android 的本地文件选择器选择 ESP／root 镜像，不要求把文件放进固定目录。0.5.2 起同时接受原始镜像与 Android 稀疏镜像，按展开后的大小检查容量，流式写入并读回校验。分区的实际名称仍为 `sunuefi_esp` 和 `sunuefi_root`。页面提供镜像安装、创建分区、调整 root 容量和删除并归还 Android 空间的操作入口；执行前展示计划。新模块中的这些写入流程尚未完成实机验证，不能作为新设备的一键首次分区方案。删除后需正常重启，由原厂系统扩大 Android 文件系统，模块再检查实际容量；具体机制见 [Android 存储扩容](android-storage.md)。
+存储页显示独立存储分区的容量，并通过 Android 的本地文件选择器选择 ESP／root 镜像，不要求把文件放进固定目录。0.5.2 起同时接受原始镜像与 Android 稀疏镜像，按展开后的大小检查容量，流式写入并读回校验。分区的名称仍为 `sunuefi_esp` 和 `sunuefi_root`。页面提供镜像安装、创建分区、调整 root 容量和删除并归还 Android 空间的操作入口；执行前展示计划。新模块中的这些写入流程尚未完成实机验证，不能作为新设备的一键首次分区方案。删除后需正常重启，由原厂系统扩大 Android 文件系统，模块再检查容量；具体机制见 [Android 存储扩容](android-storage.md)。
 
 页面支持中文和英文。打开页面只读取轻量状态，通常约 0.2 秒；维护页的 **检查引导** 才进行完整的只读 BOOT 检查，当前设备约两秒。管理器的 **执行** 按钮只显示当前选择和使用提示，不重启，也不输出原生工具的 JSON。
 
@@ -35,13 +35,13 @@ SukiSU 安装、模块激活和 WebUI 状态读取已在设备上使用。Kernel
 
 当前支持 Android Boot Header v4 和项目使用的未压缩 ARM64 GKI 布局。Header v3、压缩内核及未知包装不在支持范围内。旧合体 BOOT 使用 `SPLITv1+RSTRv1` 保存原镜像重建信息；更新核心时重新计算启动记录的 generation 和 CRC，保留记录中的目标。
 
-引导写入前核对当前活动槽、ROM、BOOT 实际内容及源镜像摘要，写入后同步并完整读回。引导操作不写 Recovery、vbmeta、GPT 或 userdata；存储操作由独立工具负责，只在确认具体计划后调整对应文件系统和分区表。旧核心升级已用真实 96 MiB BOOT 文件验证原镜像重建完全一致；这一结果不代表已经完成所有 HyperOS OTA 场景的实机验证。
+引导写入前核对当前活动槽、ROM、BOOT 内容及源镜像摘要，写入后同步并完整读回。引导操作不写 Recovery、vbmeta、GPT 或 userdata；存储操作由独立工具负责，只在确认具体计划后调整对应文件系统和分区表。旧核心升级已用 96 MiB BOOT 文件验证原镜像重建完全一致；这一结果不代表已经完成所有 HyperOS OTA 场景的实机验证。
 
-只有将原厂 BOOT 安装为合体 BOOT 的 `repack` 路径检查 BL 属性；属性未报告解锁时，按[安装指南中的实体音量键提示](../../user/install-from-artifact.md#1-安装引导助手)确认。`piano-boot-repack confirm-bootloader` 只从平台设备下的 `gpio-keys`／`pmic_resin` 读取三次完整按下和松开，临时独占按键，忽略长按重复和预先按住的键。确认通过后，Shell 只向本次安装的子进程传递 `PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER=1`，公共入口会清除外部继承值，不保存永久设置。原生 `repack` 写入前再次检查属性或本次确认，型号、活动槽、源摘要、格式、范围、同步及读回检查不变。已有合体 BOOT 的请求更新、核心升级和原样还原仍完整验证当前包装，不再检查 BL 属性；独立存储不在 AVB 校验范围内，也不增加 BL 检查。
+只有将原厂 BOOT 安装为合体 BOOT 的 `repack` 路径检查 BL 属性；属性未报告解锁时，按[安装指南中的实体音量键提示](../../user/install-from-artifact.md#1-安装引导助手)确认。`piano-boot-repack confirm-bootloader` 只从平台设备下的 `gpio-keys`／`pmic_resin` 读取三次完整按下和松开，临时独占按键，忽略长按重复和预先按住的键。确认通过后，Shell 只向本次测试安装的子进程传递 `PIANO_CONFIRMED_UNVERIFIED_BOOTLOADER=1`，公共入口会清除外部继承值，不保存永久设置。原生 `repack` 写入前再次检查属性或本次测试确认，型号、活动槽、源摘要、格式、范围、同步及读回检查不变。已有合体 BOOT 的请求更新、核心升级和原样还原仍完整验证当前包装，不再检查 BL 属性；独立存储不在 AVB 校验范围内，也不增加 BL 检查。
 
 源码位于 `android/module/`，引导原生工具位于 `android/native/`，在线 F2FS 调整工具位于 `tools/android/`。`manager.sh` 连接 WebUI 与原生工具：轻量读取使用 `piano-boot-request`；完整检查、识别已有引导、更新、重新打包和改选使用 `piano-boot-repack`。
 
-助手不再向 ESP 写入槽位配置。Linux 切换工具直接读取高通 GPT 的 A/B 属性，校验实际活动 BOOT，再更新其中的 SunUEFI 请求页；不依赖 Android 与 ESP 同步额外文件。
+助手不再向 ESP 写入槽位配置。Linux 切换工具直接读取高通 GPT 的 A/B 属性，校验活动 BOOT，再更新其中的 SunUEFI 请求页；不依赖 Android 与 ESP 同步额外文件。
 
 ## 构建
 

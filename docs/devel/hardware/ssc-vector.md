@@ -2,11 +2,11 @@
 
 这份扩展准备在正常libssc中提供额外传感器事件，复用已有SUID发现、QMI传输及open/close流程。[源码补丁](../../../patches/libssc/0002-raw-vector-reports.patch)应用在libssc0.4.4及property-types修正之后；[最小客户端](../../../linux/userspace/piano-ssc-vector.c)只用公开libssc API。没有新增传感器daemon、IIO假设备或桌面策略。
 
-默认发布配置已通过 `patches/piano-sensors/0003-libssc-raw-vector-reports.patch` 接入向量扩展和客户端，标准 ARM64 库、CLI、开发包及 GIR 使用 `+sunuefi2`。客户端的 Debian 依赖要求同版本或更新的库，避免链接旧版本缺少的公开符号。完整六包已通过真实 rootfs 消费函数；平板已安装新库和 CLI，三个通道的限时订阅均正常关闭。下一份 root 镜像尚未生成，不能把运行中的软件包升级视为新镜像已部署。
+默认发布配置已通过 `patches/piano-sensors/0003-libssc-raw-vector-reports.patch` 接入向量扩展和客户端，标准 ARM64 库、CLI、开发包及 GIR 使用 `+sunuefi2`。客户端的 Debian 依赖要求同版本或更新的库，避免链接旧版本缺少的公开符号。完整六包已通过 rootfs 消费函数；平板已安装新库和 CLI，三个通道的限时订阅均正常关闭。下一份 root 镜像尚未生成，不能把运行中的软件包升级视为新镜像已部署。
 
 ## 应用接口
 
-现有`SSCSensor`新增`raw-report(sensor, guint message_id, GBytes *payload)`信号。只转发与该对象实际SUID匹配的报告，仅有未阻塞订阅者时才复制客户端即将释放的GArray。GBytes保持原始不可变protobuf载荷；回调内借用，需要延长使用就调用`g_bytes_ref()`。信号同步运行在现有SSC客户端的report dispatch context，GUI应用需要按自身主循环要求转交处理。原有强类型measurement信号和采样策略不变。
+现有`SSCSensor`新增`raw-report(sensor, guint message_id, GBytes *payload)`信号。只转发与该对象SUID匹配的报告，仅有未阻塞订阅者时才复制客户端即将释放的GArray。GBytes保持原始不可变protobuf载荷；回调内借用，需要延长使用就调用`g_bytes_ref()`。信号同步运行在现有SSC客户端的report dispatch context，GUI应用需要按自身主循环要求转交处理。原有强类型measurement信号和采样策略不变。
 
 公开函数`ssc_sensor_decode_vector_report(message_id, payload, &error)`返回`GVariant a{sv}`，调用方拥有返回引用。它只解释已核字段的wire类型，保留全部分量，不套用光线接口的“只取第0分量”规则：
 
@@ -34,7 +34,7 @@ cc -O2 -Wall -Wextra linux/userspace/piano-ssc-vector.c \
 ./piano-ssc-vector --decode 1025 --payload-hex 0a04000000001003
 ```
 
-准确data type来自实际SUID发现，限时真实订阅使用：
+准确data type来自SUID发现，限时订阅使用：
 
 ```sh
 ./piano-ssc-vector --sensor cct_front --seconds 3
@@ -42,14 +42,14 @@ cc -O2 -Wall -Wextra linux/userspace/piano-ssc-vector.c \
 ./piano-ssc-vector --sensor flicker --seconds 3
 ```
 
-客户端输出原始message ID、解出的GVariant字段和完整payload hex；配置等未知事件保持原始输出并注明不能解码。Ctrl-C或期限到达走现有close API，只有收到真实close完成回复才输出`closed=true`。发现/open超时先取消并保留最多5秒等待回调；停止后晚到的发现结果不会启动open，而是立即正常close。发现未返回或close仍超时会明确报错，不宣称已正常关闭。它是短时应用，不作为自启动服务。
+客户端输出原始message ID、解出的GVariant字段和完整payload hex；配置等未知事件保持原始输出并注明不能解码。Ctrl-C或期限到达走现有close API，只有收到close完成回复才输出`closed=true`。发现/open超时先取消并保留最多5秒等待回调；停止后晚到的发现结果不会启动open，而是立即正常close。发现未返回或close仍超时会明确报错，不宣称已正常关闭。它是短时应用，不作为自启动服务。
 
-## 本次依据与范围
+## 测试依据与范围
 
-源版本来自固定Debian`libssc_0.4.4-2.dsc`和原始tarball：DSC SHA256为`3f79e8cad936a647f2c7773c5fb2fa4fdd3a96d893f70279aa3e7a9b55023fef`，orig tar为`716d6bd6b34d2d753060c6b54c9a87e34fae75b724c763bf9ef487efa3621587`。DSC所列上游为[Codeberg libssc](https://codeberg.org/DylanVanAssche/libssc)。本机实际原厂`sensors.qsh.so`、`libsnsapi.so`和a8 SSC捕获用于限定数据类型与wire布局，原厂ELF没有在Linux执行。
+源版本来自固定Debian`libssc_0.4.4-2.dsc`和原始tarball：DSC SHA256为`3f79e8cad936a647f2c7773c5fb2fa4fdd3a96d893f70279aa3e7a9b55023fef`，orig tar为`716d6bd6b34d2d753060c6b54c9a87e34fae75b724c763bf9ef487efa3621587`。DSC所列上游为[Codeberg libssc](https://codeberg.org/DylanVanAssche/libssc)。本机原厂`sensors.qsh.so`、`libsnsapi.so`和a8 SSC捕获用于限定数据类型与wire布局，原厂ELF没有在Linux执行。
 
-本机`a8-ssc-vendor-payloads.jsonl`中的33条支持布局已由实际新共享库、protobuf-c和客户端离线解码：cct_front1条1025返回`[0]`、accuracy3；后置光线1条1025返回`[0,2,0,50,1024,1024]`、accuracy3；flicker31条包含769和1025。769的field1实际为493，message ID仍是769。这里只确认字段和值，不为分量补物理含义。缺accuracy、截断、packed float长度3字节和未知768的最小错误检查均明确拒绝。
+本机`a8-ssc-vendor-payloads.jsonl`中的33条支持布局已由新共享库、protobuf-c和客户端离线解码：cct_front1条1025返回`[0]`、accuracy3；后置光线1条1025返回`[0,2,0,50,1024,1024]`、accuracy3；flicker31条包含769和1025。769的field1为493，message ID仍是769。这里只确认字段和值，不为分量补物理含义。缺accuracy、截断、packed float长度3字节和未知768的最小错误检查均明确拒绝。
 
-随后标准 Debian/Meson 包构建完成，目标 GIR 同时包含正确属性类型、raw-report 和 decoder。平板实际运行新客户端：后置光线1025返回六值 `[7.8125,1658,60,50,1024,1024]`、accuracy3；前置色温返回 `[0]`；防闪烁收到769，field1仍为493。三个客户端均收到真实close完成回复，SensorProxy仍active，原有陀螺仪继续返回数据。这证明新接口实机交付和关闭流程，不确定全部物理单位，也不表示桌面策略已经完成。
+随后标准 Debian/Meson 包构建完成，目标 GIR 同时包含正确属性类型、raw-report 和 decoder。平板运行新客户端：后置光线1025返回六值 `[7.8125,1658,60,50,1024,1024]`、accuracy3；前置色温返回 `[0]`；防闪烁收到769，field1仍为493。三个客户端均收到close完成回复，SensorProxy仍active，原有陀螺仪继续返回数据。这证明新接口实机交付和关闭流程，不确定全部物理单位，也不表示桌面策略已经完成。
 
-离线结果与source/ELF/capture哈希记录在`private/analysis/piano-ssc-vector-20261008/`；实机结果在`private/provisioning/recovery-priority-20261008/libssc-vector-live-{upgrade,channels}.txt`。不随公共镜像分发捕获数据。
+离线结果与source/ELF/capture哈希记录在`内部记录目录
