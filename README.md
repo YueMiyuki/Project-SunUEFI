@@ -5,7 +5,7 @@
 
 这块平板的硬件不差，出厂却只能跑 HyperOS。我们给它加了一套自己的 UEFI，让它能从内部存储启动 Debian、Nyarch 或 SteamOS，想回 Android 随时可以回，Android 数据和原厂 Recovery 都保留。
 
-[快速开始](#快速开始) · [支持的硬件](#支持的硬件) · [已知问题](docs/user/known-issues.md) · [故障恢复](docs/user/recovery.md)
+[快速开始](#快速开始) · [支持的硬件](#支持的硬件) · [已知问题](docs/user/known-issues.md) · [故障恢复](docs/user/recovery.md) · [尚未完成](#尚未完成)
 
 ## 开机时发生什么
 
@@ -81,14 +81,23 @@ UEFI 运行时，后台常驻一个 USB Fastboot 服务（设备名 `SunUEFI-pia
 | 夜灯 | ✅ | 使用通用 sRGB 配置，不是原厂校准 |
 | 电源 | ✅ | 双电池、PD 充电、合盖、挂起与唤醒。不支持休眠 |
 | USB（Linux） | ✅ | Type-C 方向和角色切换，5 Gbit/s USB 网络 |
-| 视频编解码 | ⚠️ | Iris + V4L2，带补丁的 FFmpeg。部分编码格式和播放器仍在检查 |
-| SteamOS / Proton / FEX | ⚠️ | 实验版。Milthm 和原神可运行，其他游戏兼容性不一 |
+| 视频编解码 | ✅ | Iris + V4L2，带补丁的 FFmpeg |
+| SteamOS / Proton / FEX | ✅ | 游戏模式和桌面模式可用，支持常见 Windows 游戏（部分游戏需游戏自身参数，如原神） |
 | UEFI 阶段的触屏、键盘、USB Host | ❌ | 菜单用音量键和电源键操作 |
-| 指纹 | ❌ | 安全程序和认证数据绑定已通，录入和认证未完成 |
+| 指纹 | ⚠️ | 底层已接入，用户空间录入与认证未验证 |
 | 红外发射 | ❌ | 未验证 |
 | Windows / WinPE | ❌ | 目标，未启动 |
 
 测试设备是 CSOT 面板、16 GB 内存的 `25091RP04C`，其他面板和内存容量没有测试过。各项的细节见[项目状态](docs/status.md)。
+
+### 尚未完成
+
+* 12-bit / FRC、连续可变刷新率（VRR）
+* 触控笔完整掌压、笔身滑动及应用快捷手势
+* 指纹录入与认证（底层已接入，未验证）
+* 红外发射
+* UEFI 阶段的触屏、官方键盘与 USB Host
+* Windows / WinPE 启动
 
 ## 快速开始
 

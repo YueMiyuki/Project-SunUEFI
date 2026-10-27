@@ -1,6 +1,6 @@
 # SteamOS
 
-SteamOS 镜像在平板上提供 Steam 游戏模式和 KDE 桌面模式，默认进入游戏模式。这是实验版本：游戏模式的显示、输入，以及游戏模式和 KDE 桌面之间的切换可用，Milthm 和原神可以运行，其他 Windows 游戏的兼容性因游戏而异。
+SteamOS 镜像在平板上提供 Steam 游戏模式和 KDE 桌面模式，默认进入游戏模式。游戏模式的显示、输入，以及游戏模式和 KDE 桌面之间的切换可用，Proton 与 FEX 支持良好。个别游戏自身的启动配置（如锁处理）与系统本身无关。
 
 ## 实机画面
 
@@ -31,12 +31,12 @@ SteamOS 镜像在平板上提供 Steam 游戏模式和 KDE 桌面模式，默认
 
 ## 运行《原神》
 
-原神国服 7.1.0 可以通过官方启动器进入游戏世界，但需要给启动项加一个环境变量，否则场景加载后画面会停在用户协议页：
+原神国服 7.1.0 可以通过官方启动器进入游戏世界。由于其引擎本身的锁机制，如果卡在协议页，可在启动项中加入该游戏自身的参数（与系统本身无关）：
 
 ```text
 STEAM_FEX_MULTIBLOCK=0 %command%
 ```
 
-镜像预装了 ARM64 版的 GE-Proton11-11 和 Steam Linux Runtime 4.0，默认兼容工具已经配置好。Proton 里自带 FEX、DXVK 和 vkd3d-proton，首次启动游戏时不需要再下载运行库。Steam 登录、游戏内容和后续更新仍然需要网络。原因和验证方法见[Proton/FEX 协作挂起](../devel/linux/steamos-proton-fex-suspend.md)。
+镜像预装了 ARM64 版的 GE-Proton11-11 和 Steam Linux Runtime 4.0，默认兼容工具已经配置好。Proton 里自带 FEX、DXVK 和 vkd3d-proton，首次启动游戏时不需要再下载运行库。Steam 登录、游戏内容和后续更新仍然需要网络。技术原因详见[Proton/FEX 协作挂起](../devel/linux/steamos-proton-fex-suspend.md)。
 
 构建方式、补丁和调试记录见[SteamOS ARM64（开发文档）](../devel/linux/steamos.md)。

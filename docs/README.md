@@ -20,6 +20,10 @@
 
 | 页面 | 内容 |
 | --- | --- |
+| [架构说明](devel/architecture.md) | 从开机到桌面的启动链、分区布局与系统交接 |
+| [UEFI 核心](devel/uefi-core.md) | UEFI 固件内部实现、安全退出与存储保护 |
+| [文档写作规范](devel/writing-style.md) | 写作规则、词汇表和改写示例 |
+| [上游项目](devel/upstreams.md) | 项目依赖的上游仓库与职责划分 |
 | [构建手册](devel/building.md) | 环境、命令、产物位置、CI 下载 |
 | [仓库地图](devel/repository-map.md) | 目录用途，哪些文件可以直接改 |
 | [测试](devel/testing.md) | 主机检查和设备验证 |
