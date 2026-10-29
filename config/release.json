@@ -7,7 +7,7 @@
     "stable_source": "https://github.com/torvalds/linux.git",
     "stable_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
     "stable_version": "7.3.0",
-    "target_tree": "4a5923915b4214f850287fc51c658781dc54a195",
+    "target_tree": "4943fa91af16cfdbfab1e89c0d19a29d0e7fbda5",
     "cpu_model_overlay": "linux/dts/piano-cpu-model.dtso",
     "additional_dtb_overlays": [
       "linux/dts/piano-cma.dtso",
@@ -24,7 +24,8 @@
       "linux/dts/piano-camera-privacy-led.dtso",
       "linux/dts/piano-touch-panel.dtso",
       "linux/dts/piano-pen-dock.dtso",
-      "linux/dts/piano-pen-charger.dtso"
+      "linux/dts/piano-pen-charger.dtso",
+      "linux/dts/piano-ir-spi-controller.dtso"
     ],
     "root_policy": "LABEL=PIANOROOT",
     "preferred_display_mode": {

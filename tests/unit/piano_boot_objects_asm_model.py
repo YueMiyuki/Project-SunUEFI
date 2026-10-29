@@ -4,10 +4,12 @@ This is a host instruction model, not ARM execution. It consumes assembled
 addresses/operands; no handoff/copy/CRC algorithm is separately implemented.
 """
 import re
-def run(raw,dis,base,el=4,fd_bytes=0x300000,fd_base=0xa7100000):
+def run(raw,dis,base,el=4,fd_bytes=0x300000,fd_base=0xa7100000,x3=0):
  ins={int(m[1],16):(m[2],m[3].split('//')[0].split('<')[0].strip()) for line in dis.splitlines() if(m:=re.match(r'\s*([0-9a-f]+): [0-9a-f]{8}\s+(\w+(?:\.\w+)?)\s*(.*)',line))}
  payload=bytes((i*17+3)&255 for i in range(fd_bytes))
  memory=[(base,bytearray(raw+payload)),(0xa7fff000,bytearray(4096))]
+ # Earlier boot's combined-kernel selector record
+ memory[1][1][0x100:0x110]=b'\xa5'*16
  if not (base<=fd_base and fd_base+fd_bytes<=base+len(raw)+fd_bytes):memory.append((fd_base,bytearray(fd_bytes)))
  def region(a,n):
   for b,p in memory:
@@ -16,7 +18,7 @@ def run(raw,dis,base,el=4,fd_bytes=0x300000,fd_base=0xa7100000):
  def read(a,n):p,o=region(a,n);return int.from_bytes(p[o:o+n],'little')
  writes=[]
  def write(a,n,v):p,o=region(a,n);p[o:o+n]=(v&((1<<(n*8))-1)).to_bytes(n,'little');writes.append((a,n))
- regs={f'x{i}':0 for i in range(31)};regs['sp']=0xa9000000;regs['x0']=0xa8500000
+ regs={f'x{i}':0 for i in range(31)};regs['sp']=0xa9000000;regs['x0']=0xa8500000;regs['x3']=x3
  def get(x):
   if x.startswith('#'):return int(x[1:],0)
   if x in ('xzr','wzr'):return 0
@@ -62,5 +64,5 @@ def run(raw,dis,base,el=4,fd_bytes=0x300000,fd_base=0xa7100000):
   pc=nextpc
  handoff=bytes(region(0xa7fff000,144)[0][:144]);copied=bytes(region(fd_base,fd_bytes)[0][region(fd_base,fd_bytes)[1]:region(fd_base,fd_bytes)[1]+fd_bytes])
  assert copied==payload
- for a,n in writes:assert 0xa7fff000<=a and a+n<=0xa7fff090 or fd_base<=a and a+n<=fd_base+fd_bytes
- return handoff,mrs,steps
+ for a,n in writes:assert 0xa7fff000<=a and a+n<=0xa7fff090 or 0xa7fff100<=a and a+n<=0xa7fff110 or fd_base<=a and a+n<=fd_base+fd_bytes
+ return handoff,mrs,steps,bytes(region(0xa7fff100,16)[0][0x100:0x110])

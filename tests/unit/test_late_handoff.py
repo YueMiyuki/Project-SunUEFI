@@ -1,6 +1,10 @@
+import platform
+import os
 from pathlib import Path
 import importlib.util,subprocess,tempfile,unittest,re,shutil,sys
 ROOT=Path(__file__).resolve().parents[2];BASE=ROOT/'upstream/Mu-Silicium/Mu_Basecore'
+HOST_PROCESSOR_BIND='AArch64' if platform.machine() in ('aarch64','arm64') else 'X64'
+TOOLCHAIN=Path(os.environ.get('SUNUEFI_TOOLCHAIN_ROOT',ROOT/'build/host-tools/usr'))
 sys.path.insert(0,str(ROOT/'tools'))
 spec=importlib.util.spec_from_file_location('late_prepare',ROOT/'tools/prepare_product_handoff.py');prepare=importlib.util.module_from_spec(spec);spec.loader.exec_module(prepare)
 def function(text,name):
@@ -106,9 +110,10 @@ class LateHandoffTests(unittest.TestCase):
    fixture=fixture.replace('#undef NULL\n','',1)
    fixture=fixture.replace("record('M');return EventStatus;","record('M');++mMemoryMapKey;return EventStatus;")
    (p/'PianoLateOwnersFixture.h').write_text('#include <Uefi.h>\nstatic UINTN mMemoryMapKey;\n'+fixture)
-   exe=p/'late';command=['cc','-std=gnu11','-DNO_MSABI_VA_FUNCS','-DPIANO_PRODUCT_NATIVE_LATE=1','-fshort-wchar','-Wall','-Wextra','-Werror',
+   # Host build takes the non-AArch64 branches, EL1 DAIF access traps at EL0
+   exe=p/'late';command=['cc','-U__aarch64__','-std=gnu11','-DNO_MSABI_VA_FUNCS','-DPIANO_PRODUCT_NATIVE_LATE=1','-fshort-wchar','-Wall','-Wextra','-Werror',
      '-Wno-unused-parameter','-Wno-misleading-indentation','-g','-fsanitize=address,undefined','-fno-pie','-no-pie',
-      '-I'+str(inc),'-I'+str(inc/'X64'),'-I'+str(shared),'-I'+str(ROOT/'uefi/core'),'-I'+str(ROOT/'uefi/components/nv'),'-I'+str(ROOT/'uefi/components/ext4'),'-I'+str(ROOT/'tests/native'),'-I'+str(p),
+      '-I'+str(inc),'-I'+str(inc/HOST_PROCESSOR_BIND),'-I'+str(shared),'-I'+str(ROOT/'uefi/core'),'-I'+str(ROOT/'uefi/components/nv'),'-I'+str(ROOT/'uefi/components/ext4'),'-I'+str(ROOT/'tests/native'),'-I'+str(p),
      '-Wno-deprecated-declarations','-I'+str(BASE/'CryptoPkg/Include'),
      str(ROOT/'tests/native/PianoLateHandoffTest.c'),str(ROOT/'uefi/components/product-handoff/PianoLateHandoff.c'),
      str(ROOT/'uefi/components/product-handoff/Mu_Basecore/MdePkg/Library/PianoProductExitLib/PianoProductExitLib.c'),
@@ -135,7 +140,7 @@ class LateHandoffTests(unittest.TestCase):
   before={name:(ROOT/name).read_bytes()for name in prepare.PINS}
   inc=BASE/'MdePkg/Include';shared=ROOT/'uefi/components/product-handoff/Mu_Basecore/MdePkg/Include'
   for name in ('PianoLateHandoff.c','Mu_Basecore/MdePkg/Library/PianoProductExitLib/PianoProductExitLib.c','Mu_Basecore/MdePkg/Library/PianoProductExitLibNull/PianoProductExitLibNull.c'):
-   subprocess.run([str(ROOT/'build/host-tools/usr/bin/clang'),'--target=aarch64-windows-msvc','-ffreestanding',
+   subprocess.run([str(TOOLCHAIN/'bin/clang'),'--target=aarch64-windows-msvc','-ffreestanding',
      '-fshort-wchar','-fsyntax-only','-Wall','-Wextra','-Werror','-I'+str(inc),'-I'+str(inc/'AArch64'),
      '-I'+str(shared),'-I'+str(ROOT/'uefi/core'),str(ROOT/'uefi/components/product-handoff'/name)],check=True)
   report=prepare.prepare(apply=False);self.assertFalse(report['product_provider_bound'])

@@ -4,8 +4,8 @@
   "kernel_version": "7.3.0",
   "base_commit": "c03c1a14507dfaf8b856c2608f9ac216021fc222",
   "base_tree": "30fd2ef82912c26cf3a58ad0ba6afc375fa851ac",
-  "target_tree": "4a5923915b4214f850287fc51c658781dc54a195",
-  "original_target_commit": "220cdeac7e4ec4e1a8bc4c2400c71fa00b21b084",
+  "target_tree": "4943fa91af16cfdbfab1e89c0d19a29d0e7fbda5",
+  "original_target_commit": "64ba46e921a4cc567566b04ed4173fcb66f13c10",
   "source_url": "https://github.com/torvalds/linux.git",
   "patches": [
     {
@@ -199,6 +199,14 @@
       "original_parent": "57b1e6db5a831d416ad438b7490144e6f8ee6af9",
       "committer_date": "2026-10-22T18:25:53+08:00",
       "tree": "4a5923915b4214f850287fc51c658781dc54a195"
+    },
+    {
+      "file": "0025-hid-xiaomi-p81c-body-gestures.patch",
+      "sha256": "f04642e17cf593e79172ff52e993a18bb9477a6c76a8b1313bfd021d7c4b1adf",
+      "original_commit": "64ba46e921a4cc567566b04ed4173fcb66f13c10",
+      "original_parent": "220cdeac7e4ec4e1a8bc4c2400c71fa00b21b084",
+      "committer_date": "2026-10-29T16:30:00+08:00",
+      "tree": "4943fa91af16cfdbfab1e89c0d19a29d0e7fbda5"
     }
   ],
   "provenance": {

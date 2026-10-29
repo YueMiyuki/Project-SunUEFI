@@ -8,7 +8,7 @@
 #undef NULL
 #include "../../uefi/core/PianoKeys.c"
 EFI_BOOT_SERVICES *gBS;static EFI_BOOT_SERVICES bs;
-EFI_GUID gEfiSimpleTextInProtocolGuid={0};EFI_GUID gEfiDevicePathProtocolGuid={0};
+EFI_GUID gEfiSimpleTextInProtocolGuid={0};EFI_GUID gEfiDevicePathProtocolGuid={0};EFI_GUID gEfiConsoleInDeviceGuid={0};
 static unsigned step,failure;static EFI_STATUS injected;static EFI_TPL current;
 BOOLEAN EFIAPI DebugPrintEnabled(VOID){return FALSE;}
 BOOLEAN EFIAPI DebugPrintLevelEnabled(UINTN L){return FALSE;}

@@ -1,6 +1,6 @@
 # 项目状态
 
-更新日期：2026-10-28。本页按功能列出当前状态。首页的表格是它的简化版；各项的技术细节在 `docs/devel/` 的对应页面中。
+更新日期：2026-10-29。本页按功能列出当前状态。首页的表格是它的简化版；各项的技术细节在 `docs/devel/` 的对应页面中。
 
 ## 测试设备
 
@@ -30,20 +30,20 @@
 | 交接与退出 | 启动 Linux 前清理 USB、UFS、时钟与 SMMU，无法确认安全时拒绝交接 |
 | 显示 | 合体 BOOT 进入 UEFI 后可显示菜单；延后原厂 ClockDxe 的 CESTA/media 和 DCD 启动初始化，保留继承的显示状态。见[显示定位](devel/boot/uefi-display.md) |
 | 菜单 / Setup / Shell | SimpleInit 菜单、TianoCore 中文设置页面与四倍字号可用；音量键移动、电源键确认、双音量键返回可用，见[设置页面](devel/boot/uefi-console.md)；Shell 尚未完成实机验证 |
-| 触屏、键盘、USB Host | UEFI 阶段没有完成，不使用 Linux 的结果代替 |
+| 触屏、键盘、USB Host | 官方键盘与触控板、触屏点按和 USB Host 已编入产品镜像，尚未在平板上实测。键盘和触屏走串行引擎的 FIFO 方式，不用 DMA；引擎只允许 DMA 方式时不启用，仍用音量键和电源键。USB Host 只在接入 USB 设备且菜单等待输入时切换，平时保持 Fastboot；外接设备的 VBUS 供电尚未确认，U 盘只读。见[UEFI 控制台](devel/boot/uefi-console.md) |
 | UEFI Fastboot | 在菜单、固件设置和 Shell 中常驻，正常 BOOT 进入时可连接；提供日志、截图、只读 `fetch`、`stage`（≤64 MiB）、`oem boot-stable` 和重启。拒绝 `flash`/`erase`；完整命令见[UEFI Fastboot](user/fastboot.md) |
-| EFI 变量 | 保存在内存，没有持久存储 |
-| 任意 `.img` / `.efi` 启动 | 没有完成，目前只启动 ESP 中的 Linux |
+| EFI 变量 | 普通非易失变量在启动服务期间保存到 `persist/sunuefi/nvram-{a,b}.bin`（两份交替写入，带 CRC），下次启动恢复；退出启动服务后的写入和安全启动认证变量不保存 |
+| 任意 `.img` / `.efi` 启动 | UEFI Shell 等不退出启动服务的 EFI 程序可以运行；操作系统只能启动 ESP 中的 Linux，其他加载器调用 ExitBootServices 会被拒绝 |
 
 ## Linux 与硬件
 
 | 项目 | 状态 | 已知问题 |
 | --- | --- | --- |
-| 显示 | 3200×2136，默认 120 Hz，刷新率切换、144 Hz、HDR 内容播放、十位输出、夜灯、标准 Gamma／Degamma及熄屏恢复 | 12-bit／FRC 与连续 VRR 不等同于上述能力，尚未完整实现 |
+| 显示 | 3200×2136，默认 120 Hz，刷新率切换、144 Hz、HDR 内容播放、十位输出、夜灯、标准 Gamma／Degamma及熄屏恢复 | 连续 VRR 未实现，只在固定刷新率之间切换。十位传输与原厂相同，原厂没有更高位深的链路，见[显示位深](devel/hardware/display-depth.md#12-bit-与抖动) |
 | GPU | Adreno 加速的 GNOME | 部分 GTK 窗口连续缩放约 30 次/秒画面提交，需继续区分客户端处理和帧回调等待；见[窗口缩放](devel/hardware/window-resize.md) |
-| 触屏 | 点按、拖动、长按、手势，约 144 Hz | 360 Hz 未实现；依赖主机端触点算法和 uinput |
+| 触屏 | 点按、拖动、长按、手势，约 144 Hz | 360 Hz 未实现：控制器切换扫描率的命令未知。触点由用户空间的 `piano-touch-view` 从原始帧计算，经 uinput 上报 |
 | 键盘 / 触控板 | 打字、触控板、背光和睡眠恢复可用，背光走 UPower / GNOME | — |
-| 触控笔 | 定位、压感绘画、144 Hz 笔输入、轻捏与震动；磁吸识别、笔电量、充满停电以及跨系统自动重新配对 | 完整掌压、笔身滑动及应用快捷手势仍需完善，见[笔协议](devel/hardware/pen-protocol.md) |
+| 触控笔 | 定位、压感绘画、144 Hz 笔输入、轻捏与震动；磁吸识别、笔电量、充满停电以及跨系统自动重新配对 | 掌压按接触面积识别（达到原厂触控配置的 70 格、约 1140 mm² 报告为 `MT_TOOL_PALM`），触屏与笔放入同一 libinput 设备组，由 libinput 忽略笔旁的触摸；已加入默认构建，阈值尚未用真实手掌数据调整。笔身上下滑动由内核映射为 Page Up／Page Down，双击笔身为第二个笔按钮（`BTN_STYLUS2`，仅笔在感应范围内），连接时打开笔端滑动设置；尚未在平板上实测。见[笔协议](devel/hardware/pen-protocol.md)和其中的[笔身手势](devel/hardware/pen-protocol.md#笔身手势) |
 | Wi-Fi | 可用 | 新系统需自行保存网络连接 |
 | 蓝牙 | 可用，启动时自动读取本机原厂地址，手工刷通用 ESP 也可初始化 | 原厂地址缺失时提供稳定硬件标识派生方案，见[蓝牙地址](devel/hardware/bluetooth.md) |
 | Linux USB 3 | 标准 Type-C 方向和角色切换、5 Gbit/s USB 调试网络 | 首次连接时序继续核对，见[USB Type-C](devel/linux/kernel.md#usb-type-c) |
@@ -58,8 +58,8 @@
 | 电源 | 双电池、PD 充电、UPower、合盖恢复、待机、挂起及 RTC／电源键唤醒；2 分钟熄屏，电池 5 分钟、外接电源 10 分钟自动挂起 | 不启用磁盘休眠。见[电源键](devel/hardware/power-button.md) |
 | 视频编解码 | ✅ | Iris 硬件加速与 V4L2 编解码可用，提供适配的 FFmpeg 软件包 |
 | SteamOS / Proton / FEX | ✅ | 游戏模式和桌面模式正常运行，ARM64 Proton 与 FEX 支持良好（个别游戏需自身参数，与项目本身无关） |
-| 指纹 | ⚠️ | 底层已接入，用户空间录入与认证未验证 |
-| 红外 / RGB 灯 | RGB 灯接口出现，红外 LIRC 候选已准备 | 红外发射未验证 |
+| 指纹 | ❌ | 供电、初始化、模板枚举和 Keymaster 绑定可用；识别命令已实现，尚未在平板上实测。录入需要 Gatekeeper 的密码令牌，而 Gatekeeper 把所有用户的记录写在与 Android 共用的 RPMB 分区，写入会改动 Android 的锁屏记录，因此 Linux 不提供录入，也不安装 fprintd，见[指纹](devel/hardware/led-ir-fingerprint.md#侧指纹) |
+| 红外 / RGB 灯 | RGB 灯接口出现；红外控制器和上游 `ir-spi-led` 发送驱动已加入默认构建，提供 LIRC 设备 | SPI 绑定和光学发射尚未在设备上确认，见[红外发射](devel/hardware/led-ir-fingerprint.md#红外发射) |
 | 默认桌面 | 中文界面、拼音输入法、Chromium 浏览器，GNOME 动画开启 | — |
 | Windows / WinPE | 目标 | 未启动 |
 

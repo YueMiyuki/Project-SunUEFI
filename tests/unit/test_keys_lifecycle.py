@@ -1,8 +1,10 @@
+import platform
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 ROOT=Path(__file__).resolve().parents[2]
+HOST_PROCESSOR_BIND='AArch64' if platform.machine() in ('aarch64','arm64') else 'X64'
 INC=ROOT/'upstream/Mu-Silicium/Mu_Basecore/MdePkg/Include'
 
 
@@ -12,7 +14,7 @@ class KeysLifecycleTests(unittest.TestCase):
             exe=str(Path(tmp)/'stop')
             subprocess.run(['cc','-std=gnu11','-fshort-wchar','-Wall','-Wextra','-Werror','-Wno-unused-parameter',
                 '-ffunction-sections','-fdata-sections','-Wl,--gc-sections','-fsanitize=address,undefined','-fno-pie','-no-pie',
-                '-I',str(INC),'-I',str(INC/'X64'),str(ROOT/'tests/native/PianoKeysLifecycleTest.c'),'-o',exe],check=True)
+                '-I',str(INC),'-I',str(INC/HOST_PROCESSOR_BIND),'-I',str(ROOT/'upstream/Mu-Silicium/Mu_Basecore/MdeModulePkg/Include'),str(ROOT/'tests/native/PianoKeysLifecycleTest.c'),'-o',exe],check=True)
             subprocess.run([exe],check=True)
 
 
